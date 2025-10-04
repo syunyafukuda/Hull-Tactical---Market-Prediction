@@ -13,6 +13,15 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Guard against committing data/artifacts
+      run: |
+        set -euo pipefail
+        if git ls-files data/ artifacts/ | grep -qE '.'; then
+          echo "Error: data/ または artifacts/ 配下のファイルがGitに含まれています。コミットしないでください。" >&2
+          git ls-files data/ artifacts/ >&2 || true
+          exit 1
+        fi
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
