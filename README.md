@@ -13,6 +13,7 @@ GitHub Codespaces を開発環境とし、パッケージ管理は **[uv](https:
 │ └─ devcontainer.json
 ├─ src/ # ライブラリコード（再利用可能な処理をモジュール化）
 ├─ scripts/ # 学習・推論などの実行スクリプト (train.py, predict.py)
+├─ docs/ # 知見やドキュメント類
 ├─ notebooks/ # 実験やEDA用のJupyterノートブック
 ├─ configs/ # HydraやYAML形式の設定ファイル
 ├─ tests/ # pytestによるテストコード
