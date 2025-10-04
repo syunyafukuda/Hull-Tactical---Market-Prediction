@@ -49,6 +49,12 @@ uv sync
 uv run python scripts/train.py
 ```
 
+品質チェック（CI相当）:
+
+```bash
+./scripts/check_quality.sh
+```
+
 Jupyter起動:
 
 ```bash
@@ -65,6 +71,27 @@ Kaggle API を利用してデータ取得や提出を自動化できます。
 ```bash
 kaggle competitions list
 ```
+
+---
+
+## 品質チェック（CI相当）
+
+ローカルでCIと同等のチェックを実行するためのスクリプトを用意しています。プッシュ前に必ず実行してください。
+
+- スクリプト: `scripts/check_quality.sh`
+- 実行内容:
+  - Ruff: Lint/フォーマットチェック（`uv run ruff check .`）
+  - Pyright: 型チェック（`uv run pyright`）
+  - Pytest: ユニットテスト＋カバレッジ（`uv run pytest --cov=src --cov-report=term-missing`）
+
+実行方法:
+
+```bash
+chmod +x scripts/check_quality.sh  # 初回のみ
+./scripts/check_quality.sh
+```
+
+すべてのチェックが通らない場合は、コミットやプッシュ前に修正してください。
 
 ---
 
