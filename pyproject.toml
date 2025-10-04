@@ -21,3 +21,20 @@ dependencies = [
     "statsmodels>=0.14.5",
     "xgboost>=3.0.5",
 ]
+
+[tool.pyright]
+include = ["src", "tests"]
+exclude = ["data", "artifacts", ".venv", ".uv", ".pytest_cache", ".ruff_cache"]
+reportMissingImports = true
+pythonVersion = "3.11"
+
+[tool.ruff]
+target-version = "py311"
+exclude = [
+    ".venv",
+    ".uv",
+    ".pytest_cache",
+    ".ruff_cache",
+    "data",
+    "artifacts",
+]
