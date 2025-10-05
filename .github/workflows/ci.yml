@@ -17,7 +17,7 @@ jobs:
       run: |
         set -euo pipefail
         if git ls-files data/ artifacts/ | grep -qE '.'; then
-          echo "Error: data/ または artifacts/ 配下のファイルがGitに含まれています。コミットしないでください。" >&2
+          echo "Error: Files under data/ or artifacts/ are included in Git. Please do not commit them." >&2
           git ls-files data/ artifacts/ >&2 || true
           exit 1
         fi
