@@ -5,7 +5,7 @@ from pathlib import Path
 def _load_harness(root: Path):
     path = root / "tests" / "common" / "submit_harness.py"
     spec = importlib.util.spec_from_file_location("submit_harness", str(path))
-    assert spec and spec.loader
+    assert spec and spec.loader, "Failed to load module spec or loader for submit_harness.py"
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)  # type: ignore[attr-defined]
     return mod
