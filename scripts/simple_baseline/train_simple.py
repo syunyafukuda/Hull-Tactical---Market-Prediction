@@ -155,10 +155,15 @@ def main() -> int:
     cat_cols = [c for c in X.columns if c not in num_cols]
 
     # simple preprocessing: one-hot encode categoricals, passthrough numerics
+    # Handle OneHotEncoder compatibility for scikit-learn <1.2 and >=1.2
+    try:
+        cat_encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+    except TypeError:
+        cat_encoder = OneHotEncoder(handle_unknown="ignore", sparse=False)
     pre = ColumnTransformer(
         transformers=[
             ("num", "passthrough", num_cols),
-            ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), cat_cols),
+            ("cat", cat_encoder, cat_cols),
         ],
         remainder="drop",
         verbose_feature_names_out=False,
