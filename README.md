@@ -12,7 +12,10 @@ GitHub Codespaces を開発環境とし、パッケージ管理は **[uv](https:
 ├─ .devcontainer/ # Codespaces 開発環境の定義ファイル
 │ └─ devcontainer.json
 ├─ src/ # ライブラリコード（再利用可能な処理をモジュール化）
-├─ scripts/ # 学習・推論などの実行スクリプト (train.py, predict.py)
+├─ scripts/ # 学習・推論などの実行スクリプト（Submit単位でディレクトリを切る）
+│  ├─ simple_baseline/
+│  │   ├─ train_simple.py   # シンプル提出用の学習
+│  │   └─ predict_simple.py # シンプル提出用の推論/提出生成
 ├─ docs/ # 知見やドキュメント類
 ├─ notebooks/ # 実験やEDA用のJupyterノートブック
 ├─ configs/ # HydraやYAML形式の設定ファイル
@@ -44,10 +47,20 @@ uv add パッケージ名
 uv sync
 ```
 
-スクリプト実行:
+スクリプト実行（例: simple_baseline 提出ライン）:
 
 ```bash
-uv run python scripts/train.py
+# 依存を同期（初回/更新時）
+uv sync
+
+# データ取得（未取得の場合）
+./scripts/fetch_data.sh
+
+# 学習（成果物は artifacts/simple_baseline/ に保存）
+uv run python scripts/simple_baseline/train_simple.py --data-dir data/raw
+
+# 推論・提出生成（submission.parquet と submission.csv を artifacts/simple_baseline/ に出力）
+uv run python scripts/simple_baseline/predict_simple.py --data-dir data/raw
 ```
 
 品質チェック（CI相当）:
@@ -189,6 +202,25 @@ train = pd.read_parquet("data/raw/train.parquet")
 test = pd.read_parquet("data/raw/test.parquet")
 train.info(); train.head()
 ```
+
+### 提出単位の運用方針（scripts / artifacts）
+
+提出（Submit）単位で「コード」と「成果物」をディレクトリ分割します。
+
+- コード: `scripts/<submit_name>/...`
+  - 例: `scripts/simple_baseline/train_simple.py`, `scripts/simple_baseline/predict_simple.py`
+- 成果物: `artifacts/<submit_name>/...`
+  - 例: `artifacts/simple_baseline/model_simple.pkl`, `artifacts/simple_baseline/model_meta.json`, `artifacts/simple_baseline/cv_simple.json`
+
+この方針により、複数の提出ライン（ベースライン/改良版/アブレーションなど）を並行管理できます。コードと成果物の対応が明確になり、切り替えが容易です。Git には引き続き成果物は含めません。
+
+#### simple_baseline の注意点
+
+- 依存: LightGBM を使用します。`uv sync` で自動導入されますが、環境によっては `uv add lightgbm` が必要な場合があります。
+- 特徴量: 学習時に `forward_returns` / `risk_free_rate` / `market_forward_excess_returns` から shift(1) で `lagged_*` を生成し、元列は除外します。train/test の共通列のみを採用します。
+- 進捗/ログ: 学習中に LightGBM の評価ログと進捗（iteration/%）を表示し、学習後はある程度のステップごとに RMSE を追試算してログ出力します。
+- 再現性: 重要度が高い場合は `--seed` を LightGBM 側パラメータに追加する等で固定可能です（現状は `random_state=42` を指定）。
+- 出力: 提出ファイルは `artifacts/simple_baseline/submission.parquet` と `artifacts/simple_baseline/submission.csv` に保存されます（CSVはデフォルト有効、`--no-csv` で抑止）。
 
 ### 評価用ファイルの扱い
 
