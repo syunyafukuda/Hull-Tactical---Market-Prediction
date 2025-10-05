@@ -22,6 +22,9 @@ logs/
 artifacts/
 outputs/
 
+# Data (local only; never commit)
+data/
+
 # Kaggle
 .kaggle/
 kaggle.json
