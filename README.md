@@ -1,5 +1,6 @@
 # Hull-Tactical---Market-Prediction
-https://www.kaggle.com/competitions/hull-tactical-market-prediction
+
+<https://www.kaggle.com/competitions/hull-tactical-market-prediction>
 
 このリポジトリは [Hull Tactical Market Prediction コンペティション](https://www.kaggle.com/competitions/hull-tactical-market-prediction) への参加用プロジェクトです。  
 GitHub Codespaces を開発環境とし、パッケージ管理は **[uv](https://github.com/astral-sh/uv)** を利用しています。
@@ -221,6 +222,51 @@ train.info(); train.head()
 - 進捗/ログ: 学習中に LightGBM の評価ログと進捗（iteration/%）を表示し、学習後はある程度のステップごとに RMSE を追試算してログ出力します。
 - 再現性: 重要度が高い場合は `--seed` を LightGBM 側パラメータに追加する等で固定可能です（現状は `random_state=42` を指定）。
 - 出力: 提出ファイルは `artifacts/simple_baseline/submission.parquet` と `artifacts/simple_baseline/submission.csv` に保存されます（CSVはデフォルト有効、`--no-csv` で抑止）。
+
+---
+
+## ローカルから Kaggle ノートブックで Submit する再現手順
+
+以下は simple_baseline を例に、ローカル学習→Kaggle Notebook 提出までの、再現可能な最短手順です。
+
+1. ローカルで学習・成果物作成
+
+- 依存同期: `uv sync`
+- データ取得: `./scripts/fetch_data.sh`
+- 学習実行: `uv run python scripts/simple_baseline/train_simple.py --data-dir data/raw`
+  - 成果物が `artifacts/simple_baseline/` に出力されます:
+    - `model_simple.pkl`
+    - `model_meta.json`
+
+1. Kaggle Private Dataset を作成（成果物と互換 Wheel を格納）
+
+- 上記 2 つの成果物を 1 つの Dataset にまとめます（例: 名前を「simple-baseline」）。
+- 互換性のため、scikit-learn の Wheel を同 Dataset に置くとオフラインでも確実にインストールできます（例: `scikit_learn-1.7.2-...whl`）。
+  - Notebook 冒頭で `!pip install --no-index /kaggle/input/simple-baseline/<wheel>.whl` を実行。
+  - 必要に応じて `lightgbm`, `joblib`, `pyarrow`, `pandas`, `numpy`, `polars` を `!pip install -q ...` で補います。
+
+1. Notebook 実装（推論 API 形式）
+
+- Dataset を Notebook にアタッチし、下記を実装します。
+  - 成果物読込: `pipe = joblib.load('/kaggle/input/simple-baseline/model_simple.pkl')`
+  - メタ読込: `meta = json.load(open('/kaggle/input/simple-baseline/model_meta.json'))`
+  - 特徴量整形: 学習時の `meta["feature_columns"]` を基準に「列順」「欠損補完（数値=NaN, カテゴリ='missing'）」を再現
+  - 評価 API: `predict(test: pl.DataFrame) -> float` を定義し、`DefaultInferenceServer(predict)` で起動
+    - 採点はこの関数の戻り値（単一 float）で行われます
+  - 任意のローカル検証セル: `submission.parquet` / `submission.csv` を書き出して形式を確認（採点時には使われません）
+
+1. Submit（インターネット OFF 推奨）
+
+- Notebook を実行・Complete し、そのまま Submit します。
+- `predict()` の戻り値仕様を満たしていれば、採点環境で自動評価されます。
+
+注意点（落とし穴）
+
+- 必須: `predict(test: pl.DataFrame) -> float` と `DefaultInferenceServer` のセル。
+- 戻り値はスカラ float。配列や DataFrame を返すとエラーになります。
+- 特徴量整形はローカル推論と同一に。`meta["feature_columns"]` を基準に列を揃え、欠損補完の型（数値/カテゴリ）を一致させます。
+- scikit-learn などライブラリのバージョン差異に注意。Wheel を Dataset に同梱し `--no-index` でその版を入れると安全です。
+- `submission.parquet`/`csv` の生成は任意（Notebook では API 呼び出しがスコアリングの本体）。ただし、形式検証には有用です。
 
 ### 評価用ファイルの扱い
 
