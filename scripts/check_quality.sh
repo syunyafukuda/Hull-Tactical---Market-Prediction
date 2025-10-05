@@ -3,7 +3,7 @@ set -euo pipefail  # エラーが出たら止める＆未定義変数で停止�
 
 echo "=== Guard: ensure no data/artifacts are tracked ==="
 if git ls-files data/ artifacts/ | grep -qE '.'; then
-	echo "Error: data/ または artifacts/ 配下のファイルがGitに含まれています。コミットしないでください。" >&2
+	echo "Error: Files under data/ or artifacts/ are tracked by Git. Please do not commit them. (データや成果物（data/ または artifacts/ 配下）のファイルがGitに含まれています。コミットしないでください。)" >&2
 	git ls-files data/ artifacts/ >&2 || true
 	exit 1
 fi
