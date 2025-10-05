@@ -128,7 +128,7 @@ def main() -> int:
 
     # CSVも原則出力（--no-csv で無効化可能）
     if not args.no_csv:
-        out_csv = Path(args.out_csv) if args.out_csv else Path("artifacts/simple_baseline/submission.csv")
+        out_csv = Path(args.out_csv)
         out_csv.parent.mkdir(parents=True, exist_ok=True)
         sub.to_csv(out_csv, index=False)
         print(f"[ok] wrote {out_csv}")
