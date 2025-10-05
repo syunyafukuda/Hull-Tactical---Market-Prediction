@@ -254,3 +254,30 @@ data:
 - `feat/<feature>` / `exp/<model>`: 特徴量追加やモデル実験用の短命ブランチ。
 
 ブランチは原則維持しません。長生きブランチは劣化（conflict・差分肥大・責務曖昧化）の温床になります。小さく早くマージし、不要になったら削除します。
+
+---
+
+## テスト方針（Submitラインを増やす場合）
+
+結論: 各Submitラインで `scripts/<experiment>/` を増やしてOK。ただしテストは「共通インターフェース」を対象に統一します。
+
+- 共通インターフェース（例）
+  - 学習: `train_model(data_dir: str | None, target_col: str, id_col: str, sample_rows: int | None = 500) -> Pipeline`
+  - 推論: `generate_submission(model, test_df: pd.DataFrame, id_col: str = "date_id", pred_col: str = "prediction", meta: dict | None = None) -> pd.DataFrame`
+  - これらを各ラインの `train_simple.py` / `predict_simple.py` に実装（軽量版でOK）
+
+- 最小テスト例
+  - `tests/test_pipeline_simple_baseline.py` は simple_baseline の軽量APIを使って、
+    - ダミーデータで学習が走るか
+    - 提出形式（id, prediction列、行数一致）が満たされるか
+    を検証します。
+
+- 追加ラインの流れ
+  1) `scripts/<new_exp>/train_simple.py` と `predict_simple.py` を作成
+  2) 上記の共通APIを実装
+  3) tests に `<new_exp>` 用の軽量テストを1本追加（もしくは共通テストに追加）
+  4) `./scripts/check_quality.sh` でCI相当チェック
+
+- 実行時間の工夫
+  - 重い学習はCIで回さず、`@pytest.mark.slow` で分離
+  - 学習APIに `sample_rows` を用意し、CIでは小規模でのみ動作確認
