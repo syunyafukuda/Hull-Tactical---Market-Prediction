@@ -124,7 +124,6 @@ def grid_search_msr(
     optimize_for: "msr" or "msr_down"
     Returns: (best_params, all_results)
     """
-    key = optimize_for
     results: List[dict] = []
     best: Tuple[float, PostProcessParams] | None = None
     lam_list = list(lam_grid) if lam_grid is not None else [None]
