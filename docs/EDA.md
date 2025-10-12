@@ -1,6 +1,6 @@
 # EDA 概要（Hull Tactical Market Prediction）
 
-最終更新: 2025-10-05
+最終更新: 2025-10-12
 
 ## 1. コンペ概要
 
@@ -78,8 +78,9 @@
 	- 学習/検証分割は時系列で行う（ランダム分割は禁止）
 
 6) 検証戦略の案（ドラフト）
-	- 時系列K-Fold（例: expanding window / rolling window）
-	- 期間ごとの安定性評価（スコアのドリフト検知）
+	- 時系列K-Fold（expanding / rolling）+ gap（リーク・近接汚染対策）
+	- coverage（OOF被覆率）をメトリクス化（目標: ≈1.0）し、n_splits/val_size/gap を調整
+	- 期間（fold）ごとの安定性評価（RMSEとMSR/vMSRのドリフト、分散の質）
 
 7) スケーリング・変換・前処理の仮説
 	- ログ変換、標準化、クリッピングの要否
@@ -88,6 +89,7 @@
 8) ベースライン作成の準備
 	- 簡易モデル（線形回帰 / ラッソ / 木系）のベースライン
 	- 最小の特徴量セットでのサニティチェック
+	- MSR-proxy（post-process: mult/lo/hi）でのローカル指標（MSR, downside-MSR, vMSR）計測
 
 9) 提出のドライラン
 	- 公式フォーマットでの出力確認（列名・ファイル名・順序）
@@ -105,12 +107,13 @@
 - [x] VIF（多重共線性）診断（上位40列）
 - [x] 外れ値検出（IQR / z>3 / MAD>4 の比率集計）
 - [x] タイムキー `date_id` の整合性（重複・ギャップ）チェック
-- [ ] 簡易ベースラインの構築（CVを時系列で）
-- [ ] 提出ファイルの雛形作成（ノート or スクリプト）
+- [x] 簡易ベースラインの構築（時系列CV; simple_baseline）
+- [x] 提出ファイルの雛形作成（ノート/スクリプト; simple_baseline, MSR-proxy）
 - [ ] 高相関・高VIF列の自動削減（しきい値/重要度併用、fold内fit）
 - [ ] PCA/PLS 等の次元圧縮（fold内fit）
 - [ ] スケーリング・単調変換比較（Standard/Robust/Quantile、log1p/Box-Cox/Yeo-Johnson；fold内fit）
 - [ ] レジーム検出（高低ボラ）とモデル比較、時系列CVの詳細設計
+- [ ] coverage≒1.0 を満たす分割設計（n_splits/val_size/gap の系統比較）
 - [ ] D*（ダミー群）の寄与評価（Permutation/SHAP）と削減判断
 - [ ] 分布シフト検定（train 後半 vs test; KS検定等）と対策
 - [ ] 診断用：test 単体の相関ヒートマップ（学習意思決定には未使用）
@@ -169,9 +172,10 @@
 
 - 欠損: 初期期間に多く、プレフィックス群で似た欠損パターン。連続値はロバスト補完、二値は欠損フラグ併用が有効。
 - 分布: 多くがゼロ付近に集中しファットテール・歪みあり。標準化/ロバストスケール/分位変換や単調変換の検討が必要。
-- 時系列: ボラが時期で変動（レジーム感）。CVは時系列で、shift(1)+rolling の徹底が必須。
+- 時系列: ボラが時期で変動（レジーム感）。CVは時系列で、shift(1)+rolling の徹底が必須。OOF coverage が 0.833 → 改善余地（分割設計の再検討）。
 - ACF/PACF: 短期ラグの自己相関の有無を確認（具体の上位ラグはノート出力参照）。ラグ/移動統計の特徴量で捉える方針。
 - 相関: 群内で強い相関塊。冗長性が高く、多重共線性対策が必要。
+- LightGBM 警告（"No further splits with positive gain"）が一部foldで多発→分割利得が乏しいサイン。深さ/葉/学習率や特徴量の見直し候補。
 - VIF: D1/D2 が ∞、I5/I9 が極端に高いなど、強い共線性を確認。しきい値削減やPCA/PLSの検討が必要。
 - 外れ値: 複数指標で外れ値比率の高い列を特定。列限定のクリッピング/ウィンザー化やロバスト損失の適用候補。
 
@@ -186,4 +190,8 @@
 - [ ] 分布シフト診断（train 後半 vs test; KS検定/PSI）と対策
 - [ ] ベースライン構築（L1/L2/ElasticNet, 木系モデル）＋時系列CVのプロトタイプ
 - [ ] 提出パイプラインの雛形作成（submission.parquet 生成のローカル検証）
+ - [ ] MSR-proxy の改善実験ブランチ作成（feature/model/post-process を分離した短命ブランチ）
+ - [ ] LightGBM 再チューニング（num_leaves↑, min_data_in_leaf↓, learning_rate↓+n_estimators↑, feature_fraction/bagging 調整）
+ - [ ] 予測振幅の校正（Isotonic/分位写像）と post-process の一体最適化
+ - [ ] fold別のスコア分散の原因分析（期間属性・ボラレジーム・分布シフト）
 

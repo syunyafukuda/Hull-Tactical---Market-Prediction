@@ -17,6 +17,9 @@ GitHub Codespaces を開発環境とし、パッケージ管理は **[uv](https:
 │  ├─ simple_baseline/
 │  │   ├─ train_simple.py   # シンプル提出用の学習
 │  │   └─ predict_simple.py # シンプル提出用の推論/提出生成
+│  ├─ MSR-proxy/
+│  │   ├─ train_msr_proxy.py   # MSR/vMSR プロキシ最適化ラインの学習
+│  │   └─ predict_msr_proxy.py # 同 推論/提出生成
 ├─ docs/ # 知見やドキュメント類
 ├─ notebooks/ # 実験やEDA用のJupyterノートブック
 ├─ configs/ # HydraやYAML形式の設定ファイル
@@ -48,7 +51,7 @@ uv add パッケージ名
 uv sync
 ```
 
-スクリプト実行（例: simple_baseline 提出ライン）:
+スクリプト実行（例: simple_baseline / MSR-proxy 提出ライン）:
 
 ```bash
 # 依存を同期（初回/更新時）
@@ -62,6 +65,13 @@ uv run python scripts/simple_baseline/train_simple.py --data-dir data/raw
 
 # 推論・提出生成（submission.parquet と submission.csv を artifacts/simple_baseline/ に出力）
 uv run python scripts/simple_baseline/predict_simple.py --data-dir data/raw
+
+# MSR-proxy ライン（MSR/vMSR プロキシ最適化）
+# 学習（成果物は artifacts/MSR-proxy/ に保存）
+uv run python scripts/MSR-proxy/train_msr_proxy.py --data-dir data/raw --out-dir artifacts/MSR-proxy
+
+# 推論・提出生成（submission.parquet / submission.csv を出力）
+uv run python scripts/MSR-proxy/predict_msr_proxy.py --data-dir data/raw --artifacts-dir artifacts/MSR-proxy
 ```
 
 品質チェック（CI相当）:
@@ -327,3 +337,14 @@ data:
 - 実行時間の工夫
   - 重い学習はCIで回さず、`@pytest.mark.slow` で分離
   - 学習APIに `sample_rows` を用意し、CIでは小規模でのみ動作確認
+
+---
+
+### Kaggle Notebook 依存固定（MSR-proxy 提出ラインの補足）
+
+MSR-proxy の成果物は、scikit-learn のバージョン依存で `joblib.load` 振る舞いが変わる場合があります。Notebook では Private Dataset に 1.7.2 の wheel を同梱し、冒頭で次のように導入してください。
+
+- scikit-learn 1.7.2 を `--no-index --no-deps --force-reinstall` でインストール
+- その後に `lightgbm==4.6.0`, `joblib`, `pyarrow`, `polars`, `pandas` をインストール
+
+詳細は `docs/submissions.md` の 2025-10-12 エントリに Notebook のサンプル断片を記載しています。
