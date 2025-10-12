@@ -13,6 +13,9 @@ def _add_src_to_path() -> None:
     src = os.path.join(root, "src")
     if src not in sys.path:
         sys.path.insert(0, src)
+    # scripts.* を import 可能にするため、プロジェクトルートも追加
+    if root not in sys.path:
+        sys.path.insert(0, root)
 
 
 _add_src_to_path()
