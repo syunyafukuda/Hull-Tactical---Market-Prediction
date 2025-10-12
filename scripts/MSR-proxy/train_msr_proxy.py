@@ -141,7 +141,6 @@ def main() -> int:
     if "date_id" in df.columns:
         df = df.sort_values("date_id").reset_index(drop=True)
     # 余計なラグ生成は行わない（予測で未使用のためI/OとRAMを節約）
-    generated_lagged: list[str] = []
     # testヘッダ読み込み（列交差用）
     test_path = infer_test_file(data_dir, args.test_file)
     print(f"[info] test file (for column alignment): {test_path}")
