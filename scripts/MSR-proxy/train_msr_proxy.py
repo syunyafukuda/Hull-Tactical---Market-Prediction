@@ -47,6 +47,18 @@ from scripts.utils_msr import (  # noqa: E402
 )
 
 
+def _to_1d_np(pred) -> np.ndarray:
+    """Ensure prediction is a 1-D numpy array.
+    Some estimators may return a tuple (pred, aux). We only need the first.
+    """
+    if isinstance(pred, tuple):
+        pred = pred[0]
+    arr = np.asarray(pred)
+    if arr.ndim > 1:
+        arr = arr.ravel()
+    return arr.astype(float, copy=False)
+
+
 def infer_train_file(data_dir: Path, explicit: str | None) -> Path:
     if explicit:
         p = Path(explicit)
@@ -141,6 +153,7 @@ def main() -> int:
     if "date_id" in df.columns:
         df = df.sort_values("date_id").reset_index(drop=True)
     # 余計なラグ生成は行わない（予測で未使用のためI/OとRAMを節約）
+    generated_lagged: list[str] = []
     # testヘッダ読み込み（列交差用）
     test_path = infer_test_file(data_dir, args.test_file)
     print(f"[info] test file (for column alignment): {test_path}")
@@ -285,6 +298,7 @@ def main() -> int:
         except TypeError:
             pipe_f.fit(X_tr, y_tr)
         yhat_va = pipe_f.predict(X_va)
+        yhat_va = _to_1d_np(yhat_va)
         oof_pred[val_idx] = yhat_va
         rmse_va = float(np.sqrt(mean_squared_error(y_va, yhat_va)))
 
