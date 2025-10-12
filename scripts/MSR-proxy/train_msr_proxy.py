@@ -455,7 +455,6 @@ def main() -> int:
     print(f"[ok] saved: {model_path}, model_meta.json")
 
     # 参考: OOFグリッド結果とfold最良の分布をCSVで残す
-    import pandas as pd
     try:
         pd.DataFrame(grid_all).to_csv(out_dir / "oof_grid_results.csv", index=False)
         pd.DataFrame(fold_logs).to_csv(out_dir / "cv_fold_logs.csv", index=False)
