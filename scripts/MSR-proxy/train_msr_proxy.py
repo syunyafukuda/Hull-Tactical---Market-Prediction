@@ -17,7 +17,6 @@ import sys
 from pathlib import Path
 import pandas as pd
 import numpy as np
- 
 
 try:
     from lightgbm import LGBMRegressor  # type: ignore
