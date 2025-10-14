@@ -1,6 +1,6 @@
 # 前処理・特徴量生成ガイド
 
-最終更新: 2025-10-12
+最終更新: 2025-10-14
 
 ## 特徴量エンジニアリングの標準プロセス
 
@@ -75,6 +75,27 @@ preprocess:
 5. 定常化または特殊変換（P5）
 6. 符号化（P6）
 
+## M 系欠損補完の運用フロー
+
+- **ステップ1: スイープ実行**
+  - コマンド例: `python src/preprocess/M_group/sweep_m_policy.py --policies ffill_bfill linear_interp`。
+  - `results/ablation/<timestamp>_m_group_*.json` とサマリ `..._summary.csv` が生成され、各ポリシーの OOF 指標（RMSE, MSR など）と適用パラメータが記録される。
+- **ステップ2: 結果比較**
+  - `summary.csv` を基にスコア・coverage・季節列有無を比較し、採用候補を決定する。
+  - 追加パラメータは `param_*` 列で確認できるため、設定値の抜け漏れを防げる。
+- **ステップ3: 設定反映**
+  - 採用するポリシーとパラメータを `configs/preprocess.yaml` の `m_group` セクションへ反映し、後続処理に共有する。
+  - カレンダー参照列（例: `date_id`）を利用する場合は `calendar_column` を必ず揃える。
+- **ステップ4: 本番学習**
+  - コマンド例: `python src/preprocess/M_group/train_pre_m.py --m-policy linear_interp --m-policy-param deg=2 --m-calendar-col date_id`。
+  - モデル・メタ情報が `artifacts/Preprocessing_M/` に保存され、OOF のグリッド探索ログと fold ログも併せて出力される。
+- **ステップ5: 推論・提出物生成**
+  - コマンド例: `python src/preprocess/M_group/predict_pre_m.py --artifacts-dir artifacts/Preprocessing_M --data-dir data/raw`。
+  - 学習時と同じ特徴構成で整形され、`submission.parquet` / `submission.csv` が再生成される。
+- **ステップ6: 検証/共有**
+  - `model_meta.json` に保存された `m_policy_params`, `m_calendar_col`, `m_mask_cols` を確認し、再学習や他メンバーとの共有時に参照する。
+  - 必要に応じて `results/ablation` のログと併せて PR に貼り付け、意思決定の根拠とする。
+
 ## ブランチ運用例
 
 | ブランチ例 | 内容 | 検証方法 |
@@ -114,7 +135,7 @@ preprocess:
 
 ### A. シンプル時系列系
 
-- `ffill_bfill`: 前方→後方補完（fold 境界でリセット）
+- `ffill_bfill`（別名: `ffill_train_bfill_in_fit`）: 学習時は前方→後方でウォームスタート、推論時は前方方向のみ（fold境界でリセット）
 - `ffill_only`: 後方へは広げず初期 NaN は残す（後続処理で対応）
 - `rolling_median_k`: 過去 k 日の中央値で補完
 - `rolling_mean_k`: 過去 k 日の平均で補完（外れ値に弱い）
@@ -149,8 +170,8 @@ preprocess:
 
 ### F. 時系列モデル系
 
-- `kalman_local_level`: ローカルレベル・カルマン平滑
-- `arima_auto`: ARIMA で予測補完（初期区間に難）
+- `kalman_local_level`: ローカルレベル・カルマンフィルタ（statsmodels の fittedvalues = filter 出力のみ使用）
+- `arima_auto`: ARIMA で予測補完（statsmodels の fittedvalues = filter 出力のみ使用）
 - `state_space_custom`: 局所線形トレンドモデル
 
 ### G. マスク活用・二段構え

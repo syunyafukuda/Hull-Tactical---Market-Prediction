@@ -1,6 +1,6 @@
 # EDA 概要（Hull Tactical Market Prediction）
 
-最終更新: 2025-10-12
+最終更新: 2025-10-14
 
 ## 1. コンペ概要
 
@@ -194,4 +194,11 @@
  - [ ] LightGBM 再チューニング（num_leaves↑, min_data_in_leaf↓, learning_rate↓+n_estimators↑, feature_fraction/bagging 調整）
  - [ ] 予測振幅の校正（Isotonic/分位写像）と post-process の一体最適化
  - [ ] fold別のスコア分散の原因分析（期間属性・ボラレジーム・分布シフト）
+
+
+## 10. プロジェクト進捗サマリ
+
+- **フェーズ1: scripts/simple_baseline** — 最小構成のベースラインを実装し、データ整形と時系列CVのワークフローを確認済み。
+- **フェーズ2: scripts/MSR-proxy** — 公開評価ロジックに寄せた MSR プロキシを導入し、post-process（mult/lo/hi）とメタ情報保存を整備済み。
+- **フェーズ3: src/preprocess/M_group** — M 系特徴量向けの欠損補完ポリシー群を実装し、スイープ→比較→設定→本番学習/推論のフローを構築中（現在このフェーズの評価・採用判断を進行中）。
 
