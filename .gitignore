@@ -22,6 +22,7 @@ uv.lock.bak
 logs/
 artifacts/
 outputs/
+results/
 
 # Data (local only; never commit)
 data/
