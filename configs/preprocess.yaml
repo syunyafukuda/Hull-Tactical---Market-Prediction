@@ -1,5 +1,5 @@
 m_group:
-  policy: "ffill_bfill"
+  policy: "ridge_stack"
   rolling_window: 5
   ema_alpha: 0.3
   calendar_column: "date_id"
