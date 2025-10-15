@@ -531,6 +531,11 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
             restored[col] = restored[col] * std + mean
         return restored
 
+    @staticmethod
+    def _series_any(series: pd.Series) -> bool:
+        """Return whether a boolean Series contains any True values."""
+        return bool(np.any(series.to_numpy(dtype=bool, copy=False)))
+
     def _calendar_to_datetime(self, series: pd.Series | None) -> pd.Series | None:
         if series is None:
             return None
@@ -1000,7 +1005,11 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         n_neighbors = max(1, n_neighbors)
         means, stds = self._compute_scaler_stats(data)
         scaled = self._standardize_with_stats(data, means, stds)
-        available_cols = [col for col in self.columns_ if data[col].notna().any()]
+        available_cols: List[str] = []
+        for col in self.columns_:
+            notna_series = cast(pd.Series, data[col].notna())
+            if self._series_any(notna_series):
+                available_cols.append(col)
         missing_cols = [col for col in self.columns_ if col not in available_cols]
 
         if not available_cols:
@@ -1020,7 +1029,11 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         imputer = KNNImputer(n_neighbors=n_neighbors, weights="distance")
         scaled_subset = scaled.loc[:, available_cols]
         filled_array = imputer.fit_transform(scaled_subset)
-        filled_scaled_subset = pd.DataFrame(filled_array, columns=available_cols, index=data.index)
+        filled_scaled_subset = pd.DataFrame(
+            filled_array,
+            columns=pd.Index(available_cols),
+            index=data.index,
+        )
 
         filled_scaled = scaled.copy()
         filled_scaled.loc[:, available_cols] = filled_scaled_subset
@@ -1029,14 +1042,13 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         medians_lookup = self._medians_dict_
         for col in missing_cols:
             median_val = float(medians_lookup.get(col, 0.0))
-            mask_missing = filled[col].isna()
-            if mask_missing.any():
+            mask_missing = cast(pd.Series, filled[col].isna())
+            if self._series_any(mask_missing):
                 filled.loc[mask_missing, col] = median_val
 
         for col in self.columns_:
-            mask_series = data[col].isna()
-            mask_array = mask_series.to_numpy(dtype=bool, copy=False)
-            if not bool(mask_array.all()):
+            mask_series = cast(pd.Series, data[col].isna()).astype(bool)
+            if self._series_any(~mask_series):
                 filled.loc[~mask_series, col] = data.loc[~mask_series, col].astype(float)
 
         state = {
@@ -1062,20 +1074,23 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         if imputer is not None and available_cols:
             scaled_subset = scaled.loc[:, available_cols]
             filled_array = imputer.transform(scaled_subset)
-            filled_scaled_subset = pd.DataFrame(filled_array, columns=available_cols, index=data.index)
+            filled_scaled_subset = pd.DataFrame(
+                filled_array,
+                columns=pd.Index(available_cols),
+                index=data.index,
+            )
             scaled.loc[:, available_cols] = filled_scaled_subset
         filled = self._destandardize_with_stats(scaled, means, stds)
 
         for col in missing_cols:
             median_val = float(medians_lookup.get(col, 0.0))
-            mask_missing = filled[col].isna()
-            if mask_missing.any():
+            mask_missing = cast(pd.Series, filled[col].isna())
+            if self._series_any(mask_missing):
                 filled.loc[mask_missing, col] = median_val
 
         for col in self.columns_:
-            mask_series = data[col].isna()
-            mask_array = mask_series.to_numpy(dtype=bool, copy=False)
-            if not bool(mask_array.all()):
+            mask_series = cast(pd.Series, data[col].isna()).astype(bool)
+            if self._series_any(~mask_series):
                 filled.loc[~mask_series, col] = data.loc[~mask_series, col].astype(float)
         return filled
 
@@ -1121,7 +1136,11 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         max_iter = int(self._get_policy_param("mice_max_iter", 10))
         means, stds = self._compute_scaler_stats(data)
         scaled = self._standardize_with_stats(data, means, stds)
-        available_cols = [col for col in self.columns_ if data[col].notna().any()]
+        available_cols: List[str] = []
+        for col in self.columns_:
+            notna_series = cast(pd.Series, data[col].notna())
+            if self._series_any(notna_series):
+                available_cols.append(col)
         missing_cols = [col for col in self.columns_ if col not in available_cols]
 
         if not available_cols:
@@ -1140,7 +1159,11 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         scaled_subset = scaled.loc[:, available_cols]
         imputer = IterativeImputer(random_state=self.random_state, max_iter=max_iter, sample_posterior=False)
         filled_array = imputer.fit_transform(scaled_subset)
-        filled_scaled_subset = pd.DataFrame(filled_array, columns=available_cols, index=data.index)
+        filled_scaled_subset = pd.DataFrame(
+            filled_array,
+            columns=pd.Index(available_cols),
+            index=data.index,
+        )
 
         filled_scaled = scaled.copy()
         filled_scaled.loc[:, available_cols] = filled_scaled_subset
@@ -1149,14 +1172,13 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         medians_lookup = self._medians_dict_
         for col in missing_cols:
             median_val = float(medians_lookup.get(col, 0.0))
-            mask_missing = filled[col].isna()
-            if mask_missing.any():
+            mask_missing = cast(pd.Series, filled[col].isna())
+            if self._series_any(mask_missing):
                 filled.loc[mask_missing, col] = median_val
 
         for col in self.columns_:
-            mask_series = data[col].isna()
-            mask_array = mask_series.to_numpy(dtype=bool, copy=False)
-            if not bool(mask_array.all()):
+            mask_series = cast(pd.Series, data[col].isna()).astype(bool)
+            if self._series_any(~mask_series):
                 filled.loc[~mask_series, col] = data.loc[~mask_series, col].astype(float)
         state = {
             "imputer": imputer,
@@ -1180,20 +1202,23 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         if imputer is not None and available_cols:
             scaled_subset = scaled.loc[:, available_cols]
             filled_array = imputer.transform(scaled_subset)
-            filled_scaled_subset = pd.DataFrame(filled_array, columns=available_cols, index=data.index)
+            filled_scaled_subset = pd.DataFrame(
+                filled_array,
+                columns=pd.Index(available_cols),
+                index=data.index,
+            )
             scaled.loc[:, available_cols] = filled_scaled_subset
         filled = self._destandardize_with_stats(scaled, means, stds)
 
         for col in missing_cols:
             median_val = float(medians_lookup.get(col, 0.0))
-            mask_missing = filled[col].isna()
-            if mask_missing.any():
+            mask_missing = cast(pd.Series, filled[col].isna())
+            if self._series_any(mask_missing):
                 filled.loc[mask_missing, col] = median_val
 
         for col in self.columns_:
-            mask_series = data[col].isna()
-            mask_array = mask_series.to_numpy(dtype=bool, copy=False)
-            if not bool(mask_array.all()):
+            mask_series = cast(pd.Series, data[col].isna()).astype(bool)
+            if self._series_any(~mask_series):
                 filled.loc[~mask_series, col] = data.loc[~mask_series, col].astype(float)
         return filled
 
@@ -1202,7 +1227,11 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         n_estimators = int(self._get_policy_param("missforest_estimators", 200))
         means, stds = self._compute_scaler_stats(data)
         scaled = self._standardize_with_stats(data, means, stds)
-        available_cols = [col for col in self.columns_ if data[col].notna().any()]
+        available_cols: List[str] = []
+        for col in self.columns_:
+            notna_series = cast(pd.Series, data[col].notna())
+            if self._series_any(notna_series):
+                available_cols.append(col)
         missing_cols = [col for col in self.columns_ if col not in available_cols]
 
         if not available_cols:
@@ -1233,7 +1262,11 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
             initial_strategy="median",
         )
         filled_array = imputer.fit_transform(scaled_subset)
-        filled_scaled_subset = pd.DataFrame(filled_array, columns=available_cols, index=data.index)
+        filled_scaled_subset = pd.DataFrame(
+            filled_array,
+            columns=pd.Index(available_cols),
+            index=data.index,
+        )
 
         filled_scaled = scaled.copy()
         filled_scaled.loc[:, available_cols] = filled_scaled_subset
@@ -1242,14 +1275,13 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         medians_lookup = self._medians_dict_
         for col in missing_cols:
             median_val = float(medians_lookup.get(col, 0.0))
-            mask_missing = filled[col].isna()
-            if mask_missing.any():
+            mask_missing = cast(pd.Series, filled[col].isna())
+            if self._series_any(mask_missing):
                 filled.loc[mask_missing, col] = median_val
 
         for col in self.columns_:
-            mask_series = data[col].isna()
-            mask_array = mask_series.to_numpy(dtype=bool, copy=False)
-            if not bool(mask_array.all()):
+            mask_series = cast(pd.Series, data[col].isna()).astype(bool)
+            if self._series_any(~mask_series):
                 filled.loc[~mask_series, col] = data.loc[~mask_series, col].astype(float)
         state = {
             "imputer": imputer,
@@ -1273,20 +1305,23 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         if imputer is not None and available_cols:
             scaled_subset = scaled.loc[:, available_cols]
             filled_array = imputer.transform(scaled_subset)
-            filled_scaled_subset = pd.DataFrame(filled_array, columns=available_cols, index=data.index)
+            filled_scaled_subset = pd.DataFrame(
+                filled_array,
+                columns=pd.Index(available_cols),
+                index=data.index,
+            )
             scaled.loc[:, available_cols] = filled_scaled_subset
         filled = self._destandardize_with_stats(scaled, means, stds)
 
         for col in missing_cols:
             median_val = float(medians_lookup.get(col, 0.0))
-            mask_missing = filled[col].isna()
-            if mask_missing.any():
+            mask_missing = cast(pd.Series, filled[col].isna())
+            if self._series_any(mask_missing):
                 filled.loc[mask_missing, col] = median_val
 
         for col in self.columns_:
-            mask_series = data[col].isna()
-            mask_array = mask_series.to_numpy(dtype=bool, copy=False)
-            if not bool(mask_array.all()):
+            mask_series = cast(pd.Series, data[col].isna()).astype(bool)
+            if self._series_any(~mask_series):
                 filled.loc[~mask_series, col] = data.loc[~mask_series, col].astype(float)
         return filled
 
@@ -1296,8 +1331,8 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         filled_reference = data.fillna(medians_series)
         models: Dict[str, Ridge] = {}
         for col in self.columns_:
-            mask = data[col].notna()
-            if mask.sum() < 2:
+            mask = cast(pd.Series, data[col].notna())
+            if int(mask.sum()) < 2:
                 continue
             target = data.loc[mask, col].astype(float)
             features = filled_reference.loc[mask, [c for c in self.columns_ if c != col]]
@@ -1307,9 +1342,8 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
 
         filled = filled_reference.copy()
         for col in self.columns_:
-            mask_series = data[col].isna()
-            mask_array = mask_series.to_numpy(dtype=bool, copy=False)
-            if not bool(mask_array.any()):
+            mask_series = cast(pd.Series, data[col].isna()).astype(bool)
+            if not self._series_any(mask_series):
                 filled[col] = data[col].astype(float)
                 continue
             model = models.get(col)
@@ -1332,9 +1366,8 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         medians_series = pd.Series(medians_lookup)
         filled = data.fillna(medians_series)
         for col in self.columns_:
-            mask_series = data[col].isna()
-            mask_array = mask_series.to_numpy(dtype=bool, copy=False)
-            if not bool(mask_array.any()):
+            mask_series = cast(pd.Series, data[col].isna()).astype(bool)
+            if not self._series_any(mask_series):
                 filled[col] = data[col].astype(float)
                 continue
             model = models.get(col)

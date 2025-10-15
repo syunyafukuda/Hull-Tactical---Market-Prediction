@@ -165,7 +165,12 @@ def main() -> int:
 
     # 学習時の列順に並べる
     # id順に並べて予測（戻すために元インデックスも保持）
-    df_feat_sorted = df_feat.join(df_test[[args.id_col]]).sort_values(args.id_col).reset_index()
+    # Sort by identifier while keeping alignment even when the id column is already present
+    if args.id_col in df_feat.columns:
+        df_feat_sorted = df_feat.copy()
+    else:
+        df_feat_sorted = df_feat.join(df_test[[args.id_col]], how="left")
+    df_feat_sorted = df_feat_sorted.sort_values(args.id_col).reset_index()
     X_infer = df_feat_sorted[feat_cols]
 
     print("[info] predicting...")
