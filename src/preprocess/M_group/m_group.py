@@ -725,20 +725,6 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
                     last_valid[col] = valf
 
         filled = fallback.copy()
-        next_values: Dict[str, float | None] = {col: None for col in self.columns_}
-        for index_label in reversed(data.index):
-            for col in self.columns_:
-                original = data.at[index_label, col]
-                if pd.isna(original):
-                    candidate = next_values[col]
-                    if candidate is not None:
-                        filled.at[index_label, col] = candidate
-                    else:
-                        filled.at[index_label, col] = fallback.at[index_label, col]
-                else:
-                    valf = float(cast(float, original))
-                    filled.at[index_label, col] = valf
-                    next_values[col] = valf
 
         requested_history = self._history_length()
         history_len, tail = self._effective_history(filled, requested_history)
@@ -778,20 +764,6 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
                     base_deques[col].append(valf)
 
         filled = fallback.copy()
-        next_values: Dict[str, float | None] = {col: None for col in self.columns_}
-        for index_label in reversed(data.index):
-            for col in self.columns_:
-                original = data.at[index_label, col]
-                if pd.isna(original):
-                    candidate = next_values[col]
-                    if candidate is not None:
-                        filled.at[index_label, col] = candidate
-                    else:
-                        filled.at[index_label, col] = fallback.at[index_label, col]
-                else:
-                    valf = float(cast(float, original))
-                    filled.at[index_label, col] = valf
-                    next_values[col] = valf
 
         for col in self.columns_:
             series = filled[col]
