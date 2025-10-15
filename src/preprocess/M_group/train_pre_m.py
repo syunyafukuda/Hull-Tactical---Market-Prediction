@@ -426,8 +426,6 @@ def main() -> int:
         fit_kwargs_f: dict = {}
         if callbacks:
             fit_kwargs_f["model__callbacks"] = callbacks
-            fit_kwargs_f["model__eval_set"] = [(X_va, y_va)]
-            fit_kwargs_f["model__eval_metric"] = "rmse"
 
         # 例外安全: 一部環境で callbacks が型不一致になる場合のフォールバック
         try:

@@ -97,7 +97,8 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         self.rolling_window = int(rolling_window)
         self.ema_alpha = float(ema_alpha)
         self.calendar_column = calendar_column
-        self.policy_params: Dict[str, Any] = dict(policy_params) if policy_params is not None else {}
+        self.policy_params = policy_params
+        self._policy_params: Dict[str, Any] = dict(policy_params) if policy_params is not None else {}
         self.random_state = int(random_state)
 
     # ------------------------------------------------------------------
@@ -479,7 +480,7 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         return None
 
     def _get_policy_param(self, key: str, default: Any) -> Any:
-        return self.policy_params.get(key, default)
+        return self._policy_params.get(key, default)
 
     def _history_length(self) -> int:
         raw = int(self._get_policy_param("history_length", max(self.rolling_window, 2)))
@@ -999,28 +1000,78 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         n_neighbors = max(1, n_neighbors)
         means, stds = self._compute_scaler_stats(data)
         scaled = self._standardize_with_stats(data, means, stds)
+        available_cols = [col for col in self.columns_ if data[col].notna().any()]
+        missing_cols = [col for col in self.columns_ if col not in available_cols]
+
+        if not available_cols:
+            # No informative columns => fall back to medians.
+            medians_series = pd.Series({col: self._medians_dict_.get(col, 0.0) for col in self.columns_})
+            filled = data.fillna(medians_series)
+            state = {
+                "imputer": None,
+                "scaler_means": means,
+                "scaler_stds": stds,
+                "available_cols": available_cols,
+                "missing_cols": missing_cols,
+                "medians": self._medians_dict_,
+            }
+            return filled, state
+
         imputer = KNNImputer(n_neighbors=n_neighbors, weights="distance")
-        filled_array = imputer.fit_transform(scaled)
-        filled_scaled = pd.DataFrame(filled_array, columns=data.columns, index=data.index)
+        scaled_subset = scaled.loc[:, available_cols]
+        filled_array = imputer.fit_transform(scaled_subset)
+        filled_scaled_subset = pd.DataFrame(filled_array, columns=available_cols, index=data.index)
+
+        filled_scaled = scaled.copy()
+        filled_scaled.loc[:, available_cols] = filled_scaled_subset
         filled = self._destandardize_with_stats(filled_scaled, means, stds)
+
+        medians_lookup = self._medians_dict_
+        for col in missing_cols:
+            median_val = float(medians_lookup.get(col, 0.0))
+            mask_missing = filled[col].isna()
+            if mask_missing.any():
+                filled.loc[mask_missing, col] = median_val
+
         for col in self.columns_:
             mask_series = data[col].isna()
             mask_array = mask_series.to_numpy(dtype=bool, copy=False)
             if not bool(mask_array.all()):
                 filled.loc[~mask_series, col] = data.loc[~mask_series, col].astype(float)
-        state = {"imputer": imputer, "scaler_means": means, "scaler_stds": stds}
+
+        state = {
+            "imputer": imputer,
+            "scaler_means": means,
+            "scaler_stds": stds,
+            "available_cols": available_cols,
+            "missing_cols": missing_cols,
+            "medians": medians_lookup,
+        }
         return filled, state
 
     def _transform_knn(self, data: pd.DataFrame):
         imputer = cast(KNNImputer, self._state_.get("imputer"))
-        if imputer is None:
-            raise RuntimeError("KNN imputer state missing; fit must be called before transform.")
         means = cast(Dict[str, float], self._state_.get("scaler_means", {}))
         stds = cast(Dict[str, float], self._state_.get("scaler_stds", {}))
+        available_cols = cast(List[str], self._state_.get("available_cols", []))
+        missing_cols = cast(List[str], self._state_.get("missing_cols", []))
+        medians_lookup = cast(Dict[Hashable, float], self._state_.get("medians", {}))
+
         scaled = self._standardize_with_stats(data, means, stds)
-        filled_array = imputer.transform(scaled)
-        filled_scaled = pd.DataFrame(filled_array, columns=data.columns, index=data.index)
-        filled = self._destandardize_with_stats(filled_scaled, means, stds)
+
+        if imputer is not None and available_cols:
+            scaled_subset = scaled.loc[:, available_cols]
+            filled_array = imputer.transform(scaled_subset)
+            filled_scaled_subset = pd.DataFrame(filled_array, columns=available_cols, index=data.index)
+            scaled.loc[:, available_cols] = filled_scaled_subset
+        filled = self._destandardize_with_stats(scaled, means, stds)
+
+        for col in missing_cols:
+            median_val = float(medians_lookup.get(col, 0.0))
+            mask_missing = filled[col].isna()
+            if mask_missing.any():
+                filled.loc[mask_missing, col] = median_val
+
         for col in self.columns_:
             mask_series = data[col].isna()
             mask_array = mask_series.to_numpy(dtype=bool, copy=False)
@@ -1070,28 +1121,75 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         max_iter = int(self._get_policy_param("mice_max_iter", 10))
         means, stds = self._compute_scaler_stats(data)
         scaled = self._standardize_with_stats(data, means, stds)
+        available_cols = [col for col in self.columns_ if data[col].notna().any()]
+        missing_cols = [col for col in self.columns_ if col not in available_cols]
+
+        if not available_cols:
+            medians_series = pd.Series({col: self._medians_dict_.get(col, 0.0) for col in self.columns_})
+            filled = data.fillna(medians_series)
+            state = {
+                "imputer": None,
+                "scaler_means": means,
+                "scaler_stds": stds,
+                "available_cols": available_cols,
+                "missing_cols": missing_cols,
+                "medians": self._medians_dict_,
+            }
+            return filled, state
+
+        scaled_subset = scaled.loc[:, available_cols]
         imputer = IterativeImputer(random_state=self.random_state, max_iter=max_iter, sample_posterior=False)
-        filled_array = imputer.fit_transform(scaled)
-        filled_scaled = pd.DataFrame(filled_array, columns=data.columns, index=data.index)
+        filled_array = imputer.fit_transform(scaled_subset)
+        filled_scaled_subset = pd.DataFrame(filled_array, columns=available_cols, index=data.index)
+
+        filled_scaled = scaled.copy()
+        filled_scaled.loc[:, available_cols] = filled_scaled_subset
         filled = self._destandardize_with_stats(filled_scaled, means, stds)
+
+        medians_lookup = self._medians_dict_
+        for col in missing_cols:
+            median_val = float(medians_lookup.get(col, 0.0))
+            mask_missing = filled[col].isna()
+            if mask_missing.any():
+                filled.loc[mask_missing, col] = median_val
+
         for col in self.columns_:
             mask_series = data[col].isna()
             mask_array = mask_series.to_numpy(dtype=bool, copy=False)
             if not bool(mask_array.all()):
                 filled.loc[~mask_series, col] = data.loc[~mask_series, col].astype(float)
-        state = {"imputer": imputer, "scaler_means": means, "scaler_stds": stds}
+        state = {
+            "imputer": imputer,
+            "scaler_means": means,
+            "scaler_stds": stds,
+            "available_cols": available_cols,
+            "missing_cols": missing_cols,
+            "medians": medians_lookup,
+        }
         return filled, state
 
     def _transform_mice(self, data: pd.DataFrame):
         imputer = cast(IterativeImputer, self._state_.get("imputer"))
-        if imputer is None:
-            raise RuntimeError("MICE imputer state missing; fit must be called before transform.")
         means = cast(Dict[str, float], self._state_.get("scaler_means", {}))
         stds = cast(Dict[str, float], self._state_.get("scaler_stds", {}))
+        available_cols = cast(List[str], self._state_.get("available_cols", []))
+        missing_cols = cast(List[str], self._state_.get("missing_cols", []))
+        medians_lookup = cast(Dict[Hashable, float], self._state_.get("medians", {}))
+
         scaled = self._standardize_with_stats(data, means, stds)
-        filled_array = imputer.transform(scaled)
-        filled_scaled = pd.DataFrame(filled_array, columns=data.columns, index=data.index)
-        filled = self._destandardize_with_stats(filled_scaled, means, stds)
+        if imputer is not None and available_cols:
+            scaled_subset = scaled.loc[:, available_cols]
+            filled_array = imputer.transform(scaled_subset)
+            filled_scaled_subset = pd.DataFrame(filled_array, columns=available_cols, index=data.index)
+            scaled.loc[:, available_cols] = filled_scaled_subset
+        filled = self._destandardize_with_stats(scaled, means, stds)
+
+        for col in missing_cols:
+            median_val = float(medians_lookup.get(col, 0.0))
+            mask_missing = filled[col].isna()
+            if mask_missing.any():
+                filled.loc[mask_missing, col] = median_val
+
         for col in self.columns_:
             mask_series = data[col].isna()
             mask_array = mask_series.to_numpy(dtype=bool, copy=False)
@@ -1104,6 +1202,23 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         n_estimators = int(self._get_policy_param("missforest_estimators", 200))
         means, stds = self._compute_scaler_stats(data)
         scaled = self._standardize_with_stats(data, means, stds)
+        available_cols = [col for col in self.columns_ if data[col].notna().any()]
+        missing_cols = [col for col in self.columns_ if col not in available_cols]
+
+        if not available_cols:
+            medians_series = pd.Series({col: self._medians_dict_.get(col, 0.0) for col in self.columns_})
+            filled = data.fillna(medians_series)
+            state = {
+                "imputer": None,
+                "scaler_means": means,
+                "scaler_stds": stds,
+                "available_cols": available_cols,
+                "missing_cols": missing_cols,
+                "medians": self._medians_dict_,
+            }
+            return filled, state
+
+        scaled_subset = scaled.loc[:, available_cols]
         estimator = RandomForestRegressor(
             n_estimators=n_estimators,
             random_state=self.random_state,
@@ -1117,27 +1232,57 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
             sample_posterior=False,
             initial_strategy="median",
         )
-        filled_array = imputer.fit_transform(scaled)
-        filled_scaled = pd.DataFrame(filled_array, columns=data.columns, index=data.index)
+        filled_array = imputer.fit_transform(scaled_subset)
+        filled_scaled_subset = pd.DataFrame(filled_array, columns=available_cols, index=data.index)
+
+        filled_scaled = scaled.copy()
+        filled_scaled.loc[:, available_cols] = filled_scaled_subset
         filled = self._destandardize_with_stats(filled_scaled, means, stds)
+
+        medians_lookup = self._medians_dict_
+        for col in missing_cols:
+            median_val = float(medians_lookup.get(col, 0.0))
+            mask_missing = filled[col].isna()
+            if mask_missing.any():
+                filled.loc[mask_missing, col] = median_val
+
         for col in self.columns_:
             mask_series = data[col].isna()
             mask_array = mask_series.to_numpy(dtype=bool, copy=False)
             if not bool(mask_array.all()):
                 filled.loc[~mask_series, col] = data.loc[~mask_series, col].astype(float)
-        state = {"imputer": imputer, "scaler_means": means, "scaler_stds": stds}
+        state = {
+            "imputer": imputer,
+            "scaler_means": means,
+            "scaler_stds": stds,
+            "available_cols": available_cols,
+            "missing_cols": missing_cols,
+            "medians": medians_lookup,
+        }
         return filled, state
 
     def _transform_missforest(self, data: pd.DataFrame):
         imputer = cast(IterativeImputer, self._state_.get("imputer"))
-        if imputer is None:
-            raise RuntimeError("MissForest imputer state missing; fit must be called before transform.")
         means = cast(Dict[str, float], self._state_.get("scaler_means", {}))
         stds = cast(Dict[str, float], self._state_.get("scaler_stds", {}))
+        available_cols = cast(List[str], self._state_.get("available_cols", []))
+        missing_cols = cast(List[str], self._state_.get("missing_cols", []))
+        medians_lookup = cast(Dict[Hashable, float], self._state_.get("medians", {}))
+
         scaled = self._standardize_with_stats(data, means, stds)
-        filled_array = imputer.transform(scaled)
-        filled_scaled = pd.DataFrame(filled_array, columns=data.columns, index=data.index)
-        filled = self._destandardize_with_stats(filled_scaled, means, stds)
+        if imputer is not None and available_cols:
+            scaled_subset = scaled.loc[:, available_cols]
+            filled_array = imputer.transform(scaled_subset)
+            filled_scaled_subset = pd.DataFrame(filled_array, columns=available_cols, index=data.index)
+            scaled.loc[:, available_cols] = filled_scaled_subset
+        filled = self._destandardize_with_stats(scaled, means, stds)
+
+        for col in missing_cols:
+            median_val = float(medians_lookup.get(col, 0.0))
+            mask_missing = filled[col].isna()
+            if mask_missing.any():
+                filled.loc[mask_missing, col] = median_val
+
         for col in self.columns_:
             mask_series = data[col].isna()
             mask_array = mask_series.to_numpy(dtype=bool, copy=False)
