@@ -42,3 +42,16 @@
   - 所感
     - 出力は 1±数ミリ（例: 0.996〜1.005）に収束するが、MSR 指標上は有効な微傾き
     - LightGBM の「No further splits…」警告は一部foldで観測。特徴量/ハイパラの掘り下げ余地あり
+
+## 2025-10-16 m_policy=ridge_stack (Preprocessing M)
+
+- Commit: 9db9dcb
+- Submit line: preprocessing_m (M-group ridge_stack policy)
+- Kaggle Notebook: Private（Dataset: preprocess-m-group-hull-tactical）
+- LB score: 0.629
+- Notes:
+  - 新規カスタム推論ノートブック `src/preprocess/M_group/kaggle_preprocessing_m.ipynb` を Kaggle に移植。
+  - scikit-learn 1.7.2 wheel（cp311 build）を private dataset に同梱し `--no-index --no-deps --force-reinstall` で導入。
+  - `htmpre.m_group.MGroupImputer` / `preprocess.M_group.m_group` のモジュール名を shim し、`joblib.load(model_pre_m.pkl)` 前に登録。
+  - メタデータ `model_meta.json` の `feature_columns` / `m_policy` / calendar column を全て検証してから推論。
+  - 最終セルは `DefaultInferenceServer` で `predict(test: pl.DataFrame) -> float` を公開し、Private LB で 0.629 を確認。
