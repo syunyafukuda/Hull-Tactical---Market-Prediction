@@ -107,7 +107,7 @@ def main() -> int:
     meta_path = art_dir / "model_meta.json"
 
     if not model_path.exists():
-        raise FileNotFoundError(f"model not found: {model_path}. Run train_msr_proxy.py first.")
+        raise FileNotFoundError(f"model not found: {model_path}. Run train_pre_m.py first.")
     if not meta_path.exists():
         raise FileNotFoundError(f"meta not found: {meta_path}")
 
