@@ -10,23 +10,25 @@ GitHub Codespaces を開発環境とし、パッケージ管理は **[uv](https:
 ## プロジェクト構成
 
 ```text
-├─ .devcontainer/ # Codespaces 開発環境の定義ファイル
-│ └─ devcontainer.json
-├─ src/ # ライブラリコード（再利用可能な処理をモジュール化）
-├─ scripts/ # 学習・推論などの実行スクリプト（Submit単位でディレクトリを切る）
-│  ├─ simple_baseline/
-│  │   ├─ train_simple.py   # シンプル提出用の学習
-│  │   └─ predict_simple.py # シンプル提出用の推論/提出生成
-│  ├─ MSR-proxy/
-│  │   ├─ train_msr_proxy.py   # MSR/vMSR プロキシ最適化ラインの学習
-│  │   └─ predict_msr_proxy.py # 同 推論/提出生成
-├─ docs/ # 知見やドキュメント類
-├─ notebooks/ # 実験やEDA用のJupyterノートブック
-├─ configs/ # HydraやYAML形式の設定ファイル
-├─ tests/ # pytestによるテストコード
-├─ pyproject.toml # uvによる依存関係の定義
-├─ uv.lock # uvによる依存関係ロックファイル（再現性保証）
-└─ README.md # 本ファイル
+├─ .devcontainer/        # Codespaces 用のコンテナ設定。開発環境を再現するための定義ファイルが入っています。
+├─ src/                  # プロジェクトのコアロジック。共通ユーティリティと前処理モジュールをここに集約します。
+│  ├─ hull_tactical/     # Notebook やスクリプトから使い回すユーティリティ関数。
+│  └─ preprocess/        # 特徴量グループごとの欠損補完・学習・推論スクリプトをまとめたモジュール。
+│      ├─ M_group/       # M 系特徴量向けの補完ロジック・学習 CLI ・推論 CLI ・スイープツール。
+│      └─ D_group/       # D 系特徴量向けの補完ロジック・学習 CLI ・推論 CLI ・スイープツール。
+├─ scripts/              # 提出ラインやユーティリティを実行するエントリポイント。データ取得・品質チェック・提出用パイプラインを配置。
+├─ results/              # アブレーションやスイープ結果など解析アウトプットを保存（Git 管理対象はメタ情報のみ）。
+│  └─ ablation/          # 特徴量グループごとのポリシー比較結果（CSV/JSON）を格納。
+├─ docs/                 # 提出ログや前処理メモ、EDA ノートなどプロジェクトドキュメント。
+├─ notebooks/            # 探索的データ分析や実験用の Jupyter Notebook。
+├─ tests/                # Pytest ベースの自動テスト。前処理モジュールやパイプラインの振る舞いを検証します。
+├─ configs/              # 必要に応じて利用する設定ファイル（Hydra/YAML 等を想定）。
+├─ data/                 # Kaggle から取得した生データ・中間データをローカルで保持（Git には含めない）。
+├─ artifacts/            # 学習済みモデルや提出ファイルの書き出し先（Git には含めない）。
+├─ main.py               # ワークスペース内で試験的に実行するメインスクリプト（雛形）。
+├─ pyproject.toml        # uv による依存関係・ツール設定を管理。
+├─ uv.lock               # 依存関係のロックファイル。環境再現用。
+└─ README.md             # 本ドキュメント。
 ```
 
 ---
