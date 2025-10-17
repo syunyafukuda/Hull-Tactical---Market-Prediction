@@ -1,6 +1,6 @@
 # 前処理・特徴量生成ガイド
 
-最終更新: 2025-10-15
+最終更新: 2025-10-17
 
 ## 特徴量エンジニアリングの標準プロセス
 
@@ -142,6 +142,14 @@ preprocess:
 | `prep/dropna-cols` | 高欠損列削除閾値 0.9 vs 0.8 | CV 比較 |
 
 各ブランチで候補方針を比較し、勝者のみ PR で採用する。
+
+## 最新 E 系欠損補完方針 (2025-10-17)
+
+- **採用ポリシー**: `ridge_stack` を E 系特徴量の既定設定として採用する。`results/ablation/E_group/e_sweep_20251017174140_e_group_summary.csv` にて OOF RMSE 0.012147・coverage 0.8331・MSR 0.0248 を記録し、全候補中最良の誤差指標を達成した。
+- **次点候補**: `pca_reconstruct_r` (OOF RMSE 0.012153, MSR 0.0277) と `kalman_local_level` (OOF RMSE 0.012170, MSR 0.0302) は Sharpe 系指標が高く、主要切り替え候補として保持する。
+- **missforest の軽量設定**: `missforest` はデフォルトだとリソース要求が高いが、`missforest_max_iter=3`, `missforest_estimators=100`, `missforest_max_depth=12` の調整で完走し (OOF RMSE 0.012417, runtime 約 475 秒)、マルチモデル比較時のベンチマークとして再現可能。
+- **再現手順**: `uv run python src/preprocess/E_group/sweep_e_policy.py --suite full --resume --tag e_sweep_20251017174140 --skip-on-error` を基点に、上記パラメータを `--policy-param` で指定すると結果を再生成できる。
+- **運用メモ**: Runner-up へ切り替える際は `configs/preprocess.yaml` の `e_group` セクションで `policy` を変更し、アブレーション結果 CSV を添付した PR を作成する。
 
 ## グループ別前処理ポリシー（推奨）
 
