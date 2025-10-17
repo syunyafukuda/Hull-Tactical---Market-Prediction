@@ -8,8 +8,8 @@ import pandas as pd
 from preprocess.M_group.m_group import MGroupImputer as _BaseImputer
 
 
-class DGroupImputer(_BaseImputer):
-    """Imputer tailored for D-group features leveraging the M-group policies."""
+class EGroupImputer(_BaseImputer):
+    """Imputer tailored for E-group features leveraging the M-group policies."""
 
     CALENDAR_REQUIRED_POLICIES = {
         "dow_median",
@@ -60,7 +60,7 @@ class DGroupImputer(_BaseImputer):
     def fit(self, X: pd.DataFrame, y: Any = None):  # type: ignore[override]
         frame = self._ensure_dataframe(X).copy()
         if self.columns is None:
-            selected = [c for c in frame.columns if isinstance(c, str) and c.startswith("D")]
+            selected = [c for c in frame.columns if isinstance(c, str) and c.startswith("E")]
             self.columns = selected
 
         if self.columns is None:
@@ -167,7 +167,7 @@ class DGroupImputer(_BaseImputer):
     def _rename_generated_column(self, name: str) -> str:
         if name.endswith("_missing_flag"):
             base = name[: -len("_missing_flag")]
-            return f"Dmask__{base}"
-        if name.startswith("D__") or name.startswith("Dmask__"):
+            return f"Emask__{base}"
+        if name.startswith("E__") or name.startswith("Emask__"):
             return name
-        return f"D__{name}"
+        return f"E__{name}"

@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 from typing import cast
 
-from preprocess.D_group.d_group import DGroupImputer
+from preprocess.E_group.e_group import DGroupImputer
 
 
 def _df(values):

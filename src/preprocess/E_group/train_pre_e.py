@@ -2,13 +2,13 @@
 # -*- coding: utf-8 -*-
 
 """
-MSR-proxy 学習スクリプト (D 系特徴量版):
+MSR-proxy 学習スクリプト (E 系特徴量版):
 - data/raw/{train.parquet|train.csv} を自動検出（--train-file で明示可）
 - 目的変数(--target-col)、ID列(--id-col) を除き、説明変数を構成
 - LightGBM を使用（ベースラインを踏襲）
 - 時系列CVで RMSE と MSR プロキシを同時評価
 - post-process（mult, lo, hi）をfold内予測でグリッド探索し、fold平均で最適化
-- 学習済みモデルとメタ情報（MSR関連を含む）を artifacts/Preprocessing_D/ に保存
+- 学習済みモデルとメタ情報（MSR関連を含む）を artifacts/Preprocessing_E/ に保存
 """
 
 import argparse
@@ -53,7 +53,7 @@ from scripts.utils_msr import (  # noqa: E402
     evaluate_msr_proxy,
     grid_search_msr,
 )
-from preprocess.D_group.d_group import DGroupImputer  # noqa: E402
+from preprocess.E_group.e_group import EGroupImputer  # noqa: E402
 from preprocess.M_group.m_group import MGroupImputer  # noqa: E402
 
 
@@ -201,23 +201,23 @@ def main() -> int:
     ap.add_argument("--test-file", type=str, default=None, help="explicit path to test file (for column alignment)")
     ap.add_argument("--target-col", type=str, default="market_forward_excess_returns")
     ap.add_argument("--id-col", type=str, default="date_id")
-    ap.add_argument("--out-dir", type=str, default="artifacts/Preprocessing_D")
-    ap.add_argument("--d-policy", type=str, default="ffill_bfill", choices=list(DGroupImputer.SUPPORTED_POLICIES))
-    ap.add_argument("--d-rolling-window", type=int, default=5)
-    ap.add_argument("--d-ema-alpha", type=float, default=0.3)
+    ap.add_argument("--out-dir", type=str, default="artifacts/Preprocessing_E")
+    ap.add_argument("--e-policy", type=str, default="ffill_bfill", choices=list(EGroupImputer.SUPPORTED_POLICIES))
+    ap.add_argument("--e-rolling-window", type=int, default=5)
+    ap.add_argument("--e-ema-alpha", type=float, default=0.3)
     ap.add_argument(
-    "--d-policy-param",
+    "--e-policy-param",
         action="append",
         default=[],
-        help="Additional D policy parameters as key=value pairs. Repeat option for multiple parameters.",
+        help="Additional E policy parameters as key=value pairs. Repeat option for multiple parameters.",
     )
     ap.add_argument(
-    "--d-calendar-col",
+    "--e-calendar-col",
         type=str,
         default="date_id",
         help="Calendar column consumed by seasonal/time policies (set empty string to disable).",
     )
-    ap.add_argument("--m-policy", type=str, default="ridge_stack", choices=list(MGroupImputer.SUPPORTED_POLICIES), help="M group imputer policy applied prior to D policies (default: ridge_stack).")
+    ap.add_argument("--m-policy", type=str, default="ridge_stack", choices=list(MGroupImputer.SUPPORTED_POLICIES), help="M group imputer policy applied prior to E policies (default: ridge_stack).")
     ap.add_argument(
         "--m-policy-param",
         action="append",
@@ -228,23 +228,23 @@ def main() -> int:
         "--m-calendar-col",
         type=str,
         default=None,
-    help="Optional calendar column override for the M policy (default: reuse --d-calendar-col setting).",
+    help="Optional calendar column override for the M policy (default: reuse --e-calendar-col setting).",
     )
     ap.add_argument("--no-artifacts", action="store_true")
     ap.add_argument("--metrics-path", type=str, default=None, help="optional path to dump CV metrics JSON")
     ap.add_argument("--random-seed", type=int, default=42, help="Random seed shared across preprocessing and model components.")
     ap.add_argument(
-    "--d-all-nan-strategy",
+    "--e-all-nan-strategy",
         type=str,
         default="keep_nan",
         choices=["keep_nan", "fill_zero", "fill_constant"],
-        help="Fallback handling for D columns that are fully missing during training (default: keep as NaN).",
+        help="Fallback handling for E columns that are fully missing during training (default: keep as NaN).",
     )
     ap.add_argument(
-    "--d-all-nan-fill",
+    "--e-all-nan-fill",
         type=float,
         default=0.0,
-    help="Constant value used when --d-all-nan-strategy=fill_constant.",
+    help="Constant value used when --e-all-nan-strategy=fill_constant.",
     )
     # 時系列CV
     ap.add_argument("--n-splits", type=int, default=5)
@@ -272,7 +272,7 @@ def main() -> int:
     np.random.seed(seed)
     random.seed(seed)
 
-    raw_policy_params = [item for item in (args.d_policy_param or []) if item]
+    raw_policy_params = [item for item in (args.e_policy_param or []) if item]
     policy_params = parse_policy_params(raw_policy_params)
     policy_params.setdefault("random_state", seed)
     policy_params.setdefault("random_seed", seed)
@@ -280,7 +280,7 @@ def main() -> int:
     m_policy_params = parse_policy_params(raw_m_policy_params)
     m_policy_params.setdefault("random_state", seed)
     m_policy_params.setdefault("random_seed", seed)
-    calendar_col = args.d_calendar_col.strip() if args.d_calendar_col is not None else "date_id"
+    calendar_col = args.e_calendar_col.strip() if args.e_calendar_col is not None else "date_id"
     if calendar_col == "":
         calendar_col = None
     if args.m_calendar_col is None:
@@ -362,14 +362,14 @@ def main() -> int:
     num_cols = feature_frame.select_dtypes(include=["number", "bool"]).columns.tolist()
     cat_cols = [c for c in feature_cols if c not in num_cols]
 
-    d_cols = [c for c in feature_cols if isinstance(c, str) and c.startswith("D")]
+    e_cols = [c for c in feature_cols if isinstance(c, str) and c.startswith("E")]
     mask_cols: list[str] = []
-    if args.d_policy == "mask_plus_mean":
-        mask_cols = [f"Dmask__{col}" for col in d_cols]
+    if args.e_policy == "mask_plus_mean":
+        mask_cols = [f"Emask__{col}" for col in e_cols]
     num_cols_with_masks = num_cols + [c for c in mask_cols if c not in num_cols]
 
-    if d_cols:
-        X.loc[:, d_cols] = X.loc[:, d_cols].apply(pd.to_numeric, errors="coerce")
+    if e_cols:
+        X.loc[:, e_cols] = X.loc[:, e_cols].apply(pd.to_numeric, errors="coerce")
 
     # simple preprocessing: one-hot encode categoricals, passthrough numerics
     # Handle OneHotEncoder compatibility for scikit-learn <1.2 and >=1.2
@@ -390,22 +390,22 @@ def main() -> int:
     m_imputer = MGroupImputer(
         columns=None,
         policy=args.m_policy,
-        rolling_window=args.d_rolling_window,
-        ema_alpha=args.d_ema_alpha,
+        rolling_window=args.e_rolling_window,
+        ema_alpha=args.e_ema_alpha,
         calendar_column=m_calendar_col,
         policy_params=m_policy_params,
         random_state=seed,
     )
-    d_imputer = DGroupImputer(
+    e_imputer = EGroupImputer(
         columns=None,
-        policy=args.d_policy,
-        rolling_window=args.d_rolling_window,
-        ema_alpha=args.d_ema_alpha,
+        policy=args.e_policy,
+        rolling_window=args.e_rolling_window,
+        ema_alpha=args.e_ema_alpha,
         calendar_column=calendar_col,
         policy_params=policy_params,
         random_state=seed,
-        all_nan_strategy=args.d_all_nan_strategy,
-        all_nan_fill=args.d_all_nan_fill,
+        all_nan_strategy=args.e_all_nan_strategy,
+        all_nan_fill=args.e_all_nan_fill,
     )
     if not HAS_LGBM or LGBMRegressor is None:  # type: ignore[truthy-function]
         raise RuntimeError("LightGBM is required but not installed. Please install 'lightgbm'.")
@@ -421,7 +421,7 @@ def main() -> int:
     random_state=seed,
         n_jobs=-1,
     )
-    pipe = Pipeline([("m_imputer", m_imputer), ("d_imputer", d_imputer), ("pre", pre), ("model", model)])
+    pipe = Pipeline([("m_imputer", m_imputer), ("e_imputer", e_imputer), ("pre", pre), ("model", model)])
 
     # 進捗表示用のコールバック準備
     n_rounds = int(model.get_params().get("n_estimators", 100))
@@ -496,7 +496,7 @@ def main() -> int:
         pipe_f = Pipeline(
             [
                 ("m_imputer", clone(m_imputer)),
-                ("d_imputer", clone(d_imputer)),
+                ("e_imputer", clone(e_imputer)),
                 ("pre", clone(pre)),
                 ("model", model_f),
             ]
@@ -548,12 +548,12 @@ def main() -> int:
             eps=args.eps,
             lam=lam_best,
         )
-        d_missing_ratio_fold: Dict[str, float] = {}
-        for col in d_cols:
+        e_missing_ratio_fold: Dict[str, float] = {}
+        for col in e_cols:
             if col not in X_va.columns:
                 continue
             converted = cast(pd.Series, pd.to_numeric(X_va[col], errors="coerce"))
-            d_missing_ratio_fold[col] = float(converted.isna().mean())
+            e_missing_ratio_fold[col] = float(converted.isna().mean())
 
         fold_logs.append(
             {
@@ -567,7 +567,7 @@ def main() -> int:
                 "best_hi": best_params.hi,
                 "best_lam": lam_best,
                 **{f"best_{k}": v for k, v in best_metrics.items()},
-                "d_missing_ratio": d_missing_ratio_fold,
+                "e_missing_ratio": e_missing_ratio_fold,
             }
         )
         log_msg = (
@@ -671,7 +671,7 @@ def main() -> int:
         pipe.fit(X, y)
 
     m_imputer_fitted = pipe.named_steps.get("m_imputer")
-    imputer_fitted = pipe.named_steps.get("d_imputer")
+    imputer_fitted = pipe.named_steps.get("e_imputer")
     fitted_m_columns: List[str] = []
     fitted_m_extra_columns: List[str] = []
     m_imputer_warning_messages: List[str] = []
@@ -699,44 +699,46 @@ def main() -> int:
         m_imputer_warning_messages = []
         m_imputer_warning_count = 0
         training_m_missing_ratio = {}
-    fitted_d_columns: List[str] = []
-    fitted_d_extra_columns: List[str] = []
-    d_post_impute_nan_ratio = float("nan")
+    fitted_e_columns: List[str] = []
+    fitted_e_extra_columns: List[str] = []
+    e_post_impute_nan_ratio = float("nan")
     imputer_warning_messages: List[str] = []
-    d_imputer_warning_count = 0
-    training_d_missing_ratio: Dict[str, float] = {}
+    e_imputer_warning_count = 0
+    training_e_missing_ratio: Dict[str, float] = {}
     imputer_all_nan_columns: List[str] = []
     try:
         if imputer_fitted is not None:
-            fitted_d_columns = list(getattr(imputer_fitted, "columns_", []) or [])
-            fitted_d_extra_columns = list(getattr(imputer_fitted, "extra_columns_", []) or [])
+            fitted_e_columns = list(getattr(imputer_fitted, "columns_", []) or [])
+            fitted_e_extra_columns = list(getattr(imputer_fitted, "extra_columns_", []) or [])
             imputer_all_nan_columns = list(getattr(imputer_fitted, "all_nan_columns_", []) or [])
             transformed_train = cast(pd.DataFrame, imputer_fitted.transform(X))
-            if fitted_d_columns:
-                d_post_impute_nan_ratio = float(
-                    np.isnan(transformed_train[fitted_d_columns].to_numpy(dtype=float, copy=False)).mean()
+            if fitted_e_columns:
+                e_post_impute_nan_ratio = float(
+                    np.isnan(transformed_train[fitted_e_columns].to_numpy(dtype=float, copy=False)).mean()
                 )
             state_dict = getattr(imputer_fitted, "_state_", {})
             if isinstance(state_dict, dict):
                 warnings_list = state_dict.get("warnings", [])
                 if isinstance(warnings_list, list):
-                    imputer_warning_messages = list(dict.fromkeys(str(msg) for msg in warnings_list if isinstance(msg, str)))
-                    d_imputer_warning_count = len(imputer_warning_messages)
-            for col in fitted_d_columns:
+                    imputer_warning_messages = list(
+                        dict.fromkeys(str(msg) for msg in warnings_list if isinstance(msg, str))
+                    )
+                    e_imputer_warning_count = len(imputer_warning_messages)
+            for col in fitted_e_columns:
                 if col in df.columns:
                     converted_col = cast(pd.Series, pd.to_numeric(df[col], errors="coerce"))
-                    training_d_missing_ratio[col] = float(converted_col.isna().mean())
+                    training_e_missing_ratio[col] = float(converted_col.isna().mean())
     except Exception:
-        d_post_impute_nan_ratio = float("nan")
+        e_post_impute_nan_ratio = float("nan")
         imputer_warning_messages = []
-        d_imputer_warning_count = 0
-        training_d_missing_ratio = {}
+        e_imputer_warning_count = 0
+        training_e_missing_ratio = {}
         imputer_all_nan_columns = []
 
-    d_column_count = len(fitted_d_columns)
+    e_column_count = len(fitted_e_columns)
 
     # save model and meta（MSR設定も保存）
-    model_path = out_dir / "model_pre_d.pkl"
+    model_path = out_dir / "model_pre_e.pkl"
     if not args.no_artifacts:
         joblib.dump(pipe, model_path)
 
@@ -765,9 +767,9 @@ def main() -> int:
         "calendar_column": calendar_col,
         "m_columns": fitted_m_columns,
         "m_generated_columns": fitted_m_extra_columns,
-        "d_columns": fitted_d_columns,
-        "d_generated_columns": fitted_d_extra_columns,
-        "d_all_nan_columns": imputer_all_nan_columns,
+    "e_columns": fitted_e_columns,
+    "e_generated_columns": fitted_e_extra_columns,
+    "e_all_nan_columns": imputer_all_nan_columns,
         "numeric_feature_columns": num_cols,
         "numeric_feature_columns_with_masks": num_cols_with_masks,
         "categorical_feature_columns": cat_cols,
@@ -815,21 +817,21 @@ def main() -> int:
         "m_imputer_warning_count": int(m_imputer_warning_count),
         "m_imputer_warnings": m_imputer_warning_messages,
         "m_training_missing_ratio": training_m_missing_ratio,
-        "d_policy": args.d_policy,
-        "d_rolling_window": int(args.d_rolling_window),
-        "d_ema_alpha": float(args.d_ema_alpha),
-        "d_policy_params": policy_params,
-        "d_calendar_col": calendar_col,
-        "d_columns": fitted_d_columns,
-        "d_generated_columns": fitted_d_extra_columns,
-        "d_all_nan_columns": imputer_all_nan_columns,
-        "d_training_missing_ratio": training_d_missing_ratio,
-        "d_all_nan_strategy": getattr(imputer_fitted, "all_nan_strategy", None),
-        "d_all_nan_fill_value": getattr(imputer_fitted, "all_nan_fill_value_", None),
-        "d_column_count": d_column_count,
-        "d_post_impute_nan_ratio": float(d_post_impute_nan_ratio),
-        "d_imputer_warning_count": int(d_imputer_warning_count),
-        "d_imputer_warnings": imputer_warning_messages,
+    "e_policy": args.e_policy,
+    "e_rolling_window": int(args.e_rolling_window),
+    "e_ema_alpha": float(args.e_ema_alpha),
+    "e_policy_params": policy_params,
+    "e_calendar_col": calendar_col,
+    "e_columns": fitted_e_columns,
+    "e_generated_columns": fitted_e_extra_columns,
+    "e_all_nan_columns": imputer_all_nan_columns,
+    "e_training_missing_ratio": training_e_missing_ratio,
+    "e_all_nan_strategy": getattr(imputer_fitted, "all_nan_strategy", None),
+    "e_all_nan_fill_value": getattr(imputer_fitted, "all_nan_fill_value_", None),
+    "e_column_count": e_column_count,
+    "e_post_impute_nan_ratio": float(e_post_impute_nan_ratio),
+    "e_imputer_warning_count": int(e_imputer_warning_count),
+    "e_imputer_warnings": imputer_warning_messages,
         "random_seed": seed,
     }
     feature_list_path = out_dir / "feature_list.json"
@@ -865,17 +867,17 @@ def main() -> int:
             "m_imputer_warning_count": int(m_imputer_warning_count),
             "m_imputer_warnings": m_imputer_warning_messages,
             "m_training_missing_ratio": training_m_missing_ratio,
-            "d_policy": args.d_policy,
-            "d_rolling_window": int(args.d_rolling_window),
-            "d_ema_alpha": float(args.d_ema_alpha),
-            "d_policy_params": policy_params,
-            "d_calendar_col": calendar_col,
-            "d_columns": fitted_d_columns,
-            "d_generated_columns": fitted_d_extra_columns,
-            "d_all_nan_columns": imputer_all_nan_columns,
-            "d_training_missing_ratio": training_d_missing_ratio,
-            "d_all_nan_strategy": getattr(imputer_fitted, "all_nan_strategy", None),
-            "d_all_nan_fill_value": getattr(imputer_fitted, "all_nan_fill_value_", None),
+            "e_policy": args.e_policy,
+            "e_rolling_window": int(args.e_rolling_window),
+            "e_ema_alpha": float(args.e_ema_alpha),
+            "e_policy_params": policy_params,
+            "e_calendar_col": calendar_col,
+            "e_columns": fitted_e_columns,
+            "e_generated_columns": fitted_e_extra_columns,
+            "e_all_nan_columns": imputer_all_nan_columns,
+            "e_training_missing_ratio": training_e_missing_ratio,
+            "e_all_nan_strategy": getattr(imputer_fitted, "all_nan_strategy", None),
+            "e_all_nan_fill_value": getattr(imputer_fitted, "all_nan_fill_value_", None),
             "n_splits": int(args.n_splits),
             "gap": int(args.gap),
             "min_val_size": int(args.min_val_size),
@@ -885,10 +887,10 @@ def main() -> int:
             "oof_metrics": oof_best_metrics_serializable,
             "fold_metrics": fold_logs_serializable,
             "pp_aggregate": args.pp_aggregate,
-            "d_column_count": d_column_count,
-            "d_post_impute_nan_ratio": float(d_post_impute_nan_ratio),
-            "d_imputer_warning_count": int(d_imputer_warning_count),
-            "d_imputer_warnings": imputer_warning_messages,
+            "e_column_count": e_column_count,
+            "e_post_impute_nan_ratio": float(e_post_impute_nan_ratio),
+            "e_imputer_warning_count": int(e_imputer_warning_count),
+            "e_imputer_warnings": imputer_warning_messages,
             "random_seed": seed,
             "feature_list_path": str(feature_list_path),
             "train_path": str(train_path),

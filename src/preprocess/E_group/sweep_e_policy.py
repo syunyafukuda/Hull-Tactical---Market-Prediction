@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""D 系欠損補完ポリシーを横断的に実行し、CV 指標を集計するスクリプト。"""
+"""E 系欠損補完ポリシーを横断的に実行し、CV 指標を集計するスクリプト。"""
 
 from __future__ import annotations
 
@@ -24,10 +24,10 @@ for path in (SRC_ROOT, PROJECT_ROOT):
     if str(path) not in sys.path:
         sys.path.append(str(path))
 
-from preprocess.E_group.e_group import DGroupImputer  # noqa: E402
+from preprocess.E_group.e_group import EGroupImputer  # noqa: E402
 from preprocess.M_group.m_group import MGroupImputer  # noqa: E402
 
-TRAIN_SCRIPT = THIS_DIR / "train_pre_d.py"
+TRAIN_SCRIPT = THIS_DIR / "train_pre_e.py"
 
 POLICY_SUITES = {
     "A": [
@@ -134,8 +134,8 @@ def serialize_policy_params(params: Dict[str, Any]) -> List[str]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", type=str, default="data/raw")
-    parser.add_argument("--out-dir", type=str, default="artifacts/Preprocessing_D")
-    parser.add_argument("--results-dir", type=str, default="results/ablation/D_group")
+    parser.add_argument("--out-dir", type=str, default="artifacts/Preprocessing_E")
+    parser.add_argument("--results-dir", type=str, default="results/ablation/E_group")
     parser.add_argument(
         "--suite",
         dest="suites",
@@ -151,7 +151,7 @@ def main() -> int:
         "--calendar-col",
         type=str,
         default="date_id",
-    help="Calendar column forwarded to train_pre_d.py (empty string to disable).",
+        help="Calendar column forwarded to train_pre_e.py (empty string to disable).",
     )
     parser.add_argument(
         "--policy-param",
@@ -159,14 +159,14 @@ def main() -> int:
         default=[],
         help="Additional policy parameters passed as key=value (repeat option).",
     )
-    parser.add_argument("--extra-args", type=str, default="", help="additional args passed to train_pre_d.py")
-    parser.add_argument("--pp-aggregate", type=str, default="refit", choices=["refit", "median", "vote"], help="post-process aggregation strategy passed to train_pre_d.py")
+    parser.add_argument("--extra-args", type=str, default="", help="additional args passed to train_pre_e.py")
+    parser.add_argument("--pp-aggregate", type=str, default="refit", choices=["refit", "median", "vote"], help="post-process aggregation strategy passed to train_pre_e.py")
     parser.add_argument(
         "--m-policy",
         type=str,
         default="ridge_stack",
         choices=sorted(MGroupImputer.SUPPORTED_POLICIES),
-    help="M group policy executed prior to each D run (default: ridge_stack).",
+        help="M group policy executed prior to each E run (default: ridge_stack).",
     )
     parser.add_argument(
         "--m-policy-param",
@@ -191,10 +191,10 @@ def main() -> int:
         help="Metric used to sort summary output.",
     )
     parser.add_argument("--max-workers", type=int, default=1, help="Number of concurrent policy runs (default: 1).")
-    parser.add_argument("--timeout", type=int, default=None, help="Timeout in seconds for each train_pre_d.py invocation.")
+    parser.add_argument("--timeout", type=int, default=None, help="Timeout in seconds for each train_pre_e.py invocation.")
     parser.add_argument("--retries", type=int, default=0, help="Number of retries per policy on failure or timeout.")
     parser.add_argument("--resume", action="store_true", help="Skip policies whose metrics already exist for the run tag.")
-    parser.add_argument("--random-seed", type=int, default=42, help="Random seed forwarded to train_pre_d.py")
+    parser.add_argument("--random-seed", type=int, default=42, help="Random seed forwarded to train_pre_e.py")
     args = parser.parse_args()
 
     results_dir = Path(args.results_dir)
@@ -218,7 +218,7 @@ def main() -> int:
         selected_policies = list(ALL_POLICIES)
     # preserve order while deduplicating
     selected_policies = list(dict.fromkeys(selected_policies))
-    supported_policies = set(DGroupImputer.SUPPORTED_POLICIES)
+    supported_policies = set(EGroupImputer.SUPPORTED_POLICIES)
     unsupported = [policy for policy in selected_policies if policy not in supported_policies]
     if unsupported:
         print(f"[warn] unsupported policies requested: {unsupported} -> they will be skipped")
@@ -236,10 +236,10 @@ def main() -> int:
 
     def summarize_result(policy: str, metrics: dict[str, Any], duration: float | None, status: str = "ok") -> dict[str, Any]:
         row = {
-            "policy": metrics.get("d_policy", policy),
-            "rolling_window": metrics.get("d_rolling_window", args.rolling_window),
-            "ema_alpha": metrics.get("d_ema_alpha", args.ema_alpha),
-            "calendar_col": metrics.get("d_calendar_col", args.calendar_col),
+            "policy": metrics.get("e_policy", policy),
+            "rolling_window": metrics.get("e_rolling_window", args.rolling_window),
+            "ema_alpha": metrics.get("e_ema_alpha", args.ema_alpha),
+            "calendar_col": metrics.get("e_calendar_col", args.calendar_col),
             "m_policy": metrics.get("m_policy", args.m_policy),
             "m_calendar_col": metrics.get(
                 "m_calendar_col",
@@ -251,22 +251,22 @@ def main() -> int:
             "gap": metrics.get("gap"),
             "min_val_size": metrics.get("min_val_size"),
             "optimize_for": metrics.get("optimize_for"),
-            "d_column_count": metrics.get("d_column_count"),
-            "d_post_impute_nan_ratio": metrics.get("d_post_impute_nan_ratio"),
+            "e_column_count": metrics.get("e_column_count"),
+            "e_post_impute_nan_ratio": metrics.get("e_post_impute_nan_ratio"),
             "oof_rmse": metrics.get("oof_rmse"),
             "coverage": metrics.get("coverage"),
             "duration_sec": duration,
             "m_imputer_warning_count": metrics.get("m_imputer_warning_count"),
             "m_imputer_warnings": metrics.get("m_imputer_warnings"),
-            "d_imputer_warning_count": metrics.get("d_imputer_warning_count"),
-            "d_imputer_warnings": metrics.get("d_imputer_warnings"),
+            "e_imputer_warning_count": metrics.get("e_imputer_warning_count"),
+            "e_imputer_warnings": metrics.get("e_imputer_warnings"),
             "train_path": metrics.get("train_path"),
             "test_path": metrics.get("test_path"),
         }
         oof_metrics = metrics.get("oof_metrics", {})
         for key in ("msr", "msr_down", "vmsr"):
             row[key] = oof_metrics.get(key)
-        params_logged = metrics.get("d_policy_params", {})
+        params_logged = metrics.get("e_policy_params", {})
         for k, v in params_logged.items():
             row[f"param_{k}"] = v
         params_logged_m = metrics.get("m_policy_params", {})
@@ -276,7 +276,7 @@ def main() -> int:
         return row
 
     def execute_policy(policy: str) -> dict[str, Any]:
-        metrics_path = results_dir / f"{timestamp}_d_group_{policy}.json"
+        metrics_path = results_dir / f"{timestamp}_e_group_{policy}.json"
         if metrics_path.exists():
             if args.resume:
                 print(f"[info][{policy}] metrics already exist at {metrics_path}; skipping execution")
@@ -293,13 +293,13 @@ def main() -> int:
             args.data_dir,
             "--out-dir",
             args.out_dir,
-            "--d-policy",
+            "--e-policy",
             policy,
-            "--d-rolling-window",
+            "--e-rolling-window",
             str(args.rolling_window),
-            "--d-ema-alpha",
+            "--e-ema-alpha",
             str(args.ema_alpha),
-            "--d-calendar-col",
+            "--e-calendar-col",
             args.calendar_col,
             "--no-artifacts",
             "--metrics-path",
@@ -316,7 +316,7 @@ def main() -> int:
         for param in m_policy_param_cli:
             cmd.extend(["--m-policy-param", param])
         for param in policy_param_cli:
-            cmd.extend(["--d-policy-param", param])
+            cmd.extend(["--e-policy-param", param])
         cmd.extend(extra_args)
 
         attempts = args.retries + 1
@@ -394,7 +394,7 @@ def main() -> int:
 
     schedule_policies(selected_policies)
 
-    summary_path = results_dir / f"{timestamp}_d_group_summary.csv"
+    summary_path = results_dir / f"{timestamp}_e_group_summary.csv"
     if summary_rows:
         import csv
 
@@ -411,8 +411,8 @@ def main() -> int:
             "gap",
             "min_val_size",
             "optimize_for",
-            "d_column_count",
-            "d_post_impute_nan_ratio",
+            "e_column_count",
+            "e_post_impute_nan_ratio",
             "oof_rmse",
             "coverage",
             "msr",
@@ -421,8 +421,8 @@ def main() -> int:
             "duration_sec",
             "m_imputer_warning_count",
             "m_imputer_warnings",
-            "d_imputer_warning_count",
-            "d_imputer_warnings",
+            "e_imputer_warning_count",
+            "e_imputer_warnings",
             "random_seed",
             "train_path",
             "test_path",
@@ -499,7 +499,7 @@ def main() -> int:
             }
 
         metric_summary = build_metric_summary(summary_rows)
-        stats_path = results_dir / f"{timestamp}_d_group_summary_stats.json"
+        stats_path = results_dir / f"{timestamp}_e_group_summary_stats.json"
         with open(stats_path, "w", encoding="utf-8") as f:
             json.dump(metric_summary, f, indent=2, ensure_ascii=False)
         print(f"[ok] wrote summary stats: {stats_path}")

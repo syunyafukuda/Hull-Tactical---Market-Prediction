@@ -32,7 +32,7 @@ for path in (SRC_ROOT, PROJECT_ROOT):
     if str(path) not in sys.path:
         sys.path.append(str(path))
 
-from preprocess.D_group.d_group import DGroupImputer  # noqa: F401,E402
+from preprocess.E_group.e_group import DGroupImputer  # noqa: F401,E402
 from preprocess.M_group.m_group import MGroupImputer  # noqa: F401,E402
 
 
