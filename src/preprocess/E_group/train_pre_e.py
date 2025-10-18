@@ -740,7 +740,7 @@ def main() -> int:
     # save model and meta（MSR設定も保存）
     model_path = out_dir / "model_pre_e.pkl"
     if not args.no_artifacts:
-        joblib.dump(pipe, model_path)
+        joblib.dump(pipe, model_path, compress=3)
 
     # ライブラリのバージョン（再現性向上）
     try:
