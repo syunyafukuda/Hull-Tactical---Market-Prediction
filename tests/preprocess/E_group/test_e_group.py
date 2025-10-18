@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 from typing import cast
 
-from preprocess.E_group.e_group import DGroupImputer
+from preprocess.E_group.e_group import EGroupImputer as DGroupImputer
 
 
 def _df(values):
@@ -18,15 +18,15 @@ def _transform_df(imputer: DGroupImputer, df: pd.DataFrame) -> pd.DataFrame:
     return cast(pd.DataFrame, imputer.transform(df.copy()))
 
 
-def test_auto_column_detection_uses_d_prefix():
-    df = _df({"D1": [1.0, np.nan], "D2": [np.nan, 2.0], "M1": [9.0, 9.0]})
+def test_auto_column_detection_uses_e_prefix():
+    df = _df({"E1": [1.0, np.nan], "E2": [np.nan, 2.0], "M1": [9.0, 9.0]})
     imputer = DGroupImputer(columns=None, policy="ffill_bfill")
     filled = _fit_transform_df(imputer, df)
     assert "M1" in filled.columns
-    assert "D1" in imputer.columns_
-    assert "D2" in imputer.columns_
-    assert filled.loc[0, "D1"] == 1.0
-    assert filled.loc[0, "D2"] == 2.0
+    assert "E1" in imputer.columns_
+    assert "E2" in imputer.columns_
+    assert filled.loc[0, "E1"] == 1.0
+    assert filled.loc[0, "E2"] == 2.0
 
 
 def test_ffill_bfill_train_and_transform():
@@ -122,19 +122,19 @@ def test_linear_interp_policy_simple_gap():
 
 
 def test_mask_plus_mean_adds_flag_column():
-    df = _df({"D1": [1.0, np.nan, 3.0]})
-    imputer = DGroupImputer(columns=["D1"], policy="mask_plus_mean")
+    df = _df({"E1": [1.0, np.nan, 3.0]})
+    imputer = DGroupImputer(columns=["E1"], policy="mask_plus_mean")
     filled = _fit_transform_df(imputer, df)
-    assert "Dmask__D1" in filled.columns
-    np.testing.assert_allclose(filled["Dmask__D1"].to_numpy(), [0.0, 1.0, 0.0])
-    assert not np.isnan(filled["D1"].to_numpy(dtype=float, copy=False)).any()
-    assert filled["Dmask__D1"].dtype.kind in {"i", "u", "f"}
+    assert "Emask__E1" in filled.columns
+    np.testing.assert_allclose(filled["Emask__E1"].to_numpy(), [0.0, 1.0, 0.0])
+    assert not np.isnan(filled["E1"].to_numpy(dtype=float, copy=False)).any()
+    assert filled["Emask__E1"].dtype.kind in {"i", "u", "f"}
 
-    val = _df({"D1": [np.nan, 2.0]})
+    val = _df({"E1": [np.nan, 2.0]})
     filled_val = _transform_df(imputer, val)
-    assert "Dmask__D1" in filled_val.columns
-    assert filled_val.loc[0, "Dmask__D1"] == 1.0
-    assert filled_val.loc[1, "Dmask__D1"] == 0.0
+    assert "Emask__E1" in filled_val.columns
+    assert filled_val.loc[0, "Emask__E1"] == 1.0
+    assert filled_val.loc[1, "Emask__E1"] == 0.0
 
 
 def test_two_stage_ignores_future_validation_observations():
