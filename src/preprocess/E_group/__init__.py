@@ -1,1 +1,1 @@
-"""Preprocessing utilities for K-group features."""
+"""Preprocessing utilities for E-group features."""
