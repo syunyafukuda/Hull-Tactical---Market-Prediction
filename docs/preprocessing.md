@@ -151,6 +151,8 @@ preprocess:
 - **再現手順**: `uv run python src/preprocess/E_group/sweep_e_policy.py --suite full --resume --tag e_sweep_20251017174140 --skip-on-error` を基点に、上記パラメータを `--policy-param` で指定すると結果を再生成できる。
 - **運用メモ**: Runner-up へ切り替える際は `configs/preprocess.yaml` の `e_group` セクションで `policy` を変更し、アブレーション結果 CSV を添付した PR を作成する。
 - **Submit 実績**: `kaggle_preprocessing_e.ipynb` を Kaggle Notebook として提出し、Public LB スコア 0.625 を記録。
+- **M+E LB 検証**: M 系単独 (`ridge_stack`) の直近 LB 0.629 に対し、M+E 併用 (`ridge_stack` + E 欠損補完) では 0.625 と僅差の後退にとどまる。Sharpe 系 OOF 指標と安定性が改善したため、E 系を残した統合パイプラインを正式採用とする。
+- **成果物の整備**: `artifacts/Preprocessing_E/model_meta.json` と `artifacts/Preprocessing_E/model_simple.pkl` に M/E 両方のポリシー・カラム構成を同梱済み。推論・提出スクリプトは同アーティファクトを参照することで、E 系列活用時も追加設定なしに再現できる。
 
 ## グループ別前処理ポリシー（推奨）
 
