@@ -1,6 +1,6 @@
 # 前処理・特徴量生成ガイド
 
-最終更新: 2025-10-15
+最終更新: 2025-10-17
 
 ## 特徴量エンジニアリングの標準プロセス
 
@@ -95,7 +95,7 @@ preprocess:
 | ポリシー単位 | 対象列群 | 前処理手法 | 理由・補足 |
 | --- | --- | --- | --- |
 | **P1: 数値欠損補完（連続特徴）** | M*, E*, I*, P*, V*, MOM* | 1) `groupby(date_id).ffill().bfill()` → 2) 残存 NaN を列中央値補完 | 時系列方向の自然継続性を保持。初期期間の欠損多発に対応。 |
-| **P2: ダミー / Binary 補完** | D* | 欠損を 0 で埋める | D 列は 0/1 系、欠損は 0 扱いが自然。 |
+| **P2: ダミー / Binary 監視** | D* | 補完不要（欠損無し） | 欠損が発生しないため監視ログのみで十分。 |
 | **P3: 外れ値処理** | M*, P*, V*, MOM* | 分位クリップ（1–99%） | 初期データや異常ボラ期間の極値を緩和。 |
 | **P4: スケーリング** | 全連続列 | RobustScaler（中央値・IQR 基準） | 分布歪みが大きく、標準化より堅牢。 |
 | **P5: 定常化処理（検討）** | MOM*, P* | 一次差分またはローリング 60 日 z-score | モメンタム系のトレンド除去に有効。後段実験用。 |
@@ -143,12 +143,24 @@ preprocess:
 
 各ブランチで候補方針を比較し、勝者のみ PR で採用する。
 
+## 最新 E 系欠損補完方針 (2025-10-17)
+
+- **採用ポリシー**: `ridge_stack` を E 系特徴量の既定設定として採用する。`results/ablation/E_group/e_sweep_20251017174140_e_group_summary.csv` にて OOF RMSE 0.012147・coverage 0.8331・MSR 0.0248 を記録し、全候補中最良の誤差指標を達成した。
+- **次点候補**: `pca_reconstruct_r` (OOF RMSE 0.012153, MSR 0.0277) と `kalman_local_level` (OOF RMSE 0.012170, MSR 0.0302) は Sharpe 系指標が高く、主要切り替え候補として保持する。
+- **missforest の軽量設定**: `missforest` はデフォルトだとリソース要求が高いが、`missforest_max_iter=3`, `missforest_estimators=100`, `missforest_max_depth=12` の調整で完走し (OOF RMSE 0.012417, runtime 約 475 秒)、マルチモデル比較時のベンチマークとして再現可能。
+- **再現手順**: `uv run python src/preprocess/E_group/sweep_e_policy.py --suite full --resume --tag e_sweep_20251017174140 --skip-on-error` を基点に、上記パラメータを `--policy-param` で指定すると結果を再生成できる。
+- **運用メモ**: Runner-up へ切り替える際は `configs/preprocess.yaml` の `e_group` セクションで `policy` を変更し、アブレーション結果 CSV を添付した PR を作成する。
+- **Submit 実績**: `kaggle_preprocessing_e.ipynb` を Kaggle Notebook として提出し、Public LB スコア 0.625 を記録。
+- **M+E LB 検証**: M 系単独 (`ridge_stack`) の直近 LB 0.629 に対し、M+E 併用 (`ridge_stack` + E 欠損補完) では 0.625 と僅差の後退にとどまる。Sharpe 系 OOF 指標と安定性が改善したため、E 系を残した統合パイプラインを正式採用とする。
+- **成果物の整備**: `artifacts/Preprocessing_E/model_meta.json` と `artifacts/Preprocessing_E/model_simple.pkl` に M/E 両方のポリシー・カラム構成を同梱済み。推論・提出スクリプトは同アーティファクトを参照することで、E 系列活用時も追加設定なしに再現できる。
+
 ## グループ別前処理ポリシー（推奨）
 
-単一の手法を全列に適用すると歪みを招くため、列プレフィクスごとに前処理方針を分ける。以下は現時点の推奨案。
+単一の手法を全列に適用すると歪みを招くため、列プレフィクスごとに前処理方針を分ける。以下は現時点の推奨案。D 系特徴量（プレフィクス `D`）は train/test ともに欠損が確認されておらず、補完処理は不要。
 
 | グループ | 欠損補完 | スケーリング | 外れ値処理 | 備考 |
 | --- | --- | --- | --- | --- |
+| D* | 不要（欠損無し） | 不要 | 不要 | バイナリ列で欠損は発生せず、監視ログのみ実施。 |
 | M* | ffill → bfill | StandardScaler | 分位クリップ (1–99%) | 時系列継続性重視、欠損は少なめ。 |
 | E* | group median（低頻度更新） | RobustScaler | 欠損率高 → 一部列は削除対象 | 経済統計の更新遅延に対応。 |
 | I* | ffill → bfill | StandardScaler | 分位クリップ (0.1–99.9%) | 小振幅・負値あり。 |

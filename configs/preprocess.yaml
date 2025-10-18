@@ -4,3 +4,18 @@ m_group:
   ema_alpha: 0.3
   calendar_column: "date_id"
   policy_params: {}
+
+e_group:
+  policy: "ridge_stack"
+  rolling_window: 5
+  ema_alpha: 0.3
+  calendar_column: "date_id"
+  policy_params: {}
+  runner_up_policies:
+    - "pca_reconstruct_r"
+    - "kalman_local_level"
+  notes:
+    missforest_success_params:
+      missforest_max_iter: 3
+      missforest_estimators: 100
+      missforest_max_depth: 12

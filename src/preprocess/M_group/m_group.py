@@ -1453,6 +1453,10 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
             try:
                 res = cast(Any, model.fit(disp=False))
                 fitted_series = pd.Series(cast(Any, res.fittedvalues), index=series.index)
+                if hasattr(res, "remove_data"):
+                    # Drop cached training arrays to keep serialized artifacts small while
+                    # retaining parameters required for forward filtering.
+                    res.remove_data()
             except Exception as exc:  # pragma: no cover
                 res = None
                 fitted_series = series.fillna(method="ffill")
