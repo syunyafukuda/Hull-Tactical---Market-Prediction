@@ -55,3 +55,12 @@
   - `htmpre.m_group.MGroupImputer` / `preprocess.M_group.m_group` のモジュール名を shim し、`joblib.load(model_pre_m.pkl)` 前に登録。
   - メタデータ `model_meta.json` の `feature_columns` / `m_policy` / calendar column を全て検証してから推論。
   - 最終セルは `DefaultInferenceServer` で `predict(test: pl.DataFrame) -> float` を公開し、Private LB で 0.629 を確認。
+
+## 2025-10-19 i_policy sweep (Preprocessing I)
+
+- Kaggle Notebook: Private（Dataset: preprocess-i-group-hull-tactical）
+- LB scores (Public):
+  - ridge_stack — 0.623
+  - knn_k — 0.623
+  - missforest — 0.561
+- Decision: ridge_stack を I 系特徴量の既定ポリシーとして継続採用（knn_k は同スコア、missforest は今回劣後）。
