@@ -154,6 +154,14 @@ preprocess:
 - **M+E LB 検証**: M 系単独 (`ridge_stack`) の直近 LB 0.629 に対し、M+E 併用 (`ridge_stack` + E 欠損補完) では 0.625 と僅差の後退にとどまる。Sharpe 系 OOF 指標と安定性が改善したため、E 系を残した統合パイプラインを正式採用とする。
 - **成果物の整備**: `artifacts/Preprocessing_E/model_meta.json` と `artifacts/Preprocessing_E/model_simple.pkl` に M/E 両方のポリシー・カラム構成を同梱済み。推論・提出スクリプトは同アーティファクトを参照することで、E 系列活用時も追加設定なしに再現できる。
 
+## 最新 I 系欠損補完方針 (2025-10-19)
+
+- **採用ポリシー**: Public LB 検証の結果、`ridge_stack` を I 系特徴量の既定設定として確定した（`configs/preprocess.yaml` へ反映済み）。
+- **LB 比較**: Kaggle Private Notebook（Dataset: preprocess-i-group-hull-tactical）で `ridge_stack` と `knn_k` がいずれも LB 0.623、`missforest` は 0.561。安定性と再現性の観点から `ridge_stack` を優先採用。
+- **次点候補**: `knn_k` は LB 同率ながら補完時の距離計算コストが高いため、バックアップポリシーとして待機。切り替え時は `configs/preprocess.yaml` の `i_group.policy` を差し替え、再学習ジョブを再実行する。
+- **missforest 所感**: メモリ節約のための軽量設定（max_iter=3, estimators=100, max_depth=12）で完走するが、今回の LB では Sharpe が伸びず次点以下。必要に応じてさらなる特徴エンジニアリング併用で再検証する。
+- **成果物**: `artifacts/Preprocessing_I/` に更新済みの `model_meta.json` と Ridge Stack ベースの学習パイプラインを保管し、推論 Notebook (`kaggle_preprocessing_i_ridge_stack.ipynb`) から直接再学習・提出可能な構成とした。
+
 ## グループ別前処理ポリシー（推奨）
 
 単一の手法を全列に適用すると歪みを招くため、列プレフィクスごとに前処理方針を分ける。以下は現時点の推奨案。D 系特徴量（プレフィクス `D`）は train/test ともに欠損が確認されておらず、補完処理は不要。
