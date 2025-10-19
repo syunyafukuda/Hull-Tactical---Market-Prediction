@@ -917,7 +917,7 @@ def main() -> int:
         "target_col": args.target_col,
         "id_col": args.id_col,
         "model_type": type(model).__name__,
-    "model_n_jobs": int(args.model_n_jobs),
+        "model_n_jobs": int(args.model_n_jobs),
         "numeric_cols": num_cols_with_masks,
         "categorical_cols": cat_cols,
         "oof_rmse": float(rmse_oof),
