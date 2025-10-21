@@ -38,3 +38,7 @@ Thumbs.db
 # VS Code / Codespaces
 .vscode/
 .idea/
+
+# test
+.coverage
+htmlcov/
