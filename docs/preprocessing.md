@@ -1,6 +1,6 @@
 # 前処理・特徴量生成ガイド
 
-最終更新: 2025-10-17
+最終更新: 2025-10-21
 
 ## 特徴量エンジニアリングの標準プロセス
 
@@ -53,6 +53,26 @@ preprocess:
 - PR 要件（前処理用）:
   - 変更ファイルを `src/preprocess/<policy>.py`、`configs/preprocess.yaml`、`tests/preprocess/test_<policy>.py` の 3 点に限定。
   - 本文には目的、リーク対策、再現コマンド、アブレーション表、影響列の説明を含める。
+
+## 最新 P 系欠損補完方針 (2025-10-21)
+
+- **採用ポリシー**: `mice` を既定設定として `configs/preprocess.yaml` の `p_group` に反映。`results/ablation/P_group/p_sweep_20251021_p_group_summary.csv` で最小 OOF RMSE 0.012060 を記録。
+- **次点 (RMSE 観点)**: `ridge_stack` は OOF RMSE 0.012110 と僅差の次点で、同一カレンダー設定のまま切り替え可能。
+- **Sharpe 系最優秀 (MSR 観点)**: `kalman_local_level` と `state_space_custom` が MSR 0.029623 で同値首位。msr ベースでの切り替え時は `statsmodels` 依存を確認。
+- **概要表**:
+
+| 観点 | 1位ポリシー | 指標値 | 2位ポリシー | 指標値 |
+| --- | --- | --- | --- | --- |
+| OOF RMSE | `mice` | 0.012060 | `ridge_stack` | 0.012110 |
+| MSR | `kalman_local_level` | 0.029623 | `state_space_custom` | 0.029623 |
+
+- **運用メモ**: いずれも `rolling_window=5`, `ema_alpha=0.3`, `calendar_col=date_id` を共有。`kalman_local_level` と `state_space_custom` は `statsmodels` の状態空間モジュールを使用するため、ランタイム環境での依存確認を推奨。
+
+### P 系スイープで遭遇したエラーと対処
+
+- **statsmodels の ImportError**: `kalman_local_level`, `arima_auto`, `state_space_custom` をローカル Python で直接実行した際に `ModuleNotFoundError: No module named 'statsmodels'` が発生。`uv pip install statsmodels` を行い、以降は `uv run` 経由でスクリプトを実行することで仮想環境の依存関係を統一し解消。
+- **ランタイム不一致**: VS Code の別インタープリタから実行した場合に依然として `statsmodels` が見つからないため、すべてのスイープコマンドを `uv run python ...` に統一して再現性を確保。
+- **missforest のリソース過多**: デフォルト設定では計算時間・メモリが肥大したため、`missforest_max_iter=3`, `missforest_estimators=100`, `missforest_max_depth=12` に調整して完走可能化。スイープ再実行時も `--p-policy-param` で同パラメータを付加する。
 
 ## 最新 M 系欠損補完方針 (2025-10-15)
 
@@ -132,18 +152,7 @@ preprocess:
   - `model_meta.json` に保存された `m_policy_params`, `m_calendar_col`, `m_mask_cols` を確認し、再学習や他メンバーとの共有時に参照する。
   - 必要に応じて `results/ablation` のログと併せて PR に貼り付け、意思決定の根拠とする。
 
-## ブランチ運用例
-
-| ブランチ例 | 内容 | 検証方法 |
-| --- | --- | --- |
-| `prep/numeric-impute` | P1 パターン比較（ffill.bfill vs mean vs median） | CV で Sharpe 派生評価 |
-| `prep/outlier-clip` | 分位クリップ vs log 変換 | CV 比較 |
-| `prep/scale-robust` | Robust vs StandardScaler | CV 比較 |
-| `prep/dropna-cols` | 高欠損列削除閾値 0.9 vs 0.8 | CV 比較 |
-
-各ブランチで候補方針を比較し、勝者のみ PR で採用する。
-
-## 最新 E 系欠損補完方針 (2025-10-17)
+## E 系欠損補完方針
 
 - **採用ポリシー**: `ridge_stack` を E 系特徴量の既定設定として採用する。`results/ablation/E_group/e_sweep_20251017174140_e_group_summary.csv` にて OOF RMSE 0.012147・coverage 0.8331・MSR 0.0248 を記録し、全候補中最良の誤差指標を達成した。
 - **次点候補**: `pca_reconstruct_r` (OOF RMSE 0.012153, MSR 0.0277) と `kalman_local_level` (OOF RMSE 0.012170, MSR 0.0302) は Sharpe 系指標が高く、主要切り替え候補として保持する。
