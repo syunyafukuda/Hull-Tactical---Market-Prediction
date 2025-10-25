@@ -1101,7 +1101,8 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
         components = max(1, min(components, n_features))
         medians_series = pd.Series(medians_lookup)
         filled_reference = data.fillna(medians_series)
-        pca = PCA(n_components=components, random_state=self.random_state)
+        rng = np.random.RandomState(self.random_state)
+        pca = PCA(n_components=components, random_state=rng)
         pca.fit(filled_reference.values)
         reconstructed = pca.inverse_transform(pca.transform(filled_reference.values))
         recon_df = pd.DataFrame(reconstructed, columns=data.columns, index=data.index)
@@ -1157,7 +1158,8 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
             return filled, state
 
         scaled_subset = scaled.loc[:, available_cols]
-        imputer = IterativeImputer(random_state=self.random_state, max_iter=max_iter, sample_posterior=False)
+        rng = np.random.RandomState(self.random_state)
+        imputer = IterativeImputer(random_state=rng, max_iter=max_iter, sample_posterior=False)
         filled_array = imputer.fit_transform(scaled_subset)
         filled_scaled_subset = pd.DataFrame(
             filled_array,
@@ -1248,15 +1250,17 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
             return filled, state
 
         scaled_subset = scaled.loc[:, available_cols]
+        rng_estim = np.random.RandomState(self.random_state)
         estimator = RandomForestRegressor(
             n_estimators=n_estimators,
-            random_state=self.random_state,
+            random_state=rng_estim,
             n_jobs=-1,
             max_depth=self._get_policy_param("missforest_max_depth", None),
         )
+        rng_imputer = np.random.RandomState(self.random_state)
         imputer = IterativeImputer(
             estimator=estimator,
-            random_state=self.random_state,
+            random_state=rng_imputer,
             max_iter=max_iter,
             sample_posterior=False,
             initial_strategy="median",
@@ -1336,7 +1340,7 @@ class MGroupImputer(TransformerMixin, BaseEstimator):
                 continue
             target = data.loc[mask, col].astype(float)
             features = filled_reference.loc[mask, [c for c in self.columns_ if c != col]]
-            model = Ridge(alpha=alpha, random_state=self.random_state)
+            model = Ridge(alpha=alpha, random_state=np.random.RandomState(self.random_state))
             model.fit(features, target)
             models[col] = model
 
