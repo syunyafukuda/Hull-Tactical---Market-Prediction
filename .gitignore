@@ -9,6 +9,7 @@ __pycache__/
 
 # Virtual env / uv cache
 .venv/
+.venv*
 .uv/
 uv.lock.bak
 
@@ -38,3 +39,17 @@ Thumbs.db
 # VS Code / Codespaces
 .vscode/
 .idea/
+
+# test
+.coverage
+htmlcov/
+
+# temp
+temp/
+tmp/
+*temp
+*tmp
+temp*
+tmp*
+*.tmp
+*.swp

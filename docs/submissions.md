@@ -64,3 +64,13 @@
   - knn_k — 0.623
   - missforest — 0.561
 - Decision: ridge_stack を I 系特徴量の既定ポリシーとして継続採用（knn_k は同スコア、missforest は今回劣後）。
+
+## 2025-10-25 p_policy sweep (Preprocessing P)
+
+- Kaggle Notebooks (Private dataset: preprocess-p-group-hull-tactical)
+- LB scores (Public):
+  - kaggle_preprocessing_p_mice — 0.625
+  - kaggle_preprocessing_p_ridge_stack — 0.623
+  - kaggle_preprocessing_p_kalman_local_level — 0.557
+  - kaggle_preprocessing_p_state_space_custom — 0.554
+- Decision: mice を P 系特徴量の既定ポリシーとして採用（最良スコア 0.625）。

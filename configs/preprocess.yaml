@@ -1,9 +1,23 @@
-m_group:
-  policy: "ridge_stack"
+p_group:
+  policy: "mice"
   rolling_window: 5
   ema_alpha: 0.3
   calendar_column: "date_id"
-  policy_params: {}
+  policy_params:
+    public_lb: 0.625
+  runner_up_policies:
+    rmse: "ridge_stack"
+    msr:
+      primary: "kalman_local_level"
+      alternate: "state_space_custom"
+  notes:
+    metrics_source: "results/ablation/P_group/p_sweep_20251021_p_group_summary.csv"
+    rationale: "mice posted the top Public LB (0.625) in the 2025-10-25 notebook sweep; ridge_stack followed at 0.623 while kalman_local_level/state_space_custom trailed."
+    notebook_lb_scores_20251025:
+      mice: 0.625
+      ridge_stack: 0.623
+      kalman_local_level: 0.557
+      state_space_custom: 0.554
 
 e_group:
   policy: "ridge_stack"
@@ -20,6 +34,13 @@ e_group:
       missforest_estimators: 100
       missforest_max_depth: 12
 
+m_group:
+  policy: "ridge_stack"
+  rolling_window: 5
+  ema_alpha: 0.3
+  calendar_column: "date_id"
+  policy_params: {}
+
 i_group:
   policy: "ridge_stack"
   rolling_window: 5
@@ -30,11 +51,6 @@ i_group:
     - "knn_k"
     - "missforest"
   notes:
-    lb_comparison_20251019:
-      ridge_stack: 0.623
-      knn_k: 0.623
-      missforest: 0.561
-    decision: "2025-10-19 Public LB で ridge_stack を正式採用"
     missforest_light_params:
       missforest_max_iter: 3
       missforest_estimators: 100
