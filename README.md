@@ -10,25 +10,29 @@ GitHub Codespaces を開発環境とし、パッケージ管理は **[uv](https:
 ## プロジェクト構成
 
 ```text
-├─ .devcontainer/        # Codespaces 用のコンテナ設定。開発環境を再現するための定義ファイルが入っています。
-├─ src/                  # プロジェクトのコアロジック。共通ユーティリティと前処理モジュールをここに集約します。
-│  ├─ hull_tactical/     # Notebook やスクリプトから使い回すユーティリティ関数。
-│  └─ preprocess/        # 特徴量グループごとの欠損補完・学習・推論スクリプトをまとめたモジュール。
-│      ├─ M_group/       # M 系特徴量向けの補完ロジック・学習 CLI ・推論 CLI ・スイープツール。
-│      └─ D_group/       # D 系特徴量向けの補完ロジック・学習 CLI ・推論 CLI ・スイープツール。
-├─ scripts/              # 提出ラインやユーティリティを実行するエントリポイント。データ取得・品質チェック・提出用パイプラインを配置。
-├─ results/              # アブレーションやスイープ結果など解析アウトプットを保存（Git 管理対象はメタ情報のみ）。
-│  └─ ablation/          # 特徴量グループごとのポリシー比較結果（CSV/JSON）を格納。
-├─ docs/                 # 提出ログや前処理メモ、EDA ノートなどプロジェクトドキュメント。
-├─ notebooks/            # 探索的データ分析や実験用の Jupyter Notebook。
-├─ tests/                # Pytest ベースの自動テスト。前処理モジュールやパイプラインの振る舞いを検証します。
-├─ configs/              # 必要に応じて利用する設定ファイル（Hydra/YAML 等を想定）。
-├─ data/                 # Kaggle から取得した生データ・中間データをローカルで保持（Git には含めない）。
-├─ artifacts/            # 学習済みモデルや提出ファイルの書き出し先（Git には含めない）。
-├─ main.py               # ワークスペース内で試験的に実行するメインスクリプト（雛形）。
-├─ pyproject.toml        # uv による依存関係・ツール設定を管理。
-├─ uv.lock               # 依存関係のロックファイル。環境再現用。
-└─ README.md             # 本ドキュメント。
+├─ .devcontainer/                 # Codespaces 用開発コンテナ設定。
+├─ src/                           # コアロジック（共通ユーティリティ + 前処理パイプライン）。
+│  ├─ hull_tactical/              # Notebook や提出ラインから再利用する共通ユーティリティ。
+│  └─ preprocess/                 # 特徴量グループ別に欠損補完・学習・推論を実装。
+│      ├─ E_group/                # E 系特徴量向けパイプライン（train/predict/sweep）。
+│      ├─ I_group/                # I 系特徴量向けパイプライン。
+│      ├─ M_group/                # M 系特徴量向けパイプライン。
+│      ├─ P_group/                # P 系特徴量向けパイプライン。
+│      └─ S_group/                # S 系特徴量向けパイプライン（2025-10-26 missforest 採択）。
+├─ scripts/                       # 提出ラインやユーティリティの CLI。`simple_baseline/`, `MSR-proxy/`, S/M/E/I/P グループ共通の補助スクリプトを収録。
+├─ results/
+│  └─ ablation/                   # グループ別スイープ結果（CSV/JSON）。`E_group/`, `I_group/`, `M_group/`, `P_group/`, `S_group/` の比較ログが入る。
+├─ artifacts/                     # 学習済み成果物の書き出し先。`Preprocessing_<group>/` 以下にモデル・メタデータ・submission を置く（Git 管理外）。
+├─ docs/                          # `preprocessing.md`, `submissions.md` などの運用ドキュメント。
+├─ configs/
+│  └─ preprocess.yaml             # 各グループの採択ポリシー・ハイパーパラメータ設定を集約。
+├─ notebooks/                     # Kaggle Private Notebook と同期する検証ノート・EDA ノート。
+├─ tests/                         # Pytest による単体/統合テスト。`tests/preprocess/<group>/` で各ポリシーを検証。
+├─ data/                          # Kaggle 公式データの配置場所（Git 管理外）。`raw/`, `interim/`, `processed/` などを区分。
+├─ main.py                        # ワークスペース用エントリポイント（雛形）。
+├─ pyproject.toml                 # uv による依存・各種ツール設定。
+├─ uv.lock                        # 依存関係のロックファイル。
+└─ README.md                      # 本ドキュメント。
 ```
 
 ---
@@ -98,6 +102,28 @@ Kaggle API を利用してデータ取得や提出を自動化できます。
 ```bash
 kaggle competitions list
 ```
+
+### アーティファクトの一時配布（HTTP サーバ）
+
+スイープ後の `model_pre_*.pkl` など容量の大きい成果物を Codespaces からローカルへダウンロードしたい場合、Python の簡易 HTTP サーバを利用すると再現性が高いです。
+
+1. 共有したい成果物ディレクトリに移動
+
+  ```bash
+  cd /workspaces/Hull-Tactical---Market-Prediction/artifacts/Preprocessing_S/missforest
+  ```
+
+2. 一時 HTTP サーバを起動（他のポリシーでもディレクトリを切り替えるだけで可）
+
+  ```bash
+  python -m http.server 8000
+  ```
+
+  起動するとターミナルに `Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...` が表示されます。Codespaces の場合は Port Forwarding で 8000 番を開放し、ブラウザから `https://<codespace-url>-8000.app.github.dev/` にアクセスするとファイル一覧が表示され、クリックでダウンロードできます。
+
+3. 転送が完了したら `Ctrl+C` でサーバを終了してください。必要に応じて `python -m http.server <port>` でポート番号を変えることも可能です。
+
+この手順を README に記載しておくことで、今後も同じ操作で成果物の取得が再現できます。
 
 ---
 
