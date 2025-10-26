@@ -1,6 +1,6 @@
 # 前処理・特徴量生成ガイド
 
-最終更新: 2025-10-21
+最終更新: 2025-10-26
 
 ## 特徴量エンジニアリングの標準プロセス
 
@@ -170,6 +170,19 @@ preprocess:
 - **次点候補**: `knn_k` は LB 同率ながら補完時の距離計算コストが高いため、バックアップポリシーとして待機。切り替え時は `configs/preprocess.yaml` の `i_group.policy` を差し替え、再学習ジョブを再実行する。
 - **missforest 所感**: メモリ節約のための軽量設定（max_iter=3, estimators=100, max_depth=12）で完走するが、今回の LB では Sharpe が伸びず次点以下。必要に応じてさらなる特徴エンジニアリング併用で再検証する。
 - **成果物**: `artifacts/Preprocessing_I/` に更新済みの `model_meta.json` と Ridge Stack ベースの学習パイプラインを保管し、推論 Notebook (`kaggle_preprocessing_i_ridge_stack.ipynb`) から直接再学習・提出可能な構成とした。
+
+## 最新 S 系欠損補完方針 (2025-10-26)
+
+- **LB 検証結果** (Kaggle Private Notebooks, Dataset: preprocess-s-group-hull-tactical)
+  - `kaggle_s_missforest.ipynb` — LB 0.616
+  - `kaggle_s_kalman_local_level.ipynb` — LB 0.616
+  - `kaggle_s_holiday_bridge.ipynb` — LB 0.557
+- **意思決定**: `missforest` を S 系特徴量の既定ポリシーとして採択。`kalman_local_level` は同率ながらメタ安定性が missforest より劣後、`holiday_bridge` は Sharpe が低下したためアーカイブ扱いとする。
+- **互換性対応**: 3 ポリシーすべてを `numpy==1.26.4`, `scikit-learn==1.7.2` 環境で再学習し、`model_pre_s.pkl` の MT19937 互換性を確認済み。Kaggle Notebook では `sys.path.append('src')` ののち `joblib.load` を実行することでロードエラーを解消。
+- **Artifacts**: `artifacts/Preprocessing_S/missforest/` を最新とし、`kalman_local_level` および `holiday_bridge` は比較用に保持（`submission.csv` へ採択ポリシーの注記を付与）。
+- **分析メモ**:
+  - Public LB は直近ベースライン（0.625）から 0.616 に微後退したが、OOF RMSE / MSR は悪化せず fold 別の安定性も維持。Public のばらつき要因と推定し、S 系は維持したまま後続で列削減・post-process 最適化を進める方針。
+  - 特徴重要度の上位は S5, S7, S10 など holiday gap 系指標が多く、S3/S12 などミスの大きい列は削減候補。次フェーズで `feature_list.json` を基に Sharpe 貢献度を再評価する。
 
 ## グループ別前処理ポリシー（推奨）
 

@@ -74,3 +74,15 @@
   - kaggle_preprocessing_p_kalman_local_level — 0.557
   - kaggle_preprocessing_p_state_space_custom — 0.554
 - Decision: mice を P 系特徴量の既定ポリシーとして採用（最良スコア 0.625）。
+
+## 2025-10-26 s_policy sweep (Preprocessing S)
+
+- Kaggle Notebooks (Private dataset: preprocess-s-group-hull-tactical)
+- LB scores (Public):
+  - kaggle_s_missforest — 0.616
+  - kaggle_s_kalman_local_level — 0.616
+  - kaggle_s_holiday_bridge — 0.557
+- Decision: missforest を S 系特徴量の既定ポリシーとして採択（kalman_local_level は同率次点、holiday_bridge は Sharpe 低下のため不採用）。
+- Notes:
+  - 3 ポリシーとも `numpy==1.26.4`, `scikit-learn==1.7.2` で再学習し、MT19937 pickle 互換エラーを解消。
+  - Kaggle Notebook では `sys.path.append('src')` を追加して `joblib.load` を実行することで `preprocess` モジュールの import エラーを回避。
