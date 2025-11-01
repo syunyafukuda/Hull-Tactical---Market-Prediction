@@ -114,7 +114,7 @@ kaggle competitions list
   cd /workspaces/Hull-Tactical---Market-Prediction/artifacts/Preprocessing_S/missforest
   ```
 
-1. 一時 HTTP サーバを起動（他のポリシーでもディレクトリを切り替えるだけで可）
+2. 一時 HTTP サーバを起動（他のポリシーでもディレクトリを切り替えるだけで可）
 
   ```bash
   python -m http.server 8000
@@ -122,7 +122,7 @@ kaggle competitions list
 
   起動するとターミナルに `Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...` が表示されます。Codespaces の場合は Port Forwarding で 8000 番を開放し、ブラウザから `https://<codespace-url>-8000.app.github.dev/` にアクセスするとファイル一覧が表示され、クリックでダウンロードできます。
 
-1. 転送が完了したら `Ctrl+C` でサーバを終了してください。必要に応じて `python -m http.server <port>` でポート番号を変えることも可能です。
+3. 転送が完了したら `Ctrl+C` でサーバを終了してください。必要に応じて `python -m http.server <port>` でポート番号を変えることも可能です。
 
 この手順を README に記載しておくことで、今後も同じ操作で成果物の取得が再現できます。
 
