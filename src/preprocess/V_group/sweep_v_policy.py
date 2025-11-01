@@ -759,7 +759,6 @@ def main() -> int:
             try:
                 result = subprocess.run(cmd, check=False, timeout=args.timeout)
             except subprocess.TimeoutExpired:
-                duration_sec = time.perf_counter() - start_ts
                 last_error = f"timeout after {args.timeout} seconds"
                 print(f"[warn][{policy}] {last_error}")
                 if metrics_path.exists():
