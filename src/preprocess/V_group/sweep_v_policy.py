@@ -120,6 +120,7 @@ def parse_policy_param_options(raw_items: List[str]) -> Dict[str, Any]:
             params[key] = float(value_str)
             continue
         except ValueError:
+            # If value cannot be converted to float, keep as string
             pass
         params[key] = value_str
     return params
