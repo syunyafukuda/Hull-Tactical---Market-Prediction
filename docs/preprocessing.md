@@ -1,6 +1,6 @@
 # 前処理・特徴量生成ガイド
 
-最終更新: 2025-10-26
+最終更新: 2025-11-01
 
 ## 特徴量エンジニアリングの標準プロセス
 
@@ -184,6 +184,17 @@ preprocess:
   - Public LB は直近ベースライン（0.625）から 0.616 に微後退したが、OOF RMSE / MSR は悪化せず fold 別の安定性も維持。Public のばらつき要因と推定し、S 系は維持したまま後続で列削減・post-process 最適化を進める方針。
   - 特徴重要度の上位は S5, S7, S10 など holiday gap 系指標が多く、S3/S12 などミスの大きい列は削減候補。次フェーズで `feature_list.json` を基に Sharpe 貢献度を再評価する。
 
+## 最新 V 系欠損補完方針 (2025-11-01)
+
+- **Kaggle LB 検証結果** (Private Notebooks, Dataset: preprocess-v-group-hull-tactical)
+  - `kaggle_preprocessing_v_ffill_bfill.ipynb` — Public LB 0.590
+  - `kaggle_preprocessing_v_holiday_bridge.ipynb` — Public LB 0.590
+- **意思決定**: 両ポリシーが既存ライン（0.616–0.629）を下回ったため、V 系特徴量は現行パイプラインへ導入せず保留 (`configs/preprocess.yaml` では `enabled=false`)。
+- **運用メモ**:
+  - 互換性修正後（numpy 1.26.4 / pandas 2.2.2）に再学習・再提出したが、Sharpe 系指標の改善が得られず採用を見送った。
+  - アーティファクトは `artifacts/Preprocessing_V/` に保持し、他グループ改善後に改めて再評価する。
+  - ハイパラや特徴選択を刷新した再スイープを検討する際は、`rolling_window` や `calendar_column` の他グループ整合を維持したまま行う。
+
 ## グループ別前処理ポリシー（推奨）
 
 単一の手法を全列に適用すると歪みを招くため、列プレフィクスごとに前処理方針を分ける。以下は現時点の推奨案。D 系特徴量（プレフィクス `D`）は train/test ともに欠損が確認されておらず、補完処理は不要。
@@ -195,7 +206,7 @@ preprocess:
 | E* | group median（低頻度更新） | RobustScaler | 欠損率高 → 一部列は削除対象 | 経済統計の更新遅延に対応。 |
 | I* | ffill → bfill | StandardScaler | 分位クリップ (0.1–99.9%) | 小振幅・負値あり。 |
 | P* | median | RobustScaler | MAD×4 ウィンザー化 | 極端値が出やすいバリュエーション指標。 |
-| V* | median | `log1p` 後 StandardScaler | 分位クリップ (1–99%) | 非負・歪な分布。 |
+| V* | median（未採用, enabled=false） | `log1p` 後 StandardScaler | 分位クリップ (1–99%) | 現行パイプラインから除外中（LB 0.590）。 |
 | MOM* | ffill → bfill | ローリング 60 日 z-score | 不要（差分で吸収） | トレンド除去が目的。 |
 
 ## 推奨優先度

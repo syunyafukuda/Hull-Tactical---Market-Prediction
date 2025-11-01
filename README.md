@@ -18,7 +18,8 @@ GitHub Codespaces を開発環境とし、パッケージ管理は **[uv](https:
 │      ├─ I_group/                # I 系特徴量向けパイプライン。
 │      ├─ M_group/                # M 系特徴量向けパイプライン。
 │      ├─ P_group/                # P 系特徴量向けパイプライン。
-│      └─ S_group/                # S 系特徴量向けパイプライン（2025-10-26 missforest 採択）。
+│      ├─ S_group/                # S 系特徴量向けパイプライン（2025-10-26 missforest 採択）。
+│      └─ V_group/                # V 系特徴量向けパイプライン（2025-11-01 ffill_bfill/holiday_bridge を検証済み、現行ラインでは未採用）。
 ├─ scripts/                       # 提出ラインやユーティリティの CLI。`simple_baseline/`, `MSR-proxy/`, S/M/E/I/P グループ共通の補助スクリプトを収録。
 ├─ results/
 │  └─ ablation/                   # グループ別スイープ結果（CSV/JSON）。`E_group/`, `I_group/`, `M_group/`, `P_group/`, `S_group/` の比較ログが入る。
