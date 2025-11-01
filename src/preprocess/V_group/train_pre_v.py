@@ -124,12 +124,12 @@ def parse_policy_params(raw_items: list[str]) -> Dict[str, Any]:
             params[key] = int(value_str)
             continue
         except ValueError:
-            pass
+            # Not an int; try float next
         try:
             params[key] = float(value_str)
             continue
         except ValueError:
-            pass
+            # Not a float; treat as string
         params[key] = value_str
     return params
 
