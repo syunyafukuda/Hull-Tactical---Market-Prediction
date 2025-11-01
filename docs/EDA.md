@@ -1,6 +1,6 @@
 # EDA 概要（Hull Tactical Market Prediction）
 
-最終更新: 2025-10-14
+最終更新: 2025-11-01
 
 ## 1. コンペ概要
 
@@ -119,6 +119,8 @@
 - [ ] D*（ダミー群）の寄与評価（Permutation/SHAP）と削減判断
 - [ ] 分布シフト検定（train 後半 vs test; KS検定等）と対策
 - [ ] 診断用：test 単体の相関ヒートマップ（学習意思決定には未使用）
+- [ ] 特徴量生成ロードマップの初期スコープ化（`docs/feature_generation.md` に沿った A/B/C 優先タスクの PoC）
+- [ ] Feature group 別の新規特徴検証ノート（ローリング統計＋ボラ指標）を作成し、再現手順を記録
 
 ## 5. 参照
 
@@ -180,6 +182,7 @@
 - LightGBM 警告（"No further splits with positive gain"）が一部foldで多発→分割利得が乏しいサイン。深さ/葉/学習率や特徴量の見直し候補。
 - VIF: D1/D2 が ∞、I5/I9 が極端に高いなど、強い共線性を確認。しきい値削減やPCA/PLSの検討が必要。
 - 外れ値: 複数指標で外れ値比率の高い列を特定。列限定のクリッピング/ウィンザー化やロバスト損失の適用候補。
+- V 系: numpy/pandas 互換対応後に ffill_bfill と holiday_bridge を Kaggle LB で検証したが 0.590 と伸びず、`configs/preprocess.yaml` では `enabled=false` として保留。特徴量生成フェーズでローリング指標などを追加検討する。
 
 ## 9. この EDA から生まれたサブタスク（Backlog）
 
@@ -187,20 +190,21 @@
 - [ ] PCA/PLS の導入（fold内fit）と性能・解釈の比較
 - [ ] スケーリング/単調変換の比較実験（Standard/Robust/Quantile, log1p/Box-Cox/Yeo-Johnson）
 - [ ] レジーム検出（高/低ボラ）の定義とサンプルウェイト/二段階学習の比較
-- [ ] ラグ/移動統計の特徴拡充（説明変数に対して shift(1)+rolling を体系的に）
+- [ ] ラグ/移動統計の特徴拡充（`docs/feature_generation.md` の A/B/C 優先タスクに沿った PoC）
 - [ ] D*（ダミー群）の寄与評価（Permutation/SHAP）と削減判断
 - [ ] 分布シフト診断（train 後半 vs test; KS検定/PSI）と対策
-- [ ] ベースライン構築（L1/L2/ElasticNet, 木系モデル）＋時系列CVのプロトタイプ
-- [ ] 提出パイプラインの雛形作成（submission.parquet 生成のローカル検証）
- - [ ] MSR-proxy の改善実験ブランチ作成（feature/model/post-process を分離した短命ブランチ）
- - [ ] LightGBM 再チューニング（num_leaves↑, min_data_in_leaf↓, learning_rate↓+n_estimators↑, feature_fraction/bagging 調整）
- - [ ] 予測振幅の校正（Isotonic/分位写像）と post-process の一体最適化
- - [ ] fold別のスコア分散の原因分析（期間属性・ボラレジーム・分布シフト）
+- [ ] Feature generation result tracking の仕組み整備（アブレーション集計 CSV + Notebook）
+- [ ] MSR-proxy 改善（post-process 最適化やパラメータ再探索）
+- [ ] LightGBM 再チューニング（num_leaves↑, learning_rate↓ + estimators↑, feature_fraction/bagging 調整）
+- [ ] 予測振幅の校正（Isotonic/分位写像）と post-process の一体最適化
+- [ ] fold 別スコア分散の原因分析（期間属性・ボラレジーム・分布シフト）
+- [ ] 提出パイプラインの雛形を最新ポリシー構成で再検証
 
 
 ## 10. プロジェクト進捗サマリ
 
-- **フェーズ1: scripts/simple_baseline** — 最小構成のベースラインを実装し、データ整形と時系列CVのワークフローを確認済み。
-- **フェーズ2: scripts/MSR-proxy** — 公開評価ロジックに寄せた MSR プロキシを導入し、post-process（mult/lo/hi）とメタ情報保存を整備済み。
-- **フェーズ3: src/preprocess/M_group** — M 系特徴量向けの欠損補完ポリシー群を実装し、スイープ→比較→設定→本番学習/推論のフローを構築中（現在このフェーズの評価・採用判断を進行中）。
+- **フェーズ1: scripts/simple_baseline** — データ整形と時系列 CV ワークフローを確認する最小モデルを構築済み。
+- **フェーズ2: scripts/MSR-proxy** — MSR 系評価に合わせた推論ラインを整備し、post-process 最適化とメタ情報保存を確立済み。
+- **フェーズ3: `src/preprocess/<group>`** — M/E/I/P/S/V 各グループで欠損補完ポリシーをスイープ→検証→採用判断まで完了。V グループは LB 0.590 のため未採用（`enabled=false`）で保留。
+- **フェーズ4: 特徴量生成フェーズ（着手予定）** — `docs/feature_generation.md` に優先タスクを整理済み。拡張 Z・ボラ指標・レジーム交差から PoC を開始する計画。
 
