@@ -125,12 +125,13 @@ def parse_policy_params(raw_items: list[str]) -> Dict[str, Any]:
             continue
         except ValueError:
             # Not an int; try float next
+            pass
         try:
             params[key] = float(value_str)
             continue
         except ValueError:
-            # If float conversion fails, treat as string
             # Not a float; treat as string
+            pass
         params[key] = value_str
     return params
 
@@ -1496,6 +1497,7 @@ def main() -> int:
             pd.DataFrame(fold_logs).to_csv(out_dir / "cv_fold_logs.csv", index=False)
             print("[ok] saved: oof_grid_results.csv, cv_fold_logs.csv")
     except Exception:
+        # Silently ignore errors when saving optional artifact files
         pass
 
     if args.metrics_path:
