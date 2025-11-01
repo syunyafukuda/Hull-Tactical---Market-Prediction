@@ -114,6 +114,7 @@ def parse_policy_param_options(raw_items: List[str]) -> Dict[str, Any]:
             params[key] = int(value_str)
             continue
         except ValueError:
+            # Not an int, try float next
             pass
         try:
             params[key] = float(value_str)
