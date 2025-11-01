@@ -18,7 +18,8 @@ GitHub Codespaces を開発環境とし、パッケージ管理は **[uv](https:
 │      ├─ I_group/                # I 系特徴量向けパイプライン。
 │      ├─ M_group/                # M 系特徴量向けパイプライン。
 │      ├─ P_group/                # P 系特徴量向けパイプライン。
-│      └─ S_group/                # S 系特徴量向けパイプライン（2025-10-26 missforest 採択）。
+│      ├─ S_group/                # S 系特徴量向けパイプライン（2025-10-26 missforest 採択）。
+│      └─ V_group/                # V 系特徴量向けパイプライン（2025-11-01 ffill_bfill/holiday_bridge を検証済み、現行ラインでは未採用）。
 ├─ scripts/                       # 提出ラインやユーティリティの CLI。`simple_baseline/`, `MSR-proxy/`, S/M/E/I/P グループ共通の補助スクリプトを収録。
 ├─ results/
 │  └─ ablation/                   # グループ別スイープ結果（CSV/JSON）。`E_group/`, `I_group/`, `M_group/`, `P_group/`, `S_group/` の比較ログが入る。
@@ -113,7 +114,7 @@ kaggle competitions list
   cd /workspaces/Hull-Tactical---Market-Prediction/artifacts/Preprocessing_S/missforest
   ```
 
-2. 一時 HTTP サーバを起動（他のポリシーでもディレクトリを切り替えるだけで可）
+1. 一時 HTTP サーバを起動（他のポリシーでもディレクトリを切り替えるだけで可）
 
   ```bash
   python -m http.server 8000
@@ -121,7 +122,7 @@ kaggle competitions list
 
   起動するとターミナルに `Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...` が表示されます。Codespaces の場合は Port Forwarding で 8000 番を開放し、ブラウザから `https://<codespace-url>-8000.app.github.dev/` にアクセスするとファイル一覧が表示され、クリックでダウンロードできます。
 
-3. 転送が完了したら `Ctrl+C` でサーバを終了してください。必要に応じて `python -m http.server <port>` でポート番号を変えることも可能です。
+1. 転送が完了したら `Ctrl+C` でサーバを終了してください。必要に応じて `python -m http.server <port>` でポート番号を変えることも可能です。
 
 この手順を README に記載しておくことで、今後も同じ操作で成果物の取得が再現できます。
 

@@ -6,6 +6,7 @@
 - Branch: feature/simple-baseline-sub
 
 ## 2025-10-05 simple_baseline
+
 - Commit: 418c4cd
 - Submit line: simple_baseline
 - Kaggle Notebook: Private (Dataset: simple_baseline_hulltactical)
@@ -86,3 +87,14 @@
 - Notes:
   - 3 ポリシーとも `numpy==1.26.4`, `scikit-learn==1.7.2` で再学習し、MT19937 pickle 互換エラーを解消。
   - Kaggle Notebook では `sys.path.append('src')` を追加して `joblib.load` を実行することで `preprocess` モジュールの import エラーを回避。
+
+## 2025-11-01 v_policy sweep (Preprocessing V)
+
+- Kaggle Notebooks (Private dataset: preprocess-v-group-hull-tactical)
+- LB scores (Public):
+  - kaggle_preprocessing_v_ffill_bfill — 0.590
+  - kaggle_preprocessing_v_holiday_bridge — 0.590
+- Decision: V 系ポリシーは現行ラインを下回ったため未採用 (`configs/preprocess.yaml` では `enabled=false`)。
+- Notes:
+  - numpy 1.26.4 / pandas 2.2.2 へ互換化した上で再学習・再提出したが Sharpe 系改善に繋がらず。
+  - アーティファクトは `artifacts/Preprocessing_V/` に保持し、後続改善のベースラインとして残す。
