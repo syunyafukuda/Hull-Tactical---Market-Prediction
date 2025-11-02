@@ -98,3 +98,13 @@
 - Notes:
   - numpy 1.26.4 / pandas 2.2.2 へ互換化した上で再学習・再提出したが Sharpe 系改善に繋がらず。
   - アーティファクトは `artifacts/Preprocessing_V/` に保持し、後続改善のベースラインとして残す。
+
+## 2025-11-04 su1 (Submission Unit 1)
+
+- Kaggle Notebook: Private（Dataset: su1-missingness-core）
+- LB score: 0.674 (Public)
+- Notes:
+  - `src/feature_generation/su1/train_su1.py` を uv 経由で再学習し、`artifacts/SU1/` に `inference_bundle.pkl`, `model_meta.json`, `feature_list.json`, `submission.csv` を再生成。
+  - 学習・推論ともに `numpy==1.26.4` を固定。`model_meta.json` の `library_versions.numpy` も 1.26.4 へ更新済み。
+  - Kaggle Notebook 側では追加の BitGenerator alias を挿入せず、`joblib.load` がそのまま通ることを確認。
+  - Private Dataset には SU1 バンドルと scikit-learn 1.7.2 wheel を同梱し、Notebook 起動時に `pip install --no-index` で導入する。

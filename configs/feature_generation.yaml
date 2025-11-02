@@ -1,0 +1,28 @@
+su1:
+  id_column: date_id
+  exclude_columns:
+    - forward_returns
+    - risk_free_rate
+    - market_forward_excess_returns
+  groups:
+    include: ["M", "E", "I", "P", "S", "V"]
+    exclude: []
+  gap_clip: 60
+  run_clip: 60
+  dtype:
+    flag: uint8
+    run: int16
+  include_group_means:
+    gap_ffill: true
+    run_na: true
+    exclude_all_nan: true
+  data:
+    raw_dir: data/raw
+    train_filename: train.csv
+    test_filename: test.csv
+  metadata:
+    artifacts_dir: artifacts/SU1
+    kaggle_lb: 0.674
+    numpy_version: 1.26.4
+    updated_at: 2025-11-04
+    notes: "Artifacts regenerated with uv under pinned numpy 1.26.4 to keep MT19937 compatibility."
