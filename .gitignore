@@ -20,6 +20,7 @@ uv.lock.bak
 *.log
 logs/
 artifacts/
+results/
 outputs/
 
 # Kaggle

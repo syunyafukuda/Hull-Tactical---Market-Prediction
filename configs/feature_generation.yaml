@@ -1,0 +1,121 @@
+# Feature Generation Pipeline Configuration
+# 特徴量生成パイプラインの設定ファイル
+
+# SU1: 基本特徴量生成（生データからの変換）
+su1:
+  enabled: true
+  
+  # 基本的な統計量
+  basic_stats:
+    - mean
+    - std
+    - min
+    - max
+  
+  # 出力設定
+  output_dir: artifacts/SU1
+
+# SU2: 二次特徴量生成（SU1出力からの高度な統計特徴）
+su2:
+  enabled: true
+  
+  # ローリング統計
+  rolling:
+    windows: [7, 14, 30]  # ローリングウィンドウサイズ（日数）
+    functions:
+      - mean      # 移動平均
+      - std       # 移動標準偏差
+      - min       # 移動最小値
+      - max       # 移動最大値
+      - median    # 移動中央値
+  
+  # 指数加重移動平均（EWMA）
+  ewma:
+    spans: [5, 10, 20, 40]  # EWMAのスパンパラメータ
+    adjust: false            # adjust=False でより安定した挙動
+  
+  # 遷移統計（前期との比較）
+  transitions:
+    lags: [1, 7, 14, 30]  # 比較対象のラグ期間
+    methods:
+      - diff         # 差分
+      - pct_change   # 変化率（パーセント）
+      - sign_change  # 符号変化の検出
+  
+  # 正規化
+  normalization:
+    methods:
+      - zscore   # Z-score標準化（ローリング平均・標準偏差使用）
+      - minmax   # Min-Max正規化（過去データのみ使用）
+    rolling_window: 30  # 正規化用のローリングウィンドウ
+  
+  # データ型の最適化
+  dtypes:
+    flag: uint8       # 0/1のバイナリフラグ
+    small_int: int16  # 小さな整数値
+    float: float32    # 浮動小数点数
+  
+  # Fold設定
+  fold:
+    reset_on_boundary: true  # Fold境界で状態をリセット
+    validate_no_leakage: true  # 未来参照が無いことを検証
+  
+  # 出力設定
+  output_dir: artifacts/SU2
+
+# GroupImputer: 欠損値補完
+group_imputer:
+  enabled: true
+  method: median  # グループごとの中央値で補完
+  
+# パイプラインフロー設定
+pipeline:
+  # A系統: 既存パイプライン（SU1→確定前処理）
+  flow_a:
+    enabled: true
+    steps:
+      - su1
+      - preprocessing
+  
+  # B系統: SU2導入パイプライン（SU1→SU2→GroupImputer）
+  flow_b:
+    enabled: true
+    steps:
+      - su1
+      - su2
+      - group_imputer
+      - preprocessing
+
+# スイープ設定（ハイパーパラメータ探索用）
+sweep:
+  su2:
+    # ローリングウィンドウの候補
+    rolling_windows:
+      - [7, 14, 30]
+      - [5, 10, 20, 40]
+      - [3, 7, 14, 21, 30]
+    
+    # EWMAスパンの候補
+    ewma_spans:
+      - [5, 10, 20]
+      - [5, 10, 20, 40]
+      - [3, 7, 14, 30]
+    
+    # 遷移ラグの候補
+    transition_lags:
+      - [1, 7, 30]
+      - [1, 7, 14, 30]
+      - [1, 5, 10, 20]
+    
+    # 正規化ウィンドウの候補
+    normalization_window:
+      - 20
+      - 30
+      - 60
+    
+    # 評価メトリクス
+    metric: rmse  # Out-of-fold RMSE for evaluation
+    n_folds: 5    # クロスバリデーションのfold数
+  
+  # 結果出力先
+  output_dir: results/ablation/SU2

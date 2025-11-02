@@ -2,10 +2,10 @@
 set -e  # エラーが出たら止める
 
 echo "=== Running Ruff (lint/format check) ==="
-uv run ruff check .
+python3 -m ruff check .
 
 echo "=== Running Pyright (type check) ==="
-uv run pyright
+python3 -m pyright
 
 echo "=== Running Pytest (unit tests) ==="
-uv run pytest --cov=src --cov-report=term-missing
+python3 -m pytest --cov=src --cov-report=term-missing
