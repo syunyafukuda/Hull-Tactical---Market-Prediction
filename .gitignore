@@ -31,6 +31,7 @@ data/
 # Kaggle
 .kaggle/
 kaggle.json
+notebooks/submit/
 
 # OS
 .DS_Store
