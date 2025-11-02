@@ -8,41 +8,58 @@
 
 ## 網羅リスト（生成候補）
 
-### A. ローリング・拡張統計（情報漏洩なし）
-- 移動平均/中央値/分位点（3, 5, 10, 20, 60, 120 日）
-- 拡張平均・分散（expanding）
-- EWMA / EWMVar / EWMStd（半減期 = 5, 10, 20, 60）
-- 正規化系: ローリング Z 分数、拡張 Z、MAD 基準の Robust-Z
-- 乖離系: 値 − 長期平均、比率、シグモイド圧縮
+### 直近観測距離・連続長
+- `days_since_first_obs/<col>`, `days_since_last_obs/<col>`（未来は見ない）
 
-### B. モメンタム / リバーサル変換
-- 1, 2, 5, 10, 20 日差分・符号・累積リターン類似変換
-- RSI 風: 上昇/下落成分の比
-- 短長期のゴールデンクロス指標（短期 > 長期のブール）
+### ローリング欠損率（過去のみ）
+- 窓 `W∈{3,5,10,20,60}`: `roll_m_rate_W/<col>` = 過去W日でのNaN比
+- 拡張: `exp_m_rate/<col>` = 0..tの累積NaN比（burn-in=20日）
 
-### C. ボラティリティ・リスク制御（MSR 直結）
-- ローカル実現ボラ: |Δx| の移動平均、平方差の移動和
-- ボラレジーム判定: 短期 EWMStd が長期 EWMStd を超過、r = σ_short / σ_long
-- ボラ調整値: x / (1 + σ_short) や x * clip(1/r, ...)
-- ドローダウン / 回復日数の簡易代理
+### パターン変化フラグ
+- `na_to_obs/<col>` = 1 if 前日NaNかつ当日観測
+- `obs_to_na/<col>` = 1 if 前日観測かつ当日NaN
+- `reappear_gap/<col>` = 直前の観測→観測間隔（NaNを跨いだ戻り間隔）
 
-### D. 相関・合成（群内に限定）
-- 群内主成分 (PCA) 第 1–3 成分
-- 高相関ペアの差分・比（スパース合成）
-- VIF > 10 の列は合成後に除去候補
+### 代入影響量（ポリシー追跡）
+- `imp_used/<col>` = 代入実施フラグ（当日が補完で埋まったか）
+- `imp_delta/<col>` = `x_imputed - x_raw`（観測日は0）
+- `imp_absdelta/<col>` = `|imp_delta|`
+- 代入種別ワンホット（例 `ffill`, `bfill`, `missforest`, `holiday_bridge`）。同日複数不可
 
-### E. 交互作用（リーンに限定）
-- レジーム × 基礎特徴の交差（例: RegimeLowVol * feature）
-- 非線形基底: tanh(x), log1p(|x|) * sign(x) の最小構成
+### 共欠損構造（群内限定）
+- `co_miss_cnt/<a>_<b>` = 当日 a と b 同時NaN のブール
+- `co_miss_rolrate_W/<a>_<b>` = 過去W日での同時NaN比
+- 次元圧縮案: 欠損フラグ行列の群内PCA成分 `miss_pca1..k`（fitはCV折内）
 
-### F. 欠損構造の活用
-- 欠損フラグ（列ごと／群ごと／当日総欠損数）
-- 直近観測からの経過日数（ffill 距離）
+### 曜日・月次傾向（決定可能情報のみ）
+- `dow_m_rate/<col>` = 過去同曜日のNaN比（expanding）
+- `month_m_rate/<col>` = 過去同月のNaN比
+- 祝日橋渡し×欠損の交差: `holiday_bridge * m/<col>`
+
+### 欠損順位・相対位置
+- 当日、群内での「欠けやすさ」順位: `rank_miss_prob_day/<grp>`
+- 列内での観測再開の相対位置: `pos_since_reappear/<col>` = `gap_ffill` を `[0,1]` に正規化
+
+### マスク付き統計の下準備用メタ
+- `valid_share_W/<col>` = 過去W日での有効観測比
+- `stable_window/<col>` = 最小Wで `valid_share_W≥τ` となるW（τ例0.8）
+- 下流で「窓不足による不安定」を弾くフィルタ信号
+
+### ヘッド/テイル保護とクリップ
+- 先頭連続NaN時: `gap_ffill` は `W_max+1` でクリップ
+- すべてNaN列は派生特徴を全てNaNまたは0に固定し除外候補タグ付け
+- すべて観測列は `m/*` 系を0に統一
+
+### 推奨パラメータ
+- 窓: `W = {3,5,10,20,60}`。`min_periods = W`。
+- クリップ: `gap_ffill`, `run_na ≤ 60`。`imp_delta` は ±p99でwinsorize。
+- burn-in: 20日。burn-in未満は `exp_*` をNaNのまま。
+
 # 特徴量生成ロードマップ（着手順）
 
 最終更新: 2025-11-01
 
-全グループ（M/E/I/P/S/V）の欠損補完ポリシーを確定し、Kaggle LB 検証まで完了した。次フェーズでは本ドキュメントの順序で特徴量生成 PoC を進める。各ステップは時系列リーク防止と CV 内 fit→transform を前提とし、V グループは当面非変換（スケーリングのみ別検証）とする。
+全グループ（M/E/I/P/S/V）の欠損補完ポリシーを確定し、Kaggle LB 検証まで完了した。次フェーズでは本ドキュメントの順序で特徴量生成 PoC を進める。各ステップは時系列リーク防止と CV 内 fit→transform を前提とし、V グループは当前処理非変換（スケーリングのみ別検証）とする。
 
 ---
 
@@ -50,16 +67,17 @@
 
 - 指標算出はすべて過去情報のみ。テスト 10 日分には学習期で fit した統計を持ち越す。
 - パイプライン順序は「特徴生成 → 欠損補完（既定ポリシー）→ スケーリング」で固定。
-- PoC は TimeSeriesSplit+gap による OOF MSR/Sharpe を必須とし、結果を `results/ablation/feature_generation/` に集約する。
+- PoC は TimeSeriesSplit+gap による OOF MSR/Sharpe を必須とし、結果を `results/ablation/` に集約する。
 
 ---
 
-## 2. 欠損構造特徴（全群、V 除外）
+## 2. 欠損構造特徴（全群）
 
-- **2.1 欠損フラグ**: 列単位 `isna_col`、群単位 `miss_rate_group`、当日総欠損数 `miss_cnt_all`。
+- **2.1 欠損フラグ**: 列単位 `isna_col`、群単位 `miss_rate_group`、当日総欠損数 `miss_cnt_all`（`m_cnt/ALL`, `m_rate/ALL` を監視用に併記）。
 - **2.2 直近観測距離**: 各列の `last_obs_gap`（ffill 距離、上限 `clip=60`）。
 - **2.3 実装案**: `MissingnessFlags(cols_by_group, max_gap=60)`。
-- **2.4 テスト**: 全 NaN 列、先頭連続 NaN、島状 NaN の 3 ケースで期待値一致。
+- **2.4 平均処理**: 全 NaN 列はグループ平均 (`avg_gapff/*`, `avg_run_na/*`) から除外し、監視用途の `m_cnt/ALL`, `m_rate/ALL` を併記。
+- **2.5 テスト**: 全 NaN 列、先頭連続 NaN、島状 NaN、全観測列の 4 ケースで期待値一致。
 
 ---
 
@@ -192,3 +210,124 @@
 - **Sprint 4**: セクション 14–15（統合 A/B・昇格）
 
 各ステップ完了後は MSR/Sharpe 指標と Kaggle LB を両面確認し、効果が出ない場合は即座にロールバックする。
+
+## SU シリーズの実装方針と構成
+
+Sprint 1 以降で扱う SU（Submission Unit）は同一フォーマットで進める。以下は SU1 の例だが、SU2 以降も `su{n}` ディレクトリと `artifacts/su{n}` をペアで用意し、命名規約のみ置換する。
+
+> 重要: SU 系の学習・推論成果物はすべて `numpy==1.26.4` で再生成する。Kaggle 推論環境とバージョンを揃えることで `joblib` が内部で利用する `MT19937` BitGenerator の互換性問題を回避できる。`pyproject.toml` の numpy ピンを変更しないまま `uv lock` / `uv sync` を実行し、異なる numpy 版で生成したバンドルは使用しない。
+
+```
+src/feature_generation/su1
+	__init__.py
+	feature_su1.py          # SU1生成器（sklearn Transformer互換）
+	train_su1.py            # 既定前処理→SU1→学習→一体pkl出力
+	predict_su1.py          # 一体pklによる推論
+	sweep_oof.py            # OOFのみの軽スイープ（提出はしない）
+configs/feature_generation.yaml            # SU1のパラメータ（clip, group mean など）
+src/feature_generation/su1/test_su1.py
+artifacts/su1/
+	inference_bundle.pkl    # = 前処理+SU + スケール + モデル の Pipeline
+	model_meta.json         # バージョン・seed・fold境界・前処理ハッシュ
+	feature_list.json       # 生成カラム一覧
+	cv_fold_logs.csv        # 各 fold の学習・評価ログ
+	oof_grid_results.csv    # OOF スイープ結果
+	submission.csv          # 提出ファイル（バックテスト用）
+	submission.parquet      # 提出ファイル parquet 版
+```
+
+`feature_su1.py` で SU1 の欠損フラグ・距離・群集約を生成し、`configs/feature_generation.yaml` の設定値でパラメータを一元管理する。`train_su1.py` は既定前処理と SU1 を連結した `sklearn.Pipeline` を学習し、`artifacts/su1/inference_bundle.pkl` へ出力する。`predict_su1.py` はこのバンドルで推論を行う想定。`sweep_oof.py` では提出を伴わない軽量 OOF スイープを実施して設定を評価する。UT として `test_su1.py` を配置し、全 NaN 列・先頭欠損・島状欠損シナリオの再現テストを行う。
+
+SU2 以降は同様に `feature_su2.py`, `config_su2.yaml`, `train_su2.py`…と命名を揃え、該当 SU が担当する特徴セットのみ差し替える。`artifacts/su{n}` も SU 番号ごとに分離し、バージョンアップ時は `model_meta.json` の `version` と `preprocess_hash` を更新する。OOF スイープは `sweep_oof.py` 内で `configs/preprocess.yaml` のフラグ切り替えを自動化し、`results/ablation/miss/SU{n}_yyyy-mm-dd.csv` へ書き出す運用を徹底する。
+
+命名規約が統一されることで、CI/UT やアーティファクトの追跡、PR テンプレの再利用が容易になる。SU を跨いだ差分比較や提出ローテーションも、ディレクトリとファイル名の規則に従うだけで自動化スクリプトに乗せられる。
+
+生データに対してまず SU1 を適用し、欠損の構造情報を固めてから、確定前処理（欠補や変換）をかける。
+
+**理由**
+
+- 前処理で欠補・補間を先に行うと、欠損構造が消えたり歪む。SU1 は **"生の欠損"** を数値化する設計。
+- SU1 は未来参照なしで生成可。以後の欠補・スケールと独立。
+
+**パイプライン構成**
+
+- CLI から `configs/preprocess.yaml` を読み込み、そこで定義されたポリシーで M/E/I/P/S の各 `GroupImputer` を構築する。
+- 学習・推論ともに処理順序は **生データ → SU1FeatureAugmenter → MGroupImputer → EGroupImputer → IGroupImputer → PGroupImputer → SGroupImputer → ColumnTransformer → LightGBM** で固定する。
+- CV では SU1 を全期間一括で生成した後に時系列分割し、fold 内では確定前処理以降を clone して学習する（履歴の切断を防ぐため）。
+- `train_su1.py` / `predict_su1.py` は上記パイプラインをバンドルとして保存・再利用するため、学習時と同じ確定前処理が推論にも確実に適用される。
+
+## SU 単位ごとの運用メモ
+
+- **SU1_単列コア**
+	- 内容: `m/<col>`, `m_any_day`, `m_rate_day`, `m_cnt/ALL`, `m_rate/ALL`, `gap_ffill/<col>`, `run_na/<col>`, `run_obs/<col>`, 群集約 `m_cnt/m_rate/<grp>`, `avg_gapff/<grp>`, `avg_run_na/<grp>`
+	- ブランチ: `feat/miss-core-su1`
+	- 提出可否: `ΔMSR ≥ +0.5σ` かつ 分散過度↑なし
+	- 備考: 全グループ（含 V）を対象に、先頭 NaN 保護と `clip≤60`、全 NaN 列除外ロジック、列名プレフィクス（英大文字+数字）前提を明示テスト
+- **SU2_履歴率**
+	- 内容: `roll_m_rate_W/<col>` `W∈{5,10,20,60}`, `exp_m_rate/<col>`, `valid_share_W/<col>`, `stable_window/<col>`
+	- ブランチ: `feat/miss-hist-su2`（設定スイープは `sweep/miss-hist-win`）
+	- 提出可否: SU1 適用を前提に OOF で `+0.5σ`
+	- 備考: `burn-in=20` 未満は NaN 据置
+- **SU3_遷移・再出現**
+	- 内容: `na_to_obs/<col>`, `obs_to_na/<col>`, `reappear_gap/<col>`, `pos_since_reappear/<col>`, `rank_miss_prob_day/<grp>`
+	- ブランチ: `feat/miss-transitions-su3`
+	- 提出可否: `ΔMSR` が僅少でも予測分散が安定なら提出候補
+	- 備考: すべて過去参照のみ
+- **SU4_代入影響トレース**
+	- 内容: `imp_used/<col>`, `imp_delta/<col>`, `imp_absdelta/<col>`, 代入種別 One-hot（`ffill/bfill/missforest/holiday_bridge`）, 交差 `holiday_bridge * m/<col>`
+	- ブランチ: `feat/miss-imptrace-su4`
+	- 提出可否: `ΔMSR ≥ +0.5σ` または外れ提出で LB ↑
+	- 備考: `imp_delta` は ±p99 winsorize
+- **SU5_共欠損・交差**
+	- 内容: `co_miss_cnt/<a>_<b>`, `co_miss_rolrate_W/<a>_<b>`、群内上位 K ペアのみ（`K=10` 目安）
+	- ブランチ: `feat/miss-comiss-k10-su5`
+	- 提出可否: OOF で `+0.5σ` かつ PSI 悪化なし
+	- 備考: ペア選定は学習期の相関 `|ρ|` 上位→fold 内固定
+- **SU6_圧縮（必要時のみ）**
+	- 内容: 群内欠損フラグ行列 PCA `miss_pca1..k`（`k≤3`, fold 内 fit）
+	- ブランチ: `feat/miss-pca-k2-su6`
+	- 提出可否: 特徴爆発時のみ適用し `ΔMSR` 非劣化を確認
+	- 備考: コンポーネントは学習折のみに fit
+
+### 実行順（軽→重）
+- コア: 1,2,3,4,5,9,10
+- 拡張: 6,7,8（共欠損と曜日・月傾向、順位系）
+- 圧縮: 群内 miss-PCA（必要最低限の成分のみ）
+
+### コスト最適化
+- 2値フラグは `uint8`、距離は `int16` に収める。
+- ペア特徴は高相関列上位Kのみ。`K=10` 想定。
+- 列数が閾値超過時は `valid_share_W` で弱列を先に間引く。
+
+### 提出運用ルール
+- 1日最大2提出。各SUでOOFスイープ→最良構成のみ提出。
+- LB劣化閾値: ベース比 `−0.002` 以下で即リバート。
+- 横ばいは保留1回まで。改善なければ落とす。
+
+### フラグ設計例（`configs/feature_generation.yaml`）
+```
+features:
+	miss_core: true      # SU1
+	miss_hist: false     # SU2
+	miss_transitions: false  # SU3
+	miss_imptrace: false     # SU4
+	miss_comiss: false       # SU5
+	miss_pca: false          # SU6
+params:
+	miss_hist:
+		windows: [5,10,20,60]
+		burn_in: 20
+	miss_core:
+		max_gap_clip: 60
+	miss_imptrace:
+		winsor_p: 0.99
+	miss_comiss:
+		top_k_pairs: 10
+```
+
+### PRテンプレ最小項目
+- 目的とリークリスク確認チェック
+- 追加特徴一覧と命名規約
+- OOF表: MSR/Sharpe/分散/PSI
+- 提出判断: 可 or 否（根拠）
+- 再現条件: seed, fold境界, 有効フラグ
