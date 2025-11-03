@@ -7,10 +7,9 @@ SU1出力から二次派生特徴を生成するトランスフォーマー ``SU
 
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, Literal, Mapping, MutableMapping, Sequence, cast
+from typing import Any, Dict, Iterable, Mapping, MutableMapping
 
 import numpy as np
 import pandas as pd
