@@ -26,3 +26,57 @@ su1:
     numpy_version: 1.26.4
     updated_at: 2025-11-04
     notes: "Artifacts regenerated with uv under pinned numpy 1.26.4 to keep MT19937 compatibility."
+
+su2:
+  base_features: su1
+  id_column: date_id
+  input_sources:
+    - m
+    - gap_ffill
+    - run_na
+    - run_obs
+  target_groups:
+    include: ["D", "M", "E", "I", "P", "S", "V"]
+    exclude: []
+  rolling_windows: [5, 10, 20, 60]
+  ewma_alpha: [0.1, 0.3, 0.5]
+  recovery_clip: 60
+  dtype:
+    flag: uint8
+    run: int16
+    float: float32
+  features:
+    rolling:
+      include_metrics:
+        - mean
+        - std
+        - max_run_na
+        - max_run_obs
+        - zscore
+      include_current: false
+      fill_missing_with_zero: true
+    ewma:
+      signals:
+        - m
+        - gap_ffill
+      include_std: true
+      reset_each_fold: true
+    transitions:
+      flip_rate_windows: [5, 10, 20, 60]
+      burst_score_windows: [5, 10, 20, 60]
+      recovery_feature: true
+    normalization:
+      minmax_windows: [5, 10, 20, 60]
+      rank_windows: [5, 10, 20, 60]
+      epsilon: 1.0e-6
+  output_prefix: su2
+  clip_max: 60
+  drop_constant_columns: true
+  metadata:
+    artifacts_dir: artifacts/SU2
+    depends_on: SU1
+    expected_usage: "Roll-based missingness regime detection over SU1 outputs"
+    numpy_version: 1.26.4
+    status: draft
+    updated_at: 2025-11-02
+    notes: "Generates rolling, ewma, transition, and normalization features from SU1 outputs without future leakage."
