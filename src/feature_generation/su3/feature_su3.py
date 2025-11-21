@@ -359,18 +359,21 @@ class SU3FeatureGenerator(BaseEstimator, TransformerMixin):
 
 		# m/<col>列名に変換
 		m_cols = [f"m/{col}" for col in grp_cols]
+		
+		# 有効な列のみを使用
+		valid_m_cols = [col for col in m_cols if col in X.columns]
+		if not valid_m_cols:
+			return trans_rate
 
 		for start_idx, end_idx in fold_boundaries:
 			for i in range(start_idx + 1, end_idx):
 				trans_count = 0
-				for col in m_cols:
-					if col not in X.columns:
-						continue
+				for col in valid_m_cols:
 					prev_val = X[col].iloc[i - 1]
 					curr_val = X[col].iloc[i]
 					if prev_val != curr_val:
 						trans_count += 1
-				trans_rate[i] = trans_count / len(m_cols)
+				trans_rate[i] = trans_count / len(valid_m_cols)
 
 		return trans_rate
 
@@ -418,14 +421,15 @@ class SU3FeatureGenerator(BaseEstimator, TransformerMixin):
 				if i > start_idx and m_values[i] == 0 and m_values[i - 1] == 1:
 					gap = min(int(run_na_values[i - 1]), self.config.reappear_clip)
 					reappear_gap[i] = gap
-					days_since_reappear = 0
+					days_since_reappear = 1  # 復帰した日から1日目
 				elif m_values[i] == 0:  # 観測継続中
 					days_since_reappear += 1
 				else:  # NaN中
 					days_since_reappear = 0
 
-				# 位置の正規化
-				pos_since_reappear[i] = min(days_since_reappear / 60.0, 1.0)
+				# 位置の正規化 (0から始まるので、days-1を使う)
+				normalized_pos = (days_since_reappear - 1) / float(self.config.reappear_clip) if days_since_reappear > 0 else 0.0
+				pos_since_reappear[i] = min(max(normalized_pos, 0.0), 1.0)
 
 		return reappear_gap, pos_since_reappear
 
@@ -468,7 +472,12 @@ class SU3FeatureGenerator(BaseEstimator, TransformerMixin):
 	def _compute_temporal_bias(
 		self, m_values: np.ndarray, date_ids: np.ndarray, fold_boundaries: List[Tuple[int, int]]
 	) -> Tuple[np.ndarray, np.ndarray]:
-		"""曜日別・月次別の欠損率を計算（expanding平均）。"""
+		"""曜日別・月次別の欠損率を計算（expanding平均）。
+		
+		Note: date_idの曜日・月計算は簡易的な近似を使用。
+		      曜日: date_id % 7 (0-6)
+		      月: (date_id // 30) % 12 (0-11として扱う)
+		"""
 		n = len(m_values)
 		dow_m_rate = np.zeros(n, dtype=self.config.dtype_float)
 		month_m_rate = np.zeros(n, dtype=self.config.dtype_float)
@@ -478,7 +487,7 @@ class SU3FeatureGenerator(BaseEstimator, TransformerMixin):
 			dow_na_count = np.zeros(7, dtype=np.int32)
 			dow_total_count = np.zeros(7, dtype=np.int32)
 
-			# 月ごとのカウンタ（1-12）
+			# 月ごとのカウンタ（0-11 として扱う）
 			month_na_count = np.zeros(12, dtype=np.int32)
 			month_total_count = np.zeros(12, dtype=np.int32)
 
