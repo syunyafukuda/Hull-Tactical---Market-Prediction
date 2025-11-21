@@ -735,9 +735,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 		pipe = cast(Pipeline, clone(core_pipeline_template))
 		fit_kwargs: Dict[str, Any] = {}
 		if callbacks:
+			# Avoid passing raw DataFrame eval_set to LightGBM to prevent feature-name issues
 			fit_kwargs["model__callbacks"] = callbacks
-			fit_kwargs["model__eval_set"] = [(X_valid, y_valid)]
-			fit_kwargs["model__eval_metric"] = "rmse"
 
 		pipe.fit(X_train, y_train, **fit_kwargs)
 		pred = pipe.predict(X_valid)
@@ -866,7 +865,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 	fit_kwargs_final: Dict[str, Any] = {}
 	if callbacks:
 		fit_kwargs_final["model__callbacks"] = callbacks
-		fit_kwargs_final["model__eval_metric"] = "rmse"
 	final_pipeline.fit(X_np, y_np, **fit_kwargs_final)
 
 	named_steps = cast(Mapping[str, Any], final_pipeline.named_steps)
