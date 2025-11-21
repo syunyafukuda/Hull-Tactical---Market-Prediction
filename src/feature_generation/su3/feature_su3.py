@@ -373,7 +373,10 @@ class SU3FeatureGenerator(BaseEstimator, TransformerMixin):
 					curr_val = X[col].iloc[i]
 					if prev_val != curr_val:
 						trans_count += 1
-				trans_rate[i] = trans_count / len(valid_m_cols)
+				if valid_m_cols:
+					trans_rate[i] = trans_count / len(valid_m_cols)
+				else:
+					trans_rate[i] = 0.0
 
 		return trans_rate
 
@@ -428,8 +431,11 @@ class SU3FeatureGenerator(BaseEstimator, TransformerMixin):
 					days_since_reappear = 0
 
 				# 位置の正規化 (0から始まるので、days-1を使う)
-				normalized_pos = (days_since_reappear - 1) / float(self.config.reappear_clip) if days_since_reappear > 0 else 0.0
-				pos_since_reappear[i] = min(max(normalized_pos, 0.0), 1.0)
+				if days_since_reappear > 0:
+					normalized_pos = (days_since_reappear - 1) / self.config.reappear_clip
+					pos_since_reappear[i] = min(max(normalized_pos, 0.0), 1.0)
+				else:
+					pos_since_reappear[i] = 0.0
 
 		return reappear_gap, pos_since_reappear
 
@@ -501,13 +507,13 @@ class SU3FeatureGenerator(BaseEstimator, TransformerMixin):
 				month_na_count[month] += int(m_values[i])
 				month_total_count[month] += 1
 
-				# burn-in期間後に比率を計算
-				if dow_total_count[dow] >= self.config.temporal_burn_in:
+				# burn-in期間後に比率を計算 (division by zero protection)
+				if dow_total_count[dow] >= self.config.temporal_burn_in and dow_total_count[dow] > 0:
 					dow_m_rate[i] = dow_na_count[dow] / dow_total_count[dow]
 				else:
 					dow_m_rate[i] = 0.0
 
-				if month_total_count[month] >= self.config.temporal_burn_in:
+				if month_total_count[month] >= self.config.temporal_burn_in and month_total_count[month] > 0:
 					month_m_rate[i] = month_na_count[month] / month_total_count[month]
 				else:
 					month_m_rate[i] = 0.0
