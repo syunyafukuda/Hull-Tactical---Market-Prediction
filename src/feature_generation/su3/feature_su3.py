@@ -424,17 +424,16 @@ class SU3FeatureGenerator(BaseEstimator, TransformerMixin):
 				if i > start_idx and m_values[i] == 0 and m_values[i - 1] == 1:
 					gap = min(int(run_na_values[i - 1]), self.config.reappear_clip)
 					reappear_gap[i] = gap
-					days_since_reappear = 1  # 復帰した日から1日目
-				elif m_values[i] == 0:  # 観測継続中
+					days_since_reappear = 0  # 復帰時点を0としてスタート
+				
+				# 観測継続中はインクリメント
+				if m_values[i] == 0:
+					# 位置の正規化 (復帰時点が0、その後1, 2, 3...とインクリメント)
+					normalized_pos = days_since_reappear / self.config.reappear_clip
+					pos_since_reappear[i] = min(max(normalized_pos, 0.0), 1.0)
 					days_since_reappear += 1
 				else:  # NaN中
 					days_since_reappear = 0
-
-				# 位置の正規化 (0から始まるので、days-1を使う)
-				if days_since_reappear > 0:
-					normalized_pos = (days_since_reappear - 1) / self.config.reappear_clip
-					pos_since_reappear[i] = min(max(normalized_pos, 0.0), 1.0)
-				else:
 					pos_since_reappear[i] = 0.0
 
 		return reappear_gap, pos_since_reappear
