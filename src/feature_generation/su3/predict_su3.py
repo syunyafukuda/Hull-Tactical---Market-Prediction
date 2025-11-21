@@ -423,7 +423,7 @@ def main(argv: Iterable[str] | None = None) -> int:
 	feature_list_path = Path(args.feature_list_path) if args.feature_list_path else art_dir / "feature_list.json"
 
 	if not bundle_path.exists():
-		raise FileNotFoundError(f"inference bundle not found: {bundle_path}. Run train_su1.py first.")
+		raise FileNotFoundError(f"inference bundle not found: {bundle_path}. Run train_su3.py first.")
 	if not meta_path.exists():
 		raise FileNotFoundError(f"model meta not found: {meta_path}")
 	if not feature_list_path.exists():

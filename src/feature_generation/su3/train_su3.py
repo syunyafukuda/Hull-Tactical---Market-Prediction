@@ -437,7 +437,7 @@ def build_pipeline(
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-	ap = argparse.ArgumentParser(description="Train a LightGBM model with SU1 features.")
+	ap = argparse.ArgumentParser(description="Train a LightGBM model with SU3 features (SU1+SU3).")
 	ap.add_argument("--data-dir", type=str, default="data/raw", help="Directory containing train/test files")
 	ap.add_argument("--train-file", type=str, default=None, help="Explicit path to the training file")
 	ap.add_argument("--test-file", type=str, default=None, help="Explicit path to the test file")
