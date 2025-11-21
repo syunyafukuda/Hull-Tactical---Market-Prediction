@@ -50,7 +50,7 @@ def _build_config(tmp_path: Path) -> SU2Config:
 
 
 def test_su2_all_nan(tmp_path: Path) -> None:
-	"""全NaNケース: 全て欠損している列に対する挙動を確認。"""
+	"""定数列ケース: 全て同じ値の列（定数列）に対する挙動を確認。"""
 	config = _build_config(tmp_path)
 	
 	# SU1 output with all NaN column
