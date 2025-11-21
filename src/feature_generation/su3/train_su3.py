@@ -40,7 +40,7 @@ except Exception:  # pragma: no cover - ガード用分岐
 	lgb = None  # type: ignore
 	HAS_LGBM = False
 
-from sklearn.base import BaseEstimator, TransformerMixin, clone
+from sklearn.base import clone
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import mean_squared_error
