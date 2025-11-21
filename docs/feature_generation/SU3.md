@@ -2,6 +2,26 @@
 
 最終更新: 2025-11-21
 
+## 実装状況
+
+**Status**: ✅ **Phase 1-2 Complete** (2025-11-21)
+
+- ✅ `feature_su3.py`: Core feature generation logic implemented
+- ✅ `SU3Config`: Configuration dataclass with all parameters
+- ✅ `SU3FeatureGenerator`: sklearn-compatible transformer
+- ✅ `SU3FeatureAugmenter`: Integration with SU1 pipeline
+- ✅ Unit tests: 12/12 passing
+- ✅ Quality checks: Ruff + Pyright passing
+- ⚠️ Training scripts: Placeholder implementations provided
+- 📝 Configuration: Added to `feature_generation.yaml` (enabled: false)
+
+**Implementation Notes**:
+- Stage 1 (minimal) implementation complete with ~96 features
+- Group aggregation for transitions reduces feature count
+- Top-k selection for reappearance, temporal, and holiday features
+- Fold boundary reset support for CV
+- Full training, inference, and sweep scripts are placeholders for future completion
+
 ## 概要
 
 SU3は**欠損パターンの時間的変化と代入の影響**を捕捉する三次特徴量群です。SU1が欠損の「静的構造」、SU2が「統計的派生」を扱ったのに対し、SU3は以下を重視します:
