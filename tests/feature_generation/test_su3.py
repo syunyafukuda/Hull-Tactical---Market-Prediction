@@ -328,6 +328,10 @@ def test_su3_output_shape(tmp_path: Path) -> None:
 	expected_cols = 1 + 6 + 6
 	assert len(features.columns) == expected_cols
 
+	# 祝日特徴がないことを確認
+	holiday_features = [c for c in features.columns if "holiday" in c]
+	assert len(holiday_features) == 0, "No holiday features should be generated without holiday column"
+
 
 def test_su3_dtype(tmp_path: Path) -> None:
 	"""データ型の確認。"""
@@ -360,3 +364,31 @@ def test_su3_dtype(tmp_path: Path) -> None:
 	# holiday_bridge_m: uint8
 	if "su3/holiday_bridge_m/M1" in features.columns:
 		assert features["su3/holiday_bridge_m/M1"].dtype == np.dtype("uint8")
+
+
+def test_su3_config_validation(tmp_path: Path) -> None:
+	"""設定値のバリデーションテスト。"""
+	# reappear_clipが負の値でエラーになることを確認
+	mapping = {
+		"id_column": "date_id",
+		"output_prefix": "su3",
+		"include_transitions": True,
+		"transition_group_agg": True,
+		"include_reappearance": True,
+		"reappear_clip": -10,  # 不正な値
+		"reappear_top_k": 3,
+		"include_imputation_trace": False,
+		"imp_delta_winsorize_p": 0.99,
+		"imp_delta_top_k": 20,
+		"imp_policy_group_level": True,
+		"include_temporal_bias": True,
+		"temporal_burn_in": 2,
+		"temporal_top_k": 3,
+		"include_holiday_interaction": True,
+		"holiday_top_k": 3,
+		"dtype": {"flag": "uint8", "int": "int16", "float": "float32"},
+		"reset_each_fold": True,
+	}
+
+	with pytest.raises(ValueError, match="reappear_clip must be positive"):
+		SU3Config.from_mapping(mapping, base_dir=tmp_path)

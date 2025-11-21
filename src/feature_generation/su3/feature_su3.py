@@ -96,6 +96,8 @@ class SU3Config:
 
 		include_reappearance = bool(mapping.get("include_reappearance", True))
 		reappear_clip = int(mapping.get("reappear_clip", 60))
+		if reappear_clip <= 0:
+			raise ValueError(f"reappear_clip must be positive, got {reappear_clip}")
 		reappear_top_k = int(mapping.get("reappear_top_k", 20))
 
 		include_imputation_trace = bool(mapping.get("include_imputation_trace", False))
@@ -271,6 +273,10 @@ class SU3FeatureGenerator(BaseEstimator, TransformerMixin):
 
 		Returns:
 			(start_idx, end_idx)のタプルのリスト
+
+		Note:
+			fold_indicesは連続した行に対して同じfold番号が付与されていることを想定。
+			非連続なfoldインデックスの場合、各連続ブロックを別のfoldとして扱う。
 		"""
 		if fold_indices is None or not self.config.reset_each_fold:
 			return [(0, n_rows)]
@@ -281,7 +287,20 @@ class SU3FeatureGenerator(BaseEstimator, TransformerMixin):
 			mask = fold_indices == fold
 			indices = np.where(mask)[0]
 			if len(indices) > 0:
-				boundaries.append((int(indices[0]), int(indices[-1]) + 1))
+				# 連続ブロックごとに境界を作成
+				blocks: List[List[int]] = []
+				current_block = [int(indices[0])]
+				for i in range(1, len(indices)):
+					if indices[i] == indices[i-1] + 1:
+						current_block.append(int(indices[i]))
+					else:
+						blocks.append(current_block)
+						current_block = [int(indices[i])]
+				blocks.append(current_block)
+				
+				# 各ブロックを境界として追加
+				for block in blocks:
+					boundaries.append((block[0], block[-1] + 1))
 
 		return boundaries
 
@@ -517,6 +536,10 @@ class SU3FeatureGenerator(BaseEstimator, TransformerMixin):
 
 		Returns:
 			period別欠損率の配列
+
+		Note:
+			月次計算は簡易的に date_id // 30 % 12 を使用。
+			実際の月の日数は異なるため、近似値として扱う。
 		"""
 		n = len(m_values)
 		bias_rate = np.zeros(n, dtype=self.config.float_dtype)
@@ -528,8 +551,8 @@ class SU3FeatureGenerator(BaseEstimator, TransformerMixin):
 				periods = date_ids[start_idx:end_idx] % 7
 			else:  # month
 				n_periods = 12
-				# date_idを日付に変換する簡易的な方法（仮定: date_id=0が2000-01-01）
-				# ここでは簡略化のため date_id を12で割った余りを月として扱う
+				# 簡易的な月計算（date_id を30日周期と仮定）
+				# Note: 実際の月の日数は28-31日だが、ここでは近似値として30を使用
 				periods = (date_ids[start_idx:end_idx] // 30) % 12
 
 			period_na_count = np.zeros(n_periods, dtype=np.int32)
