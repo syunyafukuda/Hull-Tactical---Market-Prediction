@@ -87,3 +87,46 @@ su2:
     decision: not_adopted  
     updated_at: 2025-11-21  
     notes: "⚠️ NON-ADOPTED: LB score 0.597 (vs SU1's 0.674). Overfitting due to 935 secondary features. Stage2 best config (id=3) parameters preserved for reference: windows=[5], alpha=0.1, transitions/normalization windows=[5,10,20,60], metrics=mean|std, signals=m|gap_ffill, recovery_clip=60, clip_max=30."
+
+su3:
+  enabled: false  # 初期はfalse、実装完了後にtrue
+  base_features: su1
+  id_column: date_id
+  output_prefix: su3
+  
+  # Stage 1: ミニマル実装（約96列）
+  include_transitions: true
+  transition_group_agg: true  # 群集約のみ（6列）
+  
+  include_reappearance: true
+  reappear_clip: 60
+  reappear_top_k: 20  # importance上位K列
+  
+  include_imputation_trace: false  # Stage 1ではオフ
+  imp_delta_winsorize_p: 0.99
+  imp_delta_top_k: 20
+  imp_policy_group_level: true
+  
+  include_temporal_bias: true
+  temporal_burn_in: 3
+  temporal_top_k: 20
+  
+  include_holiday_interaction: true
+  holiday_top_k: 20
+  
+  # データ型
+  dtype:
+    flag: uint8
+    int: int16
+    float: float32
+  
+  # fold境界リセット
+  reset_each_fold: true
+  
+  metadata:
+    artifacts_dir: artifacts/SU3
+    depends_on: SU1
+    expected_usage: "Transition, reappearance, and temporal bias features"
+    numpy_version: 1.26.4
+    status: development
+    updated_at: 2025-11-21
