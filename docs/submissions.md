@@ -108,3 +108,33 @@
   - 学習・推論ともに `numpy==1.26.4` を固定。`model_meta.json` の `library_versions.numpy` も 1.26.4 へ更新済み。
   - Kaggle Notebook 側では追加の BitGenerator alias を挿入せず、`joblib.load` がそのまま通ることを確認。
   - Private Dataset には SU1 バンドルと scikit-learn 1.7.2 wheel を同梱し、Notebook 起動時に `pip install --no-index` で導入する。
+
+## 2025-11-21 su2 (Submission Unit 2) - **非採用**
+
+- Kaggle Notebook: Private（Dataset: su2-missingness-core）
+- LB score: 0.597 (Public) ← **SU1の0.674から大幅悪化**
+- Decision: **非採用** - SU1をベースラインとして継続採用
+- Notes:
+  - OOF性能
+    - SU1: OOF RMSE=0.01212, MSR=0.01821 → LB 0.674
+    - SU2: OOF RMSE=0.01223, MSR=0.02319 → LB 0.597
+    - **CV上ではSU1と同等だが、LBでは-0.077ポイントの大幅劣化**
+  - 特徴量構成
+    - Pipeline input: 94列（生データ）
+    - SU1特徴: 368列（欠損構造一次特徴）
+    - SU2特徴: 935列（二次特徴: rolling/EWMA/transition/normalization）
+    - 合計: 1397列 ← **特徴量爆発**
+  - 問題分析
+    - パイプライン実装は正常動作確認済み（ローカル推論でも1397列正しく生成）
+    - **過学習**: 935個の二次特徴量が訓練データに過適合し汎化性能が低下
+    - **時系列分割への過適合**: fold_indicesによるCV最適化が未来データで無効
+    - **市場体制変化への脆弱性**: rolling/EWMA特徴が過去パターンに依存しすぎ
+  - SU2設定（configs/feature_generation.yaml）
+    - rolling_windows=[5], ewma_alpha=[0.1]
+    - drop_constant_columns=true
+    - 特徴量選択なし → 935列すべて使用
+  - 結論
+    - SU2の設計思想（二次特徴量の大量生成）が本コンペには不適合
+    - 特徴量数94→462(SU1)→1397(SU2)の爆発的増加が主因
+    - SU1の368列で十分有効であり、SU2による複雑化は不要
+    - 今後の改善方向: SU1ベースで特徴量選択・正則化強化を検討

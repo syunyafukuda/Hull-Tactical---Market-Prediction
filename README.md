@@ -13,6 +13,9 @@ GitHub Codespaces を開発環境とし、パッケージ管理は **[uv](https:
 ├─ .devcontainer/                 # Codespaces 用開発コンテナ設定。
 ├─ src/                           # コアロジック（共通ユーティリティ + 前処理パイプライン）。
 │  ├─ hull_tactical/              # Notebook や提出ラインから再利用する共通ユーティリティ。
+│  ├─ feature_generation/         # 特徴量生成モジュール（欠損構造特徴SU1/SU2）。
+│  │  ├─ su1/                     # SU1（欠損構造一次特徴） - **採用** (LB 0.674)
+│  │  └─ su2/                     # SU2（欠損構造二次特徴） - **非採用** (LB 0.597, 過学習により見送り)
 │  └─ preprocess/                 # 特徴量グループ別に欠損補完・学習・推論を実装。
 │      ├─ E_group/                # E 系特徴量向けパイプライン（train/predict/sweep）。
 │      ├─ I_group/                # I 系特徴量向けパイプライン。
@@ -377,6 +380,24 @@ data:
 - 実行時間の工夫
   - 重い学習はCIで回さず、`@pytest.mark.slow` で分離
   - 学習APIに `sample_rows` を用意し、CIでは小規模でのみ動作確認
+
+---
+
+## 現在のベストスコア
+
+| 提出ライン | LB Score (Public) | 特徴量数 | OOF RMSE | 状態 |
+|-----------|-------------------|---------|----------|------|
+| **SU1** | **0.674** | 462 (94+368) | 0.01212 | **採用** |
+| SU2 | 0.597 | 1397 (94+368+935) | 0.01223 | **非採用** (過学習) |
+| Preprocessing M | 0.629 | - | - | 採用 |
+| Preprocessing I (ridge_stack) | 0.623 | - | - | 採用 |
+| Preprocessing P (mice) | 0.625 | - | - | 採用 |
+| MSR-proxy | 0.610 | - | 0.01241 | 参考 |
+| simple_baseline | 0.554 | - | - | ベースライン |
+
+**現在のベースライン**: SU1 (LB 0.674)
+
+詳細は `docs/submissions.md` を参照してください。
 
 ---
 
