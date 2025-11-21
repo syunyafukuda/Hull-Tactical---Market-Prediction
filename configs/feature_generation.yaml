@@ -26,3 +26,64 @@ su1:
     numpy_version: 1.26.4
     updated_at: 2025-11-04
     notes: "Artifacts regenerated with uv under pinned numpy 1.26.4 to keep MT19937 compatibility."
+
+su2:
+  # ⚠️ SU2は非採用 (2025-11-21決定)
+  # 理由: LB 0.597 (SU1の0.674から-0.077ポイント大幅悪化)
+  # 原因: 935個の二次特徴量による過学習・汎化性能低下
+  # 結論: SU1をベースラインとして継続採用
+  enabled: false
+  base_features: su1
+  id_column: date_id
+  # 最終確定: config_id=3 (2025-11-07)
+  input_sources: [m, gap_ffill, run_na, run_obs]
+  target_groups:
+    include: ["D", "M", "E", "I", "P", "S", "V"]
+    exclude: []
+  # 固定パラメータ（スイープ停止）
+  rolling_windows: [5]
+  ewma_alpha: [0.1]
+  recovery_clip: 60
+  dtype:
+    flag: uint8
+    run: int16
+    float: float32
+  features:
+    rolling:
+      include_metrics: [mean, std]
+      include_current: [false]
+      fill_missing_with_zero: true
+    ewma:
+      signals: [m, gap_ffill]
+      include_std: [true]
+      reset_each_fold: [true]
+    transitions:
+      windows: [5, 10, 20, 60]
+      flip_rate_windows: [5, 10, 20, 60]
+      burst_score_windows: [5, 10, 20, 60]
+      recovery_feature: true
+    normalization:
+      windows: [5, 10, 20, 60]
+      minmax_windows: [5, 10, 20, 60]
+      rank_windows: [5, 10, 20, 60]
+      epsilon: 1.0e-6
+  include_rolling: [true]
+  include_ewma: [true]
+  include_transitions: [true]
+  include_normalization: [true]
+  normalization_mode: [both]
+  epsilon: [1.0e-6]
+  output_prefix: su2
+  clip_max: 30
+  drop_constant_columns: [true]
+  metadata:
+    artifacts_dir: artifacts/SU2
+    depends_on: SU1
+    expected_usage: "Roll-based missingness regime detection over SU1 outputs"
+    numpy_version: 1.26.4
+    status: deprecated  # stable → deprecated
+    kaggle_lb: 0.597  
+    oof_rmse: 0.01223  
+    decision: not_adopted  
+    updated_at: 2025-11-21  
+    notes: "⚠️ NON-ADOPTED: LB score 0.597 (vs SU1's 0.674). Overfitting due to 935 secondary features. Stage2 best config (id=3) parameters preserved for reference: windows=[5], alpha=0.1, transitions/normalization windows=[5,10,20,60], metrics=mean|std, signals=m|gap_ffill, recovery_clip=60, clip_max=30."
