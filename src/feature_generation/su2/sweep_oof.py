@@ -50,7 +50,6 @@ from src.feature_generation.su2.train_su2 import (  # noqa: E402
 	infer_test_file,
 	infer_train_file,
 	load_preprocess_policies,
-	load_su2_config,
 	load_table,
 )
 
