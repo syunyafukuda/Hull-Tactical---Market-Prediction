@@ -1,148 +1,79 @@
 #!/usr/bin/env python
 """SU3 特徴量バンドルの学習エントリーポイント。
 
-本スクリプトは生データから欠損構造を表現する SU1 + SU3 特徴量を生成し、
-軽量な前処理パイプラインを通し、LightGBM 回帰器を学習する。
+本スクリプトは生データから SU1 特徴量を生成し、その上に SU3 三次特徴量を追加して
+軽量な前処理パイプラインを通し、LightGBM 回帰器を学習する。生成された
+``sklearn.Pipeline``（特徴量生成＋前処理＋モデル）は
+``artifacts/SU3/inference_bundle.pkl`` に保存され、推論時に同じ処理フローを再利用できる。
 
-Note: This is a placeholder implementation demonstrating the SU3 integration concept.
-For actual training, the full SU1 training infrastructure should be adapted.
+主な役割
+--------
+* SU1/SU3 用 YAML 設定を読み込む。
+* :class:`SU1FeatureGenerator` で SU1 特徴量を作成し、:class:`SU3FeatureGenerator` で SU3 特徴量を追加する。
+* 時系列分割で OOF 指標を算出し、挙動を記録する。
+* 全学習データで再学習したパイプラインやメタ情報、特徴量リストを成果物として出力する。
+
+TODO: 完全な実装は train_su1.py および train_su2.py のパターンに従う。
+基本構造:
+1. SU3FeatureAugmenter クラス（SU1FeatureAugmenter + SU3FeatureGenerator）
+2. build_pipeline() 関数（SU1 → SU3 → Imputers → ColumnTransformer → LGBMRegressor）
+3. TimeSeriesSplit による OOF 評価
+4. artifacts/SU3/ 配下への成果物出力
 """
 
 from __future__ import annotations
 
+import argparse
 import sys
-from pathlib import Path
-from typing import Any
 
-import pandas as pd
-from sklearn.base import BaseEstimator, TransformerMixin
+# TODO: 完全な実装を追加
+# - SU3FeatureAugmenter クラス
+# - build_pipeline() 関数
+# - OOF 評価ループ
+# - 成果物出力（inference_bundle.pkl, model_meta.json, feature_list.json, etc.）
 
-# Add project paths
-THIS_DIR = Path(__file__).resolve().parent
-SRC_ROOT = THIS_DIR.parents[1]
-PROJECT_ROOT = THIS_DIR.parents[2]
-for path in (SRC_ROOT, PROJECT_ROOT):
-	if str(path) not in sys.path:
-		sys.path.append(str(path))
-
-from src.feature_generation.su1.feature_su1 import SU1Config, SU1FeatureGenerator  # noqa: E402
-from src.feature_generation.su3.feature_su3 import SU3Config, SU3FeatureGenerator  # noqa: E402
-
-
-class SU3FeatureAugmenter(BaseEstimator, TransformerMixin):
-	"""SU1 と SU3 特徴量を統合して入力フレームへ追加するトランスフォーマー。
-
-	SU1 特徴を生成した後に、その出力を使って SU3 特徴を追加生成する。
-	"""
-
-	def __init__(
-		self,
-		su1_config: SU1Config,
-		su3_config: SU3Config,
-		fill_value: float | None = 0.0,
-	) -> None:
-		self.su1_config = su1_config
-		self.su3_config = su3_config
-		self.fill_value = fill_value
-
-	def fit(self, X: pd.DataFrame, y: Any = None) -> "SU3FeatureAugmenter":
-		"""SU1 と SU3 の生成器を初期化し、特徴名を記録する。
-
-		Args:
-			X: 生データの DataFrame
-			y: ターゲット（未使用）
-
-		Returns:
-			self
-		"""
-		frame = self._ensure_dataframe(X)
-
-		# SU1 特徴生成
-		su1_generator = SU1FeatureGenerator(self.su1_config)
-		su1_generator.fit(frame)
-		su1_features = su1_generator.transform(frame)
-		if self.fill_value is not None:
-			su1_features = su1_features.fillna(self.fill_value)
-
-		# SU1特徴を元データに結合
-		combined = pd.concat([frame, su1_features], axis=1)
-
-		# SU3 特徴生成
-		su3_generator = SU3FeatureGenerator(self.su3_config)
-		su3_generator.fit(combined)
-		su3_features = su3_generator.transform(combined)
-		if self.fill_value is not None:
-			su3_features = su3_features.fillna(self.fill_value)
-
-		# 内部状態を保存
-		self.su1_generator_ = su1_generator
-		self.su3_generator_ = su3_generator
-		self.su1_feature_names_ = list(su1_features.columns)
-		self.su3_feature_names_ = list(su3_features.columns)
-		self.input_columns_ = list(frame.columns)
-
-		return self
-
-	def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-		"""SU1 と SU3 特徴を生成し、入力データに追加する。
-
-		Args:
-			X: 生データの DataFrame
-
-		Returns:
-			SU1 と SU3 特徴を追加した DataFrame
-		"""
-		if not hasattr(self, "su1_generator_") or not hasattr(self, "su3_generator_"):
-			raise RuntimeError("SU3FeatureAugmenter must be fitted before transform().")
-
-		frame = self._ensure_dataframe(X)
-
-		# SU1 特徴生成
-		su1_features = self.su1_generator_.transform(frame)
-		su1_features = su1_features.reindex(columns=self.su1_feature_names_, copy=True)
-		if self.fill_value is not None:
-			su1_features = su1_features.fillna(self.fill_value)
-
-		# SU1特徴を元データに結合
-		combined = pd.concat([frame, su1_features], axis=1)
-
-		# SU3 特徴生成
-		su3_features = self.su3_generator_.transform(combined)
-		su3_features = su3_features.reindex(columns=self.su3_feature_names_, copy=True)
-		if self.fill_value is not None:
-			su3_features = su3_features.fillna(self.fill_value)
-
-		# 全特徴を結合
-		augmented = pd.concat([frame, su1_features, su3_features], axis=1)
-		augmented.index = frame.index
-
-		return augmented
-
-	@staticmethod
-	def _ensure_dataframe(X: pd.DataFrame) -> pd.DataFrame:
-		"""入力が DataFrame であることを確認する。"""
-		if not isinstance(X, pd.DataFrame):  # pragma: no cover
-			raise TypeError("SU3FeatureAugmenter expects a pandas.DataFrame input")
-		return X.copy()
-
-
-def main() -> None:
-	"""メインエントリーポイント。
-
-	Note: This is a placeholder. For actual training, the full training logic
-	from train_su1.py should be adapted to use SU3FeatureAugmenter instead of
-	SU1FeatureAugmenter.
-	"""
-	print("SU3 training script placeholder.")
-	print("To perform actual training, adapt the full training logic from train_su1.py")
-	print("and replace SU1FeatureAugmenter with SU3FeatureAugmenter.")
+def main() -> int:
+	"""エントリーポイント。"""
+	parser = argparse.ArgumentParser(description="Train SU3 feature augmented model")
+	parser.add_argument("--data-dir", type=str, default="data/raw", help="Raw data directory")
+	parser.add_argument("--config-path", type=str, default="configs/feature_generation.yaml", help="Config file")
+	parser.add_argument("--artifacts-dir", type=str, default="artifacts/SU3", help="Output directory")
+	parser.add_argument("--n-splits", type=int, default=5, help="Number of time series splits")
+	parser.add_argument("--gap", type=int, default=0, help="Gap in time series split")
+	
+	args = parser.parse_args()
+	
+	print("=" * 80)
+	print("SU3 Training Pipeline - STUB IMPLEMENTATION")
+	print("=" * 80)
+	print(f"Data directory: {args.data_dir}")
+	print(f"Config path: {args.config_path}")
+	print(f"Artifacts directory: {args.artifacts_dir}")
+	print(f"N splits: {args.n_splits}")
+	print(f"Gap: {args.gap}")
 	print()
-	print("Key changes needed:")
-	print("1. Load both SU1Config and SU3Config from feature_generation.yaml")
-	print("2. Use SU3FeatureAugmenter(su1_config, su3_config) instead of SU1FeatureAugmenter")
-	print("3. Add regularization parameters: reg_alpha=0.1, reg_lambda=0.1 to LGBMRegressor")
-	print("4. Output artifacts to artifacts/SU3/ directory")
+	print("TODO: Complete implementation following train_su1.py and train_su2.py patterns")
+	print()
+	print("Expected flow:")
+	print("1. Load SU1 and SU3 configurations")
+	print("2. Load raw training data")
+	print("3. Create SU3FeatureAugmenter (SU1 + SU3)")
+	print("4. Build pipeline: SU1 → SU3 → Imputers → ColumnTransformer → LGBMRegressor")
+	print("5. Run TimeSeriesSplit CV with OOF evaluation")
+	print("6. Train final model on all data")
+	print("7. Save artifacts:")
+	print("   - inference_bundle.pkl")
+	print("   - model_meta.json")
+	print("   - feature_list.json")
+	print("   - cv_fold_logs.csv")
+	print("   - oof_predictions.csv")
+	print("   - submission.csv/submission.parquet")
+	print()
+	print("=" * 80)
+	
+	# TODO: Implement actual training logic
+	return 0
 
 
 if __name__ == "__main__":
-	main()
+	sys.exit(main())

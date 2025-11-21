@@ -126,7 +126,7 @@ su3:
   metadata:
     artifacts_dir: artifacts/SU3
     depends_on: SU1
-    expected_usage: "Transition, reappearance, and temporal bias features"
+    expected_usage: "Transition, reappearance, and imputation impact features"
     numpy_version: 1.26.4
     status: development
     updated_at: 2025-11-21

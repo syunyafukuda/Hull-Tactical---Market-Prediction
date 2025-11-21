@@ -1,51 +1,77 @@
 #!/usr/bin/env python
-"""SU3 OOF スイープスクリプト。
+"""SU3 特徴量のハイパーパラメータスイープスクリプト。
 
-異なるハイパーパラメータ設定で SU3 特徴量を生成し、
-OOF (Out-of-Fold) 評価を行って最適な設定を見つける。
+本スクリプトは SU3 の各種パラメータ（top-k 値など）をグリッドサーチし、
+OOF 評価結果を保存する。LB 提出は行わず、ローカル評価のみ。
+
+主な役割
+--------
+* configs/feature_generation.yaml の su3 セクションからスイープパラメータを読み込む
+* グリッドサーチ実行:
+  - reappear_top_k: [10, 20, 30, 50]
+  - temporal_top_k: [10, 20, 30]
+  - holiday_top_k: [10, 20, 30, 50]
+  - include_imputation_trace: [true, false]
+* 各構成で OOF 評価（RMSE, MSR, 特徴量数、学習時間）
+* 結果出力:
+  - results/ablation/SU3/sweep_YYYY-MM-DD_HHMMSS.json
+  - results/ablation/SU3/sweep_summary.csv
+
+TODO: 完全な実装は sweep_oof.py のパターンに従う。
 """
 
 from __future__ import annotations
 
+import argparse
 import sys
-from pathlib import Path
 
-# Add project paths
-THIS_DIR = Path(__file__).resolve().parent
-SRC_ROOT = THIS_DIR.parents[1]
-PROJECT_ROOT = THIS_DIR.parents[2]
-for path in (SRC_ROOT, PROJECT_ROOT):
-	if str(path) not in sys.path:
-		sys.path.append(str(path))
+# TODO: 完全な実装を追加
+# - パラメータグリッド定義
+# - OOF 評価ループ
+# - 結果 CSV/JSON 出力
 
-
-def main() -> None:
-	"""メインエントリーポイント。
-
-	Note: This is a placeholder. For actual parameter sweep, implement a grid search
-	over the following parameters:
-	- reappear_top_k: [10, 20, 30, 50]
-	- temporal_top_k: [10, 20, 30]
-	- holiday_top_k: [10, 20, 30, 50]
-	- include_imputation_trace: [True, False]
-	"""
-	print("SU3 OOF sweep script placeholder.")
-	print("To perform actual sweep, implement grid search logic similar to sweep_oof.py in SU2.")
+def main() -> int:
+	"""エントリーポイント。"""
+	parser = argparse.ArgumentParser(description="Sweep SU3 hyperparameters with OOF evaluation")
+	parser.add_argument("--data-dir", type=str, default="data/raw", help="Raw data directory")
+	parser.add_argument("--config-path", type=str, default="configs/feature_generation.yaml", help="Config file")
+	parser.add_argument("--output-dir", type=str, default="results/ablation/SU3", help="Output directory")
+	parser.add_argument("--n-splits", type=int, default=5, help="Number of time series splits")
+	parser.add_argument("--gap", type=int, default=0, help="Gap in time series split")
+	
+	args = parser.parse_args()
+	
+	print("=" * 80)
+	print("SU3 Hyperparameter Sweep - STUB IMPLEMENTATION")
+	print("=" * 80)
+	print(f"Data directory: {args.data_dir}")
+	print(f"Config path: {args.config_path}")
+	print(f"Output directory: {args.output_dir}")
+	print(f"N splits: {args.n_splits}")
+	print(f"Gap: {args.gap}")
 	print()
-	print("Recommended sweep grid:")
-	print("  reappear_top_k: [10, 20, 30, 50]")
-	print("  temporal_top_k: [10, 20, 30]")
-	print("  holiday_top_k: [10, 20, 30, 50]")
-	print("  include_imputation_trace: [True, False]")
+	print("TODO: Complete implementation following sweep_oof.py patterns")
 	print()
-	print("Evaluation metrics:")
-	print("  - OOF RMSE")
-	print("  - OOF MSR")
-	print("  - Feature count")
-	print("  - Training time")
+	print("Expected flow:")
+	print("1. Load SU1 and SU3 configurations")
+	print("2. Define parameter grid:")
+	print("   - reappear_top_k: [10, 20, 30, 50]")
+	print("   - temporal_top_k: [10, 20, 30]")
+	print("   - holiday_top_k: [10, 20, 30, 50]")
+	print("   - include_imputation_trace: [true, false]")
+	print("3. For each parameter combination:")
+	print("   - Build pipeline with those parameters")
+	print("   - Run TimeSeriesSplit CV")
+	print("   - Compute OOF RMSE, MSR, feature count, training time")
+	print("4. Save results:")
+	print("   - results/ablation/SU3/sweep_YYYY-MM-DD_HHMMSS.json")
+	print("   - results/ablation/SU3/sweep_summary.csv")
 	print()
-	print("Output: results/ablation/SU3/sweep_*.json and sweep_summary.csv")
+	print("=" * 80)
+	
+	# TODO: Implement actual sweep logic
+	return 0
 
 
 if __name__ == "__main__":
-	main()
+	sys.exit(main())
