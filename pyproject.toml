@@ -16,8 +16,13 @@ dependencies = [
     "pyright>=1.1.406",
     "pytest>=8.4.2",
     "pytest-cov>=7.0.0",
+    "pyyaml>=6.0.2",
     "ruff>=0.13.3",
     "scikit-learn>=1.7.2",
     "statsmodels>=0.14.5",
     "xgboost>=3.0.5",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
