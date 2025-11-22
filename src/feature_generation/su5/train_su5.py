@@ -560,30 +560,45 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 	return ap.parse_args(argv)
 
 
-def _prepare_features(train_df: pd.DataFrame, test_df: pd.DataFrame, *, target_col: str, id_col: str) -> tuple[pd.DataFrame, pd.Series, List[str]]:
-	drop_cols = {
-		target_col,
-		id_col,
-		"date_id",
-		"forward_returns",
-		"risk_free_rate",
-		"market_forward_excess_returns",
-		"is_scored",
-	}
+def _prepare_features(
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    *,
+    target_col: str,
+    id_col: str,
+    exclude_lagged: bool = True,
+) -> tuple[pd.DataFrame, pd.Series, List[str]]:
+    """
+    Prepare feature matrices for training and testing.
 
-	y_series = cast(pd.Series, train_df[target_col])
-	y = y_series.astype(float)
+    By default, columns starting with 'lagged_' are excluded from features.
+    This is to avoid potential data leakage or unintended use of lagged features.
+    Set exclude_lagged=False to include lagged features if desired.
+    """
+    drop_cols = {
+        target_col,
+        id_col,
+        "date_id",
+        "forward_returns",
+        "risk_free_rate",
+        "market_forward_excess_returns",
+        "is_scored",
+    }
 
-	candidate_cols = [c for c in train_df.columns if c not in drop_cols]
-	test_cols = set(test_df.columns) - drop_cols
-	use_cols = [c for c in candidate_cols if c in test_cols and not c.startswith("lagged_")]
-	if not use_cols:
-		raise RuntimeError("No usable feature columns after intersecting train/test.")
+    y_series = cast(pd.Series, train_df[target_col])
+    y = y_series.astype(float)
 
-	X = cast(pd.DataFrame, train_df[use_cols].copy())
-	return X, y, use_cols
+    candidate_cols = [c for c in train_df.columns if c not in drop_cols]
+    test_cols = set(test_df.columns) - drop_cols
+    if exclude_lagged:
+        use_cols = [c for c in candidate_cols if c in test_cols and not c.startswith("lagged_")]
+    else:
+        use_cols = [c for c in candidate_cols if c in test_cols]
+    if not use_cols:
+        raise RuntimeError("No usable feature columns after intersecting train/test.")
 
-
+    X = cast(pd.DataFrame, train_df[use_cols].copy())
+    return X, y, use_cols
 def _initialise_callbacks(model: Any) -> List[Any]:
 	callbacks: List[Any] = []
 	if not HAS_LGBM or lgb is None:
