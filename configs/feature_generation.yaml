@@ -173,3 +173,32 @@ su3:
         doc: "docs/feature_generation/troubleshooting/MSR_zero_issue.md"
     updated_at: 2025-11-22
     notes: "❌ 完全放棄。LB 0.461（初回・修正版ともに変化なし）、OOF MSR SU1の65%。欠損パターンの高次特徴化は本コンペでは無効と判断。Stage 2は開発しない。SU1をベースラインとして継続採用。"
+
+su5:
+  enabled: false
+  base_features: su1
+  id_column: date_id
+  output_prefix: su5
+
+  # ペア選択
+  top_k_pairs: 10
+  top_k_pairs_per_group: null  # 必要ならグループ単位 K も検討
+
+  # ローリング共欠損率
+  windows: [5, 20]
+
+  # fold 境界リセット
+  reset_each_fold: true
+
+  dtype:
+    flag: uint8
+    int: int16
+    float: float32
+
+  metadata:
+    artifacts_dir: artifacts/SU5
+    depends_on: SU1
+    expected_usage: "Co-missing structure features (top-K pairs, rolling co-miss rate, degree)"
+    numpy_version: 1.26.4
+    status: development
+    updated_at: 2025-11-22

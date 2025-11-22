@@ -2,17 +2,38 @@
 
 最終更新: 2025-11-22
 
-## 実装ステータス（計画）
+## 実装ステータス
 
-**Status**: 📝 設計完了・実装これから（このドキュメント）
+**Status**: ✅ **実装完了（コア機能）** / 📋 **データ統合待ち（パイプライン）**
 
-- 📝 `feature_su5.py`: Core feature generation logic をこれから実装
-- 📝 `SU5Config`: 設定用 dataclass を定義予定
-- 📝 `SU5FeatureGenerator`: sklearn-compatible transformer
-- 📝 `SU5FeatureAugmenter`: SU1 パイプラインへの統合クラス
-- 📝 Unit tests: `tests/feature_generation/test_su5.py` を新規追加
-- 📝 Quality checks: Ruff + Pyright + Pytest を SU1/SU3 と同水準で通す
-- 🔒 Configuration: `configs/feature_generation.yaml` に `su5` セクション追加（初期状態では `enabled: false`）
+### 実装済み
+- ✅ `feature_su5.py`: Core feature generation logic
+- ✅ `SU5Config`: 設定用 dataclass
+- ✅ `SU5FeatureGenerator`: sklearn-compatible transformer
+- ✅ `SU5FeatureAugmenter`: SU1 パイプラインへの統合クラス
+- ✅ Unit tests: `tests/feature_generation/test_su5.py` (7 tests, 全て通過)
+- ✅ Quality checks: Ruff + Pyright + Pytest (全て通過)
+- ✅ Configuration: `configs/feature_generation.yaml` に `su5` セクション追加
+- ✅ Pipeline scripts: `train_su5.py`, `predict_su5.py`, `sweep_oof.py` (構造実装)
+
+### 実データ統合待ち
+- 📋 `train_su5.py`: Full pipeline implementation with real data
+- 📋 `predict_su5.py`: Full inference implementation with real data
+- 📋 `sweep_oof.py`: Full parameter sweep with real data
+- 📋 OOF evaluation and MSR calculation
+- 📋 Artifact generation (inference_bundle.pkl, model_meta.json, etc.)
+
+### テスト結果
+```
+7 tests passing with 83% coverage on core module
+- test_su5_config_loading: ✅
+- test_su5_all_observed_columns: ✅
+- test_su5_all_nan_columns: ✅
+- test_su5_single_co_miss_pair: ✅
+- test_su5_fold_reset: ✅
+- test_su5_output_shape: ✅
+- test_su5_dtype: ✅
+```
 
 この仕様書は、SU3（遷移・再出現）実装のパターンを踏襲しつつ、「共欠損（co-miss）構造」を系統的に扱うための設計ドキュメントです。実装者が迷わずコードを書けること、後から見ても設計意図がわかることを目的とします。
 
