@@ -701,6 +701,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 	# Build fold_indices array for entire dataset
 	fold_indices_full = np.full(len(X_np), -1, dtype=int)
+	# Note: Both train and validation indices are assigned the same fold_idx value.
+	# This is intentional for the SU5FeatureGenerator, which requires fold labels for all samples
+	# (including validation) due to the reset_each_fold logic. The fold_indices array is used
+	# during feature augmentation to ensure that features are generated consistently for each fold.
 	for fold_idx, (train_idx, val_idx) in enumerate(splitter.split(X_np)):
 		fold_indices_full[train_idx] = fold_idx
 		fold_indices_full[val_idx] = fold_idx
