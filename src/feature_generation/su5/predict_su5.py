@@ -49,7 +49,7 @@ def _ensure_numpy_bitgenerator_aliases() -> None:
 
 	registries: list[dict[str, Any]] = []
 	try:
-		import numpy.random._pickle as _np_random_pickle  # type: ignore[attr-defined]
+		import numpy.random._pickle as _np_random_pickle  # type: ignore
 	except Exception:
 		_np_random_pickle = None  # type: ignore
 
