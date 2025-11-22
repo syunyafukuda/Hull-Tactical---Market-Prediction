@@ -218,9 +218,6 @@ class SU3FeatureGenerator(BaseEstimator, TransformerMixin):
 			features.update(reappear_features)
 
 		# C. 代入影響トレース（今回はスキップ - Stage 1ではオフ）
-		# if self.config.include_imputation_trace:
-		#     imp_features = self._generate_imputation_features(X, fold_boundaries)
-		#     features.update(imp_features)
 
 		# D. 曜日・月次パターン
 		if self.config.include_temporal_bias:
