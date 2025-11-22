@@ -697,12 +697,25 @@ def main(argv: Sequence[str] | None = None) -> int:
 	su2_prefit = SU2FeatureAugmenter(su1_config, su2_config, fill_value=args.numeric_fill_value)
 	su2_prefit.fit(X_np)
 	
-	# We need to build fold_indices array for proper SU2 state reset
-	fold_indices_all = np.zeros(len(X_np), dtype=int)
-	fold_map = []
-	for fold_idx, (train_idx, val_idx) in enumerate(splitter.split(X_np)):
-		fold_indices_all[train_idx] = fold_idx
-		fold_map.append((fold_idx, train_idx, val_idx))
+	# Build fold_indices array for proper SU2 state reset
+	# 
+	# Design rationale:
+	# - TimeSeriesSplit has overlapping train windows (each row appears in multiple folds)
+	# - Using train_idx would cause later folds to overwrite earlier fold assignments
+	# - Instead, we assign fold_id based on validation regions (non-overlapping)
+	# - This ensures SU2Generator._compute_fold_boundaries sees clear segment boundaries
+	# - Early training-only data (before first validation) gets fold=0 as fallback
+	# - Result: "first train + first val" becomes segment 0, "second val" becomes segment 1, etc.
+	# - This design is consistent between train_su2, sweep_oof (SU2), and their SU3 counterparts
+	fold_indices_all = np.full(len(X_np), -1, dtype=int)
+	for fold_idx, (_, val_idx) in enumerate(splitter.split(X_np)):
+		fold_indices_all[val_idx] = fold_idx
+	
+	# Assign fold 0 to rows that were never in validation (early training-only data)
+	first_assigned = np.where(fold_indices_all >= 0)[0]
+	if first_assigned.size == 0:
+		raise RuntimeError("No validation indices assigned in TimeSeriesSplit.")
+	fold_indices_all[:first_assigned[0]] = 0
 	
 	# Generate full augmented dataset with fold boundaries
 	X_augmented_all = su2_prefit.transform(X_np, fold_indices=fold_indices_all)

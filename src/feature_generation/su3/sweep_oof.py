@@ -192,6 +192,7 @@ def evaluate_single_config(
 	start_time = time.time()
 
 	# パラメータ値でSU3設定を更新
+	# include_imputation_trace は Stage1 では sweep しないため、fallback を使用
 	su3_config_dict = {
 		'id_column': su3_base_config.id_column,
 		'output_prefix': su3_base_config.output_prefix,
@@ -200,7 +201,7 @@ def evaluate_single_config(
 		'include_reappearance': su3_base_config.include_reappearance,
 		'reappear_clip': su3_base_config.reappear_clip,
 		'reappear_top_k': param_config['reappear_top_k'],
-		'include_imputation_trace': param_config['include_imputation_trace'],
+		'include_imputation_trace': bool(param_config.get('include_imputation_trace', su3_base_config.include_imputation_trace)),
 		'imp_delta_winsorize_p': su3_base_config.imp_delta_winsorize_p,
 		'imp_delta_top_k': su3_base_config.imp_delta_top_k,
 		'imp_policy_group_level': su3_base_config.imp_policy_group_level,
@@ -218,8 +219,8 @@ def evaluate_single_config(
 	}
 	su3_config = SU3Config.from_mapping(su3_config_dict)
 
-	# パイプラインを構築
-	pipeline = build_pipeline(
+	# パイプラインを構築（SU3 augmenter を含む）
+	base_pipeline = build_pipeline(
 		su1_config,
 		su3_config,
 		preprocess_settings,
@@ -232,6 +233,31 @@ def evaluate_single_config(
 	splitter = TimeSeriesSplit(n_splits=n_splits)
 	X_reset = train_data.reset_index(drop=True)
 	y_reset = pd.Series(target).reset_index(drop=True)
+	
+	# Pre-fit SU3 augmenter to get full augmented dataset
+	# This follows the same pattern as SU2 to ensure fold boundary awareness
+	from src.feature_generation.su3.feature_su3 import SU3FeatureAugmenter
+	su3_prefit = SU3FeatureAugmenter(su1_config, su3_config)
+	su3_prefit.fit(X_reset)
+	
+	# Build fold_indices array for proper SU3 state reset
+	# Use validation indices to assign fold boundaries (avoids TimeSeriesSplit overlap issues)
+	# Each validation region gets its fold_idx; earlier training-only regions get fold 0
+	fold_indices_all = np.full(len(X_reset), -1, dtype=int)
+	for fold_idx_iter, (_, val_idx_iter) in enumerate(splitter.split(X_reset)):
+		fold_indices_all[val_idx_iter] = fold_idx_iter
+	
+	# Assign fold 0 to rows that were never in validation (early training-only data)
+	first_assigned = np.where(fold_indices_all >= 0)[0]
+	if first_assigned.size == 0:
+		raise RuntimeError("No validation indices assigned in TimeSeriesSplit.")
+	fold_indices_all[:first_assigned[0]] = 0
+	
+	# Generate full augmented dataset with fold boundaries
+	X_augmented_all = su3_prefit.transform(X_reset, fold_indices=fold_indices_all)
+	
+	# Create core pipeline without SU3 augmenter (already applied)
+	core_pipeline_template = Pipeline(base_pipeline.steps[1:])
 
 	oof_pred = np.full(len(X_reset), np.nan, dtype=float)
 	fold_scores: List[Dict[str, Any]] = []
@@ -253,13 +279,14 @@ def evaluate_single_config(
 		if min_val_size > 0 and len(val_idx) < min_val_size:
 			continue
 
-		X_train = X_reset.iloc[train_idx]
+		# Use pre-augmented data (SU3 already applied with fold_indices)
+		X_train = X_augmented_all.iloc[train_idx]
 		y_train = y_reset.iloc[train_idx]
-		X_val = X_reset.iloc[val_idx]
+		X_val = X_augmented_all.iloc[val_idx]
 		y_val = y_reset.iloc[val_idx]
 
-		# このfold用にパイプラインをクローン
-		pipe = cast(Pipeline, clone(pipeline))
+		# このfold用にパイプラインをクローン（SU3以降のステップのみ）
+		pipe = cast(Pipeline, clone(core_pipeline_template))
 
 		# 早期停止なしで学習（スイープでは簡略化）
 		# 注: eval_setは特徴変換の複雑さを避けるためスキップ
@@ -298,16 +325,8 @@ def evaluate_single_config(
 		oof_msr = float('nan')
 
 	# 特徴量数を取得（拡張特徴量から）
-	# 特徴名を取得するため、パイプラインを一度fitする必要がある
-	try:
-		augmenter = pipeline.named_steps.get("augment")
-		if augmenter and hasattr(augmenter, 'fit_transform'):
-			sample_features = augmenter.fit_transform(X_reset.head(10))
-			n_features = sample_features.shape[1]
-		else:
-			n_features = 0
-	except Exception:
-		n_features = 0
+	# Pre-augmented dataから直接取得
+	n_features = X_augmented_all.shape[1]
 
 	train_time_sec = time.time() - start_time
 
@@ -528,8 +547,9 @@ def main() -> int:
 			print()
 			continue
 
-	# OOF MSRの昇順でソート（小さいほど良い）
-	results.sort(key=lambda x: x['oof_msr'] if not math.isnan(x['oof_msr']) else float('inf'))
+	# OOF MSRの降順でソート（大きいほど良い - Sharpe-like指標）
+	# タイブレークとしてRMSEの昇順（小さいほど良い）
+	results.sort(key=lambda x: (-x['oof_msr'] if not math.isnan(x['oof_msr']) else float('-inf'), x['oof_rmse']))
 
 	# 結果を保存
 	timestamp = dt.datetime.now().strftime("%Y-%m-%d_%H%M%S")

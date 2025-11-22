@@ -626,9 +626,35 @@ def main(argv: Sequence[str] | None = None) -> int:
 	X_np = X.reset_index(drop=True)
 	y_np = y.reset_index(drop=True)
 	y_np_array = y_np.to_numpy()
+	
+	# Pre-fit SU3 augmenter to get full augmented dataset
+	# For CV, we'll manually handle fold indices to ensure proper fold boundary reset
 	su3_prefit = SU3FeatureAugmenter(su1_config, su3_config)
 	su3_prefit.fit(X_np)
-	X_augmented_all = su3_prefit.transform(X_np)
+	
+	# Build fold_indices array for proper SU3 state reset (fold boundary awareness)
+	# 
+	# Design rationale:
+	# - TimeSeriesSplit has overlapping train windows (each row appears in multiple folds)
+	# - Using train_idx would cause later folds to overwrite earlier fold assignments
+	# - Instead, we assign fold_id based on validation regions (non-overlapping)
+	# - This ensures SU3Generator._compute_fold_boundaries sees clear segment boundaries
+	# - Early training-only data (before first validation) gets fold=0 as fallback
+	# - Result: "first train + first val" becomes segment 0, "second val" becomes segment 1, etc.
+	# - This design is consistent between train_su3, sweep_oof (SU3), and their SU2 counterparts
+	fold_indices_all = np.full(len(X_np), -1, dtype=int)
+	for fold_idx, (_, val_idx) in enumerate(splitter.split(X_np)):
+		fold_indices_all[val_idx] = fold_idx
+	
+	# Assign fold 0 to rows that were never in validation (early training-only data)
+	first_assigned = np.where(fold_indices_all >= 0)[0]
+	if first_assigned.size == 0:
+		raise RuntimeError("No validation indices assigned in TimeSeriesSplit.")
+	fold_indices_all[:first_assigned[0]] = 0
+	
+	# Generate full augmented dataset with fold boundaries
+	# SU3 will use fold_indices to reset internal state at fold boundaries
+	X_augmented_all = su3_prefit.transform(X_np, fold_indices=fold_indices_all)
 	core_pipeline_template = cast(Pipeline, Pipeline(base_pipeline.steps[1:]))
 
 	oof_pred = np.full(len(X_np), np.nan, dtype=float)
