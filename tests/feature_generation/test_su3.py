@@ -388,3 +388,193 @@ def test_su3_dtype() -> None:
 	# holiday_bridge_m: uint8
 	if "su3/holiday_bridge_m/M1" in features.columns:
 		assert features["su3/holiday_bridge_m/M1"].dtype == np.uint8
+
+
+def test_su3_feature_augmenter() -> None:
+	"""SU3FeatureAugmenterの基本動作確認。"""
+	from src.feature_generation.su3.feature_su3 import SU3FeatureAugmenter
+	from src.feature_generation.su1.feature_su1 import SU1Config
+	
+	# SU1設定
+	su1_mapping = {
+		"id_column": "date_id",
+		"exclude_columns": [],
+		"groups": {
+			"include": ["M", "E"],
+			"exclude": []
+		},
+		"gap_clip": 60,
+		"run_clip": 60,
+		"dtype": {"flag": "uint8", "run": "int16"},
+		"include_group_means": {
+			"gap_ffill": True,
+			"run_na": True,
+			"exclude_all_nan": False
+		},
+		"data": {
+			"raw_dir": "data/raw",
+			"train_filename": "train.csv",
+			"test_filename": "test.csv"
+		}
+	}
+	from pathlib import Path
+	su1_config = SU1Config.from_mapping(su1_mapping, base_dir=Path.cwd())
+	
+	# SU3設定
+	su3_config = _build_config()
+	
+	# 生データを模擬
+	data = pd.DataFrame(
+		{
+			"date_id": [0, 1, 2, 3, 4, 5],
+			"M1": [1.0, np.nan, np.nan, 2.0, 3.0, np.nan],
+			"M2": [4.0, 5.0, np.nan, np.nan, 6.0, 7.0],
+			"E1": [np.nan, np.nan, 8.0, 9.0, np.nan, np.nan],
+		}
+	).set_index("date_id")
+	
+	# SU3FeatureAugmenterのfit/transform
+	augmenter = SU3FeatureAugmenter(su1_config, su3_config)
+	augmenter.fit(data)
+	features = augmenter.transform(data)
+	
+	# SU1特徴が含まれているか（m/, gap_ffill/, run_na/, run_obs/, m_cnt/, m_rate/, avg_gapff/, avg_run_na/）
+	assert any(col.startswith("m/") for col in features.columns)
+	assert any(col.startswith("gap_ffill/") for col in features.columns)
+	assert any(col.startswith("run_na/") for col in features.columns)
+	assert any(col.startswith("run_obs/") for col in features.columns)
+	
+	# SU3特徴が含まれているか（su3/trans_rate/, su3/reappear_gap/, etc.）
+	assert any(col.startswith("su3/") for col in features.columns)
+	assert any(col.startswith("su3/trans_rate/") for col in features.columns)
+	
+	# 行数が保持されているか
+	assert len(features) == len(data)
+	assert features.index.equals(data.index)
+
+
+def test_su3_augmenter_with_fold_indices() -> None:
+	"""SU3FeatureAugmenterでfold_indicesが正しく伝播するか確認。"""
+	from src.feature_generation.su3.feature_su3 import SU3FeatureAugmenter
+	from src.feature_generation.su1.feature_su1 import SU1Config
+	
+	# SU1設定
+	su1_mapping = {
+		"id_column": "date_id",
+		"exclude_columns": [],
+		"groups": {
+			"include": ["M"],
+			"exclude": []
+		},
+		"gap_clip": 60,
+		"run_clip": 60,
+		"dtype": {"flag": "uint8", "run": "int16"},
+		"include_group_means": {
+			"gap_ffill": False,
+			"run_na": False,
+			"exclude_all_nan": False
+		},
+		"data": {
+			"raw_dir": "data/raw",
+			"train_filename": "train.csv",
+			"test_filename": "test.csv"
+		}
+	}
+	from pathlib import Path
+	su1_config = SU1Config.from_mapping(su1_mapping, base_dir=Path.cwd())
+	
+	# SU3設定（reset_each_fold=True）
+	su3_config = _build_config()
+	
+	# 生データ
+	data = pd.DataFrame(
+		{
+			"date_id": [0, 1, 2, 3, 4, 5],
+			"M1": [1.0, np.nan, np.nan, 2.0, np.nan, np.nan],
+		}
+	).set_index("date_id")
+	
+	# fold_indicesを指定
+	fold_indices = np.array([0, 0, 0, 1, 1, 1])
+	
+	augmenter = SU3FeatureAugmenter(su1_config, su3_config)
+	augmenter.fit(data)
+	features = augmenter.transform(data, fold_indices=fold_indices)
+	
+	# 特徴が生成されているか
+	assert len(features.columns) > 0
+	assert len(features) == len(data)
+
+
+def test_su3_augmenter_column_count() -> None:
+	"""SU3FeatureAugmenterの特徴量数確認（目標: 約474列）。"""
+	from src.feature_generation.su3.feature_su3 import SU3FeatureAugmenter
+	from src.feature_generation.su1.feature_su1 import SU1Config
+	
+	# SU1設定（全グループを含む）
+	su1_mapping = {
+		"id_column": "date_id",
+		"exclude_columns": [],
+		"groups": {
+			"include": ["M", "E", "I", "P", "S"],
+			"exclude": []
+		},
+		"gap_clip": 60,
+		"run_clip": 60,
+		"dtype": {"flag": "uint8", "run": "int16"},
+		"include_group_means": {
+			"gap_ffill": True,
+			"run_na": True,
+			"exclude_all_nan": False
+		},
+		"data": {
+			"raw_dir": "data/raw",
+			"train_filename": "train.csv",
+			"test_filename": "test.csv"
+		}
+	}
+	from pathlib import Path
+	su1_config = SU1Config.from_mapping(su1_mapping, base_dir=Path.cwd())
+	
+	# SU3設定（top-kを20に設定）
+	su3_mapping = {
+		"id_column": "date_id",
+		"output_prefix": "su3",
+		"include_transitions": True,
+		"transition_group_agg": True,
+		"include_reappearance": True,
+		"reappear_clip": 60,
+		"reappear_top_k": 20,
+		"include_imputation_trace": False,
+		"imp_delta_winsorize_p": 0.99,
+		"imp_delta_top_k": 20,
+		"imp_policy_group_level": True,
+		"include_temporal_bias": True,
+		"temporal_burn_in": 3,
+		"temporal_top_k": 20,
+		"include_holiday_interaction": True,
+		"holiday_top_k": 20,
+		"dtype": {"flag": "uint8", "int": "int16", "float": "float32"},
+		"reset_each_fold": True,
+	}
+	su3_config = SU3Config.from_mapping(su3_mapping)
+	
+	# 多数の列を持つ生データを模擬（10列×5グループ=50列）
+	data_dict = {"date_id": list(range(10))}
+	for group in ["M", "E", "I", "P", "S"]:
+		for i in range(10):
+			col_name = f"{group}{i+1}"
+			data_dict[col_name] = np.random.choice([1.0, np.nan], size=10)
+	
+	data = pd.DataFrame(data_dict).set_index("date_id")
+	
+	augmenter = SU3FeatureAugmenter(su1_config, su3_config)
+	augmenter.fit(data)
+	features = augmenter.transform(data)
+	
+	# 特徴量数を確認
+	# SU1: 50列×4種類(m/, gap_ffill/, run_na/, run_obs/) + 群集約(約15列) = 約215列
+	# SU3: 約5群集約 + 20×2再出現 + 20×2曜日月次 + 20×1祝日 = 約105列
+	# 合計: 約320列（実際のデータ構造に依存）
+	assert len(features.columns) > 100  # 最低でも100列以上
+	print(f"Total features: {len(features.columns)}")

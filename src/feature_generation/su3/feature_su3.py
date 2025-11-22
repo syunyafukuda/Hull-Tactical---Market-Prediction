@@ -557,8 +557,82 @@ class SU3FeatureGenerator(BaseEstimator, TransformerMixin):
 		return features
 
 
+class SU3FeatureAugmenter(BaseEstimator, TransformerMixin):
+	"""SU1とSU3を統合した特徴拡張器。
+	
+	SU1特徴量を生成し、その上にSU3特徴量を追加する統合トランスフォーマー。
+	scikit-learn Pipeline内で使用することを想定している。
+	"""
+	
+	def __init__(self, su1_config: Any, su3_config: SU3Config):
+		"""
+		Args:
+			su1_config: SU1Config インスタンス
+			su3_config: SU3Config インスタンス
+		"""
+		self.su1_config = su1_config
+		self.su3_config = su3_config
+		self.su1_generator_: Optional[Any] = None
+		self.su3_generator_: Optional[SU3FeatureGenerator] = None
+		self.su1_feature_names_: Optional[List[str]] = None
+		self.su3_feature_names_: Optional[List[str]] = None
+	
+	def fit(self, X: pd.DataFrame, y: Any = None) -> "SU3FeatureAugmenter":
+		"""SU1 → SU3の順で特徴生成器をfit。
+		
+		Args:
+			X: 生データのDataFrame
+			y: 目的変数（未使用）
+		
+		Returns:
+			self
+		"""
+		# SU1特徴生成器をインポート（遅延インポートで循環参照を回避）
+		from src.feature_generation.su1.feature_su1 import SU1FeatureGenerator
+		
+		# SU1特徴生成器をfit
+		self.su1_generator_ = SU1FeatureGenerator(self.su1_config)
+		su1_features = self.su1_generator_.fit_transform(X)
+		self.su1_feature_names_ = list(su1_features.columns)
+		
+		# SU3特徴生成器をfit（SU1特徴を入力）
+		self.su3_generator_ = SU3FeatureGenerator(self.su3_config)
+		self.su3_generator_.fit(su1_features)
+		
+		# SU3特徴名を取得
+		if self.su3_generator_.feature_names_ is not None:
+			self.su3_feature_names_ = self.su3_generator_.feature_names_
+		
+		return self
+	
+	def transform(self, X: pd.DataFrame, fold_indices: Optional[np.ndarray] = None) -> pd.DataFrame:
+		"""SU1 → SU3の順で特徴を生成し結合。
+		
+		Args:
+			X: 生データのDataFrame
+			fold_indices: CV用のfoldインデックス（fold境界でリセット）
+		
+		Returns:
+			SU1とSU3の特徴を結合したDataFrame
+		"""
+		if self.su1_generator_ is None or self.su3_generator_ is None:
+			raise RuntimeError("The transformer must be fitted before calling transform().")
+		
+		# SU1特徴生成
+		su1_features = self.su1_generator_.transform(X)
+		
+		# SU3特徴生成（SU1特徴を入力、fold_indicesを渡す）
+		su3_features = self.su3_generator_.transform(su1_features, fold_indices=fold_indices)
+		
+		# 結合
+		result = pd.concat([su1_features, su3_features], axis=1)
+		result.index = X.index
+		return result
+
+
 __all__ = [
 	"SU3Config",
 	"SU3FeatureGenerator",
+	"SU3FeatureAugmenter",
 	"load_su3_config",
 ]
