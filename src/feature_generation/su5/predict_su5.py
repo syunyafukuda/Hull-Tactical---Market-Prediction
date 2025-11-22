@@ -472,7 +472,12 @@ def main(argv: Iterable[str] | None = None) -> int:
 	signal_prediction = to_signal(prediction, postprocess_params).astype(np.float32, copy=False)
 
 	if "is_scored" not in working_sorted.columns:
-		raise KeyError("Expected 'is_scored' column in test data for submission filtering.")
+		raise KeyError(
+			"Expected 'is_scored' column in test data for submission filtering. "
+			"This column should indicate which rows are evaluated in the competition. "
+			"Please ensure your test data includes an 'is_scored' column, with True/1 for rows to be scored. "
+			"Refer to the competition documentation or data preparation instructions for details."
+		)
 	scored_mask_sorted = working_sorted["is_scored"].to_numpy()
 	try:
 		scored_mask_sorted = scored_mask_sorted.astype(bool)
