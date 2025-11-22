@@ -372,8 +372,6 @@ class SU3FeatureGenerator(BaseEstimator, TransformerMixin):
 						trans_count += 1
 				if valid_m_cols:
 					trans_rate[i] = trans_count / len(valid_m_cols)
-				else:
-					trans_rate[i] = 0.0
 
 		return trans_rate
 
