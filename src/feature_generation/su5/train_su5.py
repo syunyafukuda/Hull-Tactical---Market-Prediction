@@ -168,12 +168,12 @@ class SU5FeatureAugmenter(BaseEstimator, TransformerMixin):
 		self.su5_generator_ = SU5FeatureGenerator(self.su5_config)
 		self.su5_generator_.fit(su1_features)
 		su5_features = self.su5_generator_.transform(su1_features)
-		
+
 		# Store feature names
 		self.su1_feature_names_ = list(su1_features.columns)
 		self.su5_feature_names_ = list(su5_features.columns)
 		self.input_columns_ = list(frame.columns)
-		
+
 		return self
 
 	def transform(
@@ -188,13 +188,13 @@ class SU5FeatureAugmenter(BaseEstimator, TransformerMixin):
 		su1_features = su1_features.reindex(columns=self.su1_feature_names_, copy=True)
 		if self.fill_value is not None:
 			su1_features = su1_features.fillna(self.fill_value)
-		
+
 		# Generate SU5 features
 		su5_features = self.su5_generator_.transform(su1_features, fold_indices=fold_indices)
 		su5_features = su5_features.reindex(columns=self.su5_feature_names_, copy=True)
 		if self.fill_value is not None:
 			su5_features = su5_features.fillna(self.fill_value)
-		
+
 		# Concatenate: original + SU1 + SU5
 		augmented = pd.concat([frame, su1_features, su5_features], axis=1)
 		augmented.index = frame.index
@@ -679,17 +679,17 @@ def main(argv: Sequence[str] | None = None) -> int:
 	X_np = X.reset_index(drop=True)
 	y_np = y.reset_index(drop=True)
 	y_np_array = y_np.to_numpy()
-	
+
 	# Pre-fit augmenter for CV
 	su5_prefit = SU5FeatureAugmenter(su1_config, su5_config, fill_value=args.numeric_fill_value)
 	su5_prefit.fit(X_np)
-	
+
 	# Build fold_indices array for entire dataset
 	fold_indices_full = np.full(len(X_np), -1, dtype=int)
 	for fold_idx, (train_idx, val_idx) in enumerate(splitter.split(X_np)):
 		fold_indices_full[train_idx] = fold_idx
 		fold_indices_full[val_idx] = fold_idx
-	
+
 	# Transform with fold_indices
 	X_augmented_all = su5_prefit.transform(X_np, fold_indices=fold_indices_full)
 	core_pipeline_template = cast(Pipeline, Pipeline(base_pipeline.steps[1:]))

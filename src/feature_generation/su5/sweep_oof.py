@@ -104,19 +104,19 @@ def build_param_grid(args: argparse.Namespace) -> List[Dict[str, Any]]:
 		top_k_pairs_values = list(args.top_k_pairs_grid)
 	else:
 		top_k_pairs_values = [5, 10, 20]
-	
+
 	# windows
 	if args.windows_grid:
 		windows_values = [_parse_windows_str(s) for s in args.windows_grid]
 	else:
 		windows_values = [[5], [5, 20]]
-	
+
 	# reset_each_fold
 	if args.reset_each_fold_grid:
 		reset_values = [s.lower() == "true" for s in args.reset_each_fold_grid]
 	else:
 		reset_values = [True, False]
-	
+
 	# Build Cartesian product
 	configs: List[Dict[str, Any]] = []
 	for top_k, windows, reset in itertools.product(top_k_pairs_values, windows_values, reset_values):
@@ -125,7 +125,7 @@ def build_param_grid(args: argparse.Namespace) -> List[Dict[str, Any]]:
 			"windows": tuple(windows),
 			"reset_each_fold": bool(reset),
 		})
-	
+
 	return configs
 
 
@@ -158,7 +158,7 @@ def run_single_config(
 		dtype_int=np.dtype("int16"),
 		dtype_float=np.dtype("float32"),
 	)
-	
+
 	# Build pipeline
 	base_pipeline = build_pipeline(
 		su1_config,
@@ -169,39 +169,39 @@ def run_single_config(
 		random_state=args.random_state,
 	)
 	callbacks = _initialise_callbacks(base_pipeline.named_steps["model"])
-	
+
 	# CV setup
 	splitter = TimeSeriesSplit(n_splits=args.n_splits)
 	X_np = X.reset_index(drop=True)
 	y_np = y.reset_index(drop=True)
 	y_np_array = y_np.to_numpy()
-	
+
 	# Pre-fit augmenter
 	su5_prefit = SU5FeatureAugmenter(su1_config, su5_config, fill_value=args.numeric_fill_value)
 	su5_prefit.fit(X_np)
-	
+
 	# Build fold_indices
 	fold_indices_full = np.full(len(X_np), -1, dtype=int)
 	for fold_idx, (train_idx, val_idx) in enumerate(splitter.split(X_np)):
 		fold_indices_full[train_idx] = fold_idx
 		fold_indices_full[val_idx] = fold_idx
-	
+
 	# Transform with fold_indices
 	X_augmented_all = su5_prefit.transform(X_np, fold_indices=fold_indices_full)
 	core_pipeline_template = cast(Pipeline, Pipeline(base_pipeline.steps[1:]))
-	
+
 	# Track feature count
 	feature_count_su1 = len(getattr(su5_prefit, "su1_feature_names_", []))
 	feature_count_su5 = len(getattr(su5_prefit, "su5_feature_names_", []))
 	feature_count_total = X_augmented_all.shape[1]
-	
+
 	oof_pred = np.full(len(X_np), np.nan, dtype=float)
 	fold_count = 0
-	
+
 	for fold_idx, (train_idx, val_idx) in enumerate(splitter.split(X_np), start=1):
 		train_idx = np.array(train_idx)
 		val_idx = np.array(val_idx)
-		
+
 		if args.gap > 0:
 			if len(train_idx) > args.gap:
 				train_idx = train_idx[:-args.gap]
@@ -211,25 +211,25 @@ def run_single_config(
 			continue
 		if args.min_val_size and len(val_idx) < args.min_val_size:
 			continue
-		
+
 		X_train = X_augmented_all.iloc[train_idx]
 		y_train = y_np.iloc[train_idx]
 		X_valid = X_augmented_all.iloc[val_idx]
 		y_valid = y_np.iloc[val_idx]
-		
+
 		pipe = cast(Pipeline, clone(core_pipeline_template))
 		fit_kwargs: Dict[str, Any] = {}
 		if callbacks:
 			fit_kwargs["model__callbacks"] = callbacks
 			fit_kwargs["model__eval_set"] = [(X_valid, y_valid)]
 			fit_kwargs["model__eval_metric"] = "rmse"
-		
+
 		pipe.fit(X_train, y_train, **fit_kwargs)
 		pred = pipe.predict(X_valid)
 		pred = _to_1d(pred)
 		oof_pred[val_idx] = pred
 		fold_count += 1
-	
+
 	# Calculate metrics
 	valid_mask = ~np.isnan(oof_pred)
 	if valid_mask.any():
@@ -257,9 +257,9 @@ def run_single_config(
 		oof_rmse = float("nan")
 		oof_msr = float("nan")
 		oof_msr_down = float("nan")
-	
+
 	elapsed_time = time.time() - start_time
-	
+
 	result = {
 		"top_k_pairs": config_params["top_k_pairs"],
 		"windows": str(list(config_params["windows"])),
@@ -273,40 +273,40 @@ def run_single_config(
 		"training_time_sec": elapsed_time,
 		"folds_used": fold_count,
 	}
-	
+
 	return result
 
 
 def main(argv: Sequence[str] | None = None) -> int:
 	args = parse_args(argv)
-	
+
 	out_dir = Path(args.out_dir)
 	out_dir.mkdir(parents=True, exist_ok=True)
-	
+
 	# Load configs
 	su1_config = load_su1_config(args.config_path)
 	preprocess_settings = load_preprocess_policies(args.preprocess_config)
-	
+
 	# Load data
 	data_dir = Path(args.data_dir)
 	train_path = infer_train_file(data_dir, args.train_file)
 	test_path = infer_test_file(data_dir, args.test_file)
 	print(f"[info] train file: {train_path}")
 	print(f"[info] test file: {test_path}")
-	
+
 	train_df = load_table(train_path)
 	test_df = load_table(test_path)
-	
+
 	if args.id_col in train_df.columns:
 		train_df = train_df.sort_values(args.id_col).reset_index(drop=True)
 	if args.id_col in test_df.columns:
 		test_df = test_df.sort_values(args.id_col).reset_index(drop=True)
-	
+
 	if args.target_col not in train_df.columns:
 		raise KeyError(f"Target column '{args.target_col}' was not found in train data.")
-	
+
 	X, y, feature_cols = _prepare_features(train_df, test_df, target_col=args.target_col, id_col=args.id_col)
-	
+
 	# Model kwargs
 	model_kwargs = {
 		"learning_rate": args.learning_rate,
@@ -320,18 +320,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 		"n_jobs": -1,
 		"verbosity": args.verbosity,
 	}
-	
+
 	signal_mult_grid = tuple(float(x) for x in args.signal_mult_grid)
 	signal_lo_grid = tuple(float(x) for x in args.signal_lo_grid)
 	signal_hi_grid = tuple(float(x) for x in args.signal_hi_grid)
 	signal_lam_grid = tuple(float(x) for x in args.signal_lam_grid)
 	signal_eps = args.signal_eps
 	signal_optimize_for = args.signal_optimize_for
-	
+
 	# Build parameter grid
 	param_grid = build_param_grid(args)
 	print(f"[info] evaluating {len(param_grid)} parameter configurations")
-	
+
 	# Run sweep
 	all_results: List[Dict[str, Any]] = []
 	for idx, config_params in enumerate(param_grid, start=1):
@@ -358,18 +358,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 			print(f"  [error] {exc}")
 			import traceback
 			traceback.print_exc()
-	
+
 	if not all_results:
 		print("[error] no successful configurations")
 		return 1
-	
+
 	# Save results
 	timestamp = dt.datetime.now().strftime("%Y-%m-%d_%H%M%S")
 	json_path = out_dir / f"sweep_{timestamp}.json"
 	with json_path.open("w", encoding="utf-8") as fh:
 		json.dump(all_results, fh, indent=2, ensure_ascii=False)
 	print(f"\n[ok] wrote detailed results: {json_path}")
-	
+
 	csv_path = out_dir / "sweep_summary.csv"
 	fieldnames = [
 		"top_k_pairs",
@@ -398,7 +398,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 		print(f"  top_k_pairs={best['top_k_pairs']}, windows={best['windows']}, reset_each_fold={best['reset_each_fold']}")
 		print(f"  oof_rmse={best['oof_rmse']:.6f}, oof_msr={best['oof_msr']:.6f}")
 		print(f"  features: su1={best['feature_count_su1']}, su5={best['feature_count_su5']}, total={best['feature_count_total']}")
-	
+
 	return 0
 
 
