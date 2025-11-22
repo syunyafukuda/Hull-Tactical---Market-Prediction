@@ -91,15 +91,15 @@ def load_configs(
 	preprocess_config_path = Path(preprocess_config_path).resolve()
 
 	if not config_path.exists():
-		raise FileNotFoundError(f"Config file not found: {config_path}")
+		raise FileNotFoundError(f"設定ファイルが見つかりません: {config_path}")
 	if not preprocess_config_path.exists():
-		raise FileNotFoundError(f"Preprocess config file not found: {preprocess_config_path}")
+		raise FileNotFoundError(f"前処理設定ファイルが見つかりません: {preprocess_config_path}")
 
-	# Load SU1 and SU3 configs
+	# SU1とSU3の設定を読み込む
 	su1_config = load_su1_config(config_path)
 	su3_config = load_su3_config(config_path)
 
-	# Load preprocess settings
+	# 前処理設定を読み込む
 	preprocess_settings = load_preprocess_policies(preprocess_config_path)
 
 	return su1_config, su3_config, preprocess_settings
@@ -112,12 +112,12 @@ def build_param_combinations(
 	"""パラメータグリッドから全組み合わせを生成。"""
 	combinations = []
 
-	# Extract parameter lists
+	# パラメータリストを抽出
 	reappear_values = param_grid.get('reappear_top_k', [20])
 	temporal_values = param_grid.get('temporal_top_k', [20])
 	holiday_values = param_grid.get('holiday_top_k', [20])
 
-	# Generate all combinations using itertools.product
+	# itertools.productで全組み合わせを生成
 	for reappear, temporal, holiday in itertools.product(
 		reappear_values,
 		temporal_values,
@@ -158,7 +158,7 @@ def load_table(file_path: str | Path) -> pd.DataFrame:
 	elif file_path.suffix in (".parquet", ".pq"):
 		return pd.read_parquet(file_path)
 	else:
-		raise ValueError(f"Unsupported file format: {file_path.suffix}")
+		raise ValueError(f"サポートされていないファイル形式: {file_path.suffix}")
 
 
 def evaluate_single_config(
@@ -191,7 +191,7 @@ def evaluate_single_config(
 	"""
 	start_time = time.time()
 
-	# Update SU3 config with parameter values
+	# パラメータ値でSU3設定を更新
 	su3_config_dict = {
 		'id_column': su3_base_config.id_column,
 		'output_prefix': su3_base_config.output_prefix,
@@ -218,7 +218,7 @@ def evaluate_single_config(
 	}
 	su3_config = SU3Config.from_mapping(su3_config_dict)
 
-	# Build pipeline
+	# パイプラインを構築
 	pipeline = build_pipeline(
 		su1_config,
 		su3_config,
@@ -228,7 +228,7 @@ def evaluate_single_config(
 		random_state=random_state,
 	)
 
-	# Prepare for CV
+	# CV用の準備
 	splitter = TimeSeriesSplit(n_splits=n_splits)
 	X_reset = train_data.reset_index(drop=True)
 	y_reset = pd.Series(target).reset_index(drop=True)
@@ -236,12 +236,12 @@ def evaluate_single_config(
 	oof_pred = np.full(len(X_reset), np.nan, dtype=float)
 	fold_scores: List[Dict[str, Any]] = []
 
-	# Run cross-validation
+	# クロスバリデーションを実行
 	for fold_idx, (train_idx, val_idx) in enumerate(splitter.split(X_reset), start=1):
 		train_idx = np.array(train_idx)
 		val_idx = np.array(val_idx)
 
-		# Apply gap
+		# ギャップを適用
 		if gap > 0:
 			if len(train_idx) > gap:
 				train_idx = train_idx[:-gap]
@@ -258,24 +258,24 @@ def evaluate_single_config(
 		X_val = X_reset.iloc[val_idx]
 		y_val = y_reset.iloc[val_idx]
 
-		# Clone pipeline for this fold
+		# このfold用にパイプラインをクローン
 		pipe = cast(Pipeline, clone(pipeline))
 
-		# Fit without early stopping (simpler for sweep)
-		# Note: We skip eval_set to avoid complexity with feature transformation
+		# 早期停止なしで学習（スイープでは簡略化）
+		# 注: eval_setは特徴変換の複雑さを避けるためスキップ
 		fit_kwargs: Dict[str, Any] = {}
 
 		pipe.fit(X_train, y_train, **fit_kwargs)
 
-		# Predict
+		# 予測
 		pred = pipe.predict(X_val)
 		pred = _to_1d(pred)
 		oof_pred[val_idx] = pred
 
-		# Calculate fold RMSE
+		# fold RMSEを計算
 		rmse = float(math.sqrt(mean_squared_error(y_val, pred)))
 
-		# Calculate fold MSR (using default signal parameters)
+		# fold MSRを計算（デフォルトのシグナルパラメータを使用）
 		signal_params = PostProcessParams(mult=1.0, lo=1.0, hi=1.0)
 		metrics = evaluate_msr_proxy(pred, y_val.to_numpy(), signal_params, eps=1e-8, lam=0.0)
 		msr = float(metrics['msr'])
@@ -286,7 +286,7 @@ def evaluate_single_config(
 			'msr': msr,
 		})
 
-	# Calculate overall OOF metrics
+	# 全体のOOF指標を計算
 	valid_mask = ~np.isnan(oof_pred)
 	if valid_mask.any():
 		oof_rmse = float(math.sqrt(mean_squared_error(target[valid_mask], oof_pred[valid_mask])))
@@ -297,8 +297,8 @@ def evaluate_single_config(
 		oof_rmse = float('nan')
 		oof_msr = float('nan')
 
-	# Get feature count (from augmented features)
-	# We need to fit the pipeline once to get feature names
+	# 特徴量数を取得（拡張特徴量から）
+	# 特徴名を取得するため、パイプラインを一度fitする必要がある
 	try:
 		augmenter = pipeline.named_steps.get("augment")
 		if augmenter and hasattr(augmenter, 'fit_transform'):
@@ -330,7 +330,7 @@ def save_results(
 	"""結果をJSON/CSVで保存。"""
 	output_dir.mkdir(parents=True, exist_ok=True)
 
-	# Save JSON (detailed results with fold scores)
+	# JSON保存（fold別スコアを含む詳細結果）
 	json_file = output_dir / f'sweep_{timestamp}.json'
 	json_data = {
 		'metadata': metadata,
@@ -338,9 +338,9 @@ def save_results(
 	}
 	with json_file.open('w', encoding='utf-8') as f:
 		json.dump(json_data, f, indent=2, ensure_ascii=False)
-	print(f"[save] Detailed results saved to: {json_file}")
+	print(f"[保存] 詳細結果を保存しました: {json_file}")
 
-	# Save CSV (summary)
+	# CSV保存（サマリー）
 	csv_file = output_dir / 'sweep_summary.csv'
 	file_exists = csv_file.exists()
 
@@ -377,7 +377,7 @@ def save_results(
 			}
 			writer.writerow(row)
 
-	print(f"[save] Summary results appended to: {csv_file}")
+	print(f"[保存] サマリー結果を追記しました: {csv_file}")
 
 
 def main() -> int:
@@ -406,40 +406,40 @@ def main() -> int:
 	args = ap.parse_args()
 
 	print("=" * 80)
-	print("SU3 Hyperparameter Sweep")
+	print("SU3 ハイパーパラメータスイープ")
 	print("=" * 80)
-	print(f"Data directory: {args.data_dir}")
-	print(f"Config path: {args.config_path}")
-	print(f"Preprocess config: {args.preprocess_config}")
-	print(f"Output directory: {args.output_dir}")
-	print(f"N splits: {args.n_splits}")
-	print(f"Gap: {args.gap}")
-	print(f"Include imputation trace: {args.include_imputation_trace}")
+	print(f"データディレクトリ: {args.data_dir}")
+	print(f"設定ファイルパス: {args.config_path}")
+	print(f"前処理設定: {args.preprocess_config}")
+	print(f"出力ディレクトリ: {args.output_dir}")
+	print(f"分割数: {args.n_splits}")
+	print(f"ギャップ: {args.gap}")
+	print(f"代入影響トレース: {args.include_imputation_trace}")
 	print()
 
-	# Load configurations
-	print("[load] Loading configurations...")
+	# 設定を読み込む
+	print("[読込] 設定を読み込んでいます...")
 	su1_config, su3_config, preprocess_settings = load_configs(
 		args.config_path,
 		args.preprocess_config
 	)
-	print(f"[load] SU1 config loaded: {len(su1_config.target_groups)} groups")
-	print(f"[load] SU3 config loaded: prefix={su3_config.output_prefix}")
+	print(f"[読込] SU1設定を読み込みました: {len(su1_config.target_groups)}グループ")
+	print(f"[読込] SU3設定を読み込みました: prefix={su3_config.output_prefix}")
 
-	# Load training data
-	print("[load] Loading training data...")
+	# 学習データを読み込む
+	print("[読込] 学習データを読み込んでいます...")
 	if args.train_file:
 		train_file = Path(args.train_file)
 	else:
 		train_file = infer_train_file(args.data_dir)
 	
-	print(f"[load] Reading: {train_file}")
+	print(f"[読込] 読み込み中: {train_file}")
 	train_df = load_table(train_file)
-	print(f"[load] Train shape: {train_df.shape}")
+	print(f"[読込] 学習データの形状: {train_df.shape}")
 
-	# Prepare features and target
+	# 特徴量とターゲットを準備
 	if args.target_col not in train_df.columns:
-		raise ValueError(f"Target column '{args.target_col}' not found in training data")
+		raise ValueError(f"ターゲット列 '{args.target_col}' が学習データに見つかりません")
 
 	# Extract features (simple approach - drop known non-feature columns)
 	drop_cols = {
@@ -455,16 +455,16 @@ def main() -> int:
 	X = cast(pd.DataFrame, train_df[feature_cols].copy())
 	y = train_df[args.target_col].to_numpy()
 
-	print(f"[prepare] Feature columns: {len(feature_cols)}")
-	print(f"[prepare] Target shape: {y.shape}")
+	print(f"[準備] 特徴量列数: {len(feature_cols)}")
+	print(f"[準備] ターゲットの形状: {y.shape}")
 
-	# Generate parameter combinations
-	print("[sweep] Generating parameter combinations...")
+	# パラメータ組み合わせを生成
+	print("[スイープ] パラメータ組み合わせを生成しています...")
 	param_combinations = build_param_combinations(
 		PARAM_GRID,
 		include_imputation_trace=args.include_imputation_trace
 	)
-	print(f"[sweep] Total configurations: {len(param_combinations)}")
+	print(f"[スイープ] 全構成数: {len(param_combinations)}")
 	print()
 
 	# Model configuration
@@ -478,11 +478,24 @@ def main() -> int:
 		"verbosity": args.verbosity,
 	}
 
-	# Evaluate each configuration
+	# 各構成を評価
 	results: List[Dict[str, Any]] = []
+	config_start_time = time.time()
 	for idx, param_config in enumerate(param_combinations, start=1):
-		print(f"[sweep] Evaluating config {idx}/{len(param_combinations)}")
-		print(f"[sweep] Parameters: {param_config}")
+		iter_start = time.time()
+		
+		# 推定残り時間を計算
+		if idx > 1:
+			elapsed = time.time() - config_start_time
+			avg_time_per_config = elapsed / (idx - 1)
+			remaining_configs = len(param_combinations) - idx + 1
+			estimated_remaining = avg_time_per_config * remaining_configs
+			remaining_str = f" (推定残り時間: {estimated_remaining/60:.1f}分)"
+		else:
+			remaining_str = ""
+		
+		print(f"[スイープ] 構成 {idx}/{len(param_combinations)} を評価中{remaining_str}")
+		print(f"[スイープ] パラメータ: {param_config}")
 
 		try:
 			result = evaluate_single_config(
@@ -502,22 +515,23 @@ def main() -> int:
 			)
 			results.append(result)
 
-			print(f"[result] OOF RMSE: {result['oof_rmse']:.6f}")
-			print(f"[result] OOF MSR: {result['oof_msr']:.6f}")
-			print(f"[result] N features: {result['n_features']}")
-			print(f"[result] Time: {result['train_time_sec']:.1f}s")
+			iter_time = time.time() - iter_start
+			print(f"[結果] OOF RMSE: {result['oof_rmse']:.6f}")
+			print(f"[結果] OOF MSR: {result['oof_msr']:.6f}")
+			print(f"[結果] 特徴量数: {result['n_features']}")
+			print(f"[結果] 時間: {result['train_time_sec']:.1f}秒 (この構成: {iter_time:.1f}秒)")
 			print()
 
 		except Exception as e:
-			print(f"[error] Configuration {idx} failed: {e}")
-			print("[error] Continuing with next configuration...")
+			print(f"[エラー] 構成 {idx} が失敗しました: {e}")
+			print("[エラー] 次の構成に進みます...")
 			print()
 			continue
 
-	# Sort results by OOF MSR (ascending - lower is better)
+	# OOF MSRの昇順でソート（小さいほど良い）
 	results.sort(key=lambda x: x['oof_msr'] if not math.isnan(x['oof_msr']) else float('inf'))
 
-	# Save results
+	# 結果を保存
 	timestamp = dt.datetime.now().strftime("%Y-%m-%d_%H%M%S")
 	metadata = {
 		'timestamp': timestamp,
@@ -530,21 +544,20 @@ def main() -> int:
 	output_dir = Path(args.output_dir)
 	save_results(results, output_dir, timestamp, metadata)
 
-	# Display best configuration
+	# ベスト構成を表示
 	print()
 	print("=" * 80)
-	print("Best Configuration")
+	print("ベスト構成")
 	print("=" * 80)
 	if results:
 		best = results[0]
-		print(f"Config: {best['config']}")
+		print(f"構成: {best['config']}")
 		print(f"OOF RMSE: {best['oof_rmse']:.6f}")
 		print(f"OOF MSR: {best['oof_msr']:.6f}")
-		print(f"N features: {best['n_features']}")
-		print(f"Time: {best['train_time_sec']:.1f}s")
+		print(f"特徴量数: {best['n_features']}")
+		print(f"時間: {best['train_time_sec']:.1f}秒")
 	else:
-		print("No successful configurations")
-
+		print("成功した構成がありません")
 	print("=" * 80)
 	return 0
 

@@ -1,27 +1,27 @@
-# SU3 Hyperparameter Sweep
+# SU3 ハイパーパラメータスイープ
 
-This directory contains the implementation of SU3 hyperparameter sweep functionality for optimizing feature selection parameters.
+SU3特徴生成の特徴選択パラメータを最適化するハイパーパラメータスイープ機能の実装です。
 
-## Overview
+## 概要
 
-The sweep evaluates different combinations of top-k values for SU3 feature generation:
-- `reappear_top_k`: Number of top reappearance patterns to keep (default: 20)
-- `temporal_top_k`: Number of top temporal bias features to keep (default: 20)
-- `holiday_top_k`: Number of top holiday interaction features to keep (default: 20)
-- `include_imputation_trace`: Whether to include imputation trace features (Stage 2)
+スイープは、SU3特徴生成のさまざまなtop-k値の組み合わせを評価します：
+- `reappear_top_k`: 保持する再出現パターンの上位数（デフォルト: 20）
+- `temporal_top_k`: 保持する時系列バイアス特徴量の上位数（デフォルト: 20）
+- `holiday_top_k`: 保持する祝日相互作用特徴量の上位数（デフォルト: 20）
+- `include_imputation_trace`: 代入影響特徴量を含めるかどうか（Stage 2）
 
-## Files
+## ファイル
 
-- `sweep_oof.py`: Main sweep implementation (553 lines)
-- `../../../tests/feature_generation/test_su3_sweep.py`: Unit tests (327 lines, 4 test cases)
-- `../../../scripts/run_su3_sweep.sh`: Helper script for running sweeps
+- `sweep_oof.py`: メインスイープ実装（553行）
+- `../../../tests/feature_generation/test_su3_sweep.py`: ユニットテスト（327行、4テストケース）
+- `../../../scripts/run_su3_sweep.sh`: スイープ実行用ヘルパースクリプト
 
-## Usage
+## 使用方法
 
-### Basic Usage
+### 基本的な使用方法
 
 ```bash
-# Stage 1: Without imputation trace (48 configurations)
+# Stage 1: 代入影響トレースなし（48構成）
 python3 src/feature_generation/su3/sweep_oof.py \
     --data-dir data/raw \
     --config-path configs/feature_generation.yaml \
@@ -32,17 +32,17 @@ python3 src/feature_generation/su3/sweep_oof.py \
     --verbosity -1
 ```
 
-### Using the Helper Script
+### ヘルパースクリプトの使用
 
 ```bash
-# With default parameters
+# デフォルトパラメータで実行
 ./scripts/run_su3_sweep.sh
 
-# With custom parameters
+# カスタムパラメータで実行
 DATA_DIR=data/raw N_SPLITS=5 N_ESTIMATORS=600 ./scripts/run_su3_sweep.sh
 ```
 
-### Stage 2: With Imputation Trace
+### Stage 2: 代入影響トレース付き
 
 ```bash
 python3 src/feature_generation/su3/sweep_oof.py \
@@ -52,29 +52,29 @@ python3 src/feature_generation/su3/sweep_oof.py \
     --n-splits 5
 ```
 
-## Parameters
+## パラメータ
 
-### Required
-- `--data-dir`: Directory containing training data (default: `data/raw`)
-- `--config-path`: Path to feature generation config (default: `configs/feature_generation.yaml`)
-- `--preprocess-config`: Path to preprocessing config (default: `configs/preprocess.yaml`)
+### 必須
+- `--data-dir`: 学習データを含むディレクトリ（デフォルト: `data/raw`）
+- `--config-path`: 特徴生成設定へのパス（デフォルト: `configs/feature_generation.yaml`）
+- `--preprocess-config`: 前処理設定へのパス（デフォルト: `configs/preprocess.yaml`）
 
-### Optional
-- `--train-file`: Explicit path to training file (auto-detected if not provided)
-- `--output-dir`: Output directory for results (default: `results/ablation/SU3`)
-- `--n-splits`: Number of TimeSeriesSplit folds (default: 5)
-- `--gap`: Gap between train and validation in each fold (default: 0)
-- `--min-val-size`: Minimum validation size (default: 0)
-- `--n-estimators`: LightGBM estimators (default: 600)
-- `--learning-rate`: LightGBM learning rate (default: 0.05)
-- `--reg-alpha`: L1 regularization (default: 0.1)
-- `--reg-lambda`: L2 regularization (default: 0.1)
-- `--random-state`: Random seed (default: 42)
-- `--include-imputation-trace`: Enable Stage 2 features
+### オプション
+- `--train-file`: 学習ファイルへの明示的なパス（指定しない場合は自動検出）
+- `--output-dir`: 結果の出力ディレクトリ（デフォルト: `results/ablation/SU3`）
+- `--n-splits`: TimeSeriesSplit の分割数（デフォルト: 5）
+- `--gap`: 各分割での学習と検証の間のギャップ（デフォルト: 0）
+- `--min-val-size`: 最小検証サイズ（デフォルト: 0）
+- `--n-estimators`: LightGBM の推定器数（デフォルト: 600）
+- `--learning-rate`: LightGBM の学習率（デフォルト: 0.05）
+- `--reg-alpha`: L1正則化（デフォルト: 0.1）
+- `--reg-lambda`: L2正則化（デフォルト: 0.1）
+- `--random-state`: ランダムシード（デフォルト: 42）
+- `--include-imputation-trace`: Stage 2特徴量を有効化
 
-## Output
+## 出力
 
-### JSON (Detailed Results)
+### JSON（詳細結果）
 `results/ablation/SU3/sweep_YYYY-MM-DD_HHMMSS.json`:
 ```json
 {
@@ -103,7 +103,7 @@ python3 src/feature_generation/su3/sweep_oof.py \
 }
 ```
 
-### CSV (Summary)
+### CSV（サマリー）
 `results/ablation/SU3/sweep_summary.csv`:
 ```csv
 timestamp,config_id,reappear_top_k,temporal_top_k,holiday_top_k,include_imputation_trace,oof_rmse,oof_msr,n_features,train_time_sec
@@ -111,52 +111,52 @@ timestamp,config_id,reappear_top_k,temporal_top_k,holiday_top_k,include_imputati
 ...
 ```
 
-## Parameter Grid
+## パラメータグリッド
 
-### Stage 1 (Default - 48 combinations)
+### Stage 1（デフォルト - 48組み合わせ）
 ```python
 PARAM_GRID = {
-    'reappear_top_k': [10, 20, 30, 50],      # 4 values
-    'temporal_top_k': [10, 20, 30],          # 3 values
-    'holiday_top_k': [10, 20, 30, 50],       # 4 values
+    'reappear_top_k': [10, 20, 30, 50],      # 4値
+    'temporal_top_k': [10, 20, 30],          # 3値
+    'holiday_top_k': [10, 20, 30, 50],       # 4値
 }
-# Total: 4 × 3 × 4 = 48 configurations
+# 合計: 4 × 3 × 4 = 48構成
 ```
 
-### Stage 2 (Future)
-Additional parameter: `include_imputation_trace: [False, True]`
+### Stage 2（将来）
+追加パラメータ: `include_imputation_trace: [False, True]`
 
-## Estimated Runtime
+## 推定実行時間
 
-- **Small test data** (200 rows, 2 configs): ~0.4 seconds
-- **Full sweep** (48 configs, 5 folds, 600 estimators): ~2-3 hours
+- **小規模テストデータ**（200行、2構成）: 約0.4秒
+- **完全スイープ**（48構成、5分割、600推定器）: 約2-3時間
 
-## Baseline Comparison
+## ベースラインとの比較
 
-- **SU1 baseline**: OOF RMSE=0.01212, OOF MSR=0.01821, Features=368
-- **SU3 target**: OOF MSR ≤ 0.01921 (SU1 + 0.001)
+- **SU1ベースライン**: OOF RMSE=0.01212、OOF MSR=0.01821、特徴量数=368
+- **SU3目標**: OOF MSR ≤ 0.01921（SU1 + 0.001）
 
-## Test Coverage
+## テストカバレッジ
 
-4 unit tests in `test_su3_sweep.py`:
-1. `test_build_param_combinations`: Parameter grid generation
-2. `test_evaluate_single_config_small_data`: End-to-end OOF evaluation
-3. `test_save_results`: Result file format validation
-4. `test_build_param_combinations_with_imputation`: Stage 2 parameter generation
+`test_su3_sweep.py`の4ユニットテスト：
+1. `test_build_param_combinations`: パラメータグリッド生成
+2. `test_evaluate_single_config_small_data`: エンドツーエンドOOF評価
+3. `test_save_results`: 結果ファイル形式の検証
+4. `test_build_param_combinations_with_imputation`: Stage 2パラメータ生成
 
-All tests pass with Ruff and Pyright validation.
+すべてのテストはRuffおよびPyrightの検証に合格しています。
 
-## Implementation Notes
+## 実装メモ
 
-- Uses TimeSeriesSplit for cross-validation
-- Supports custom gap between train/validation
-- Results sorted by OOF MSR (ascending - lower is better)
-- Automatically saves to both JSON (detailed) and CSV (summary)
-- CSV uses append mode for incremental runs
-- Full pipeline includes: SU1 generation → SU3 generation → Preprocessing → LightGBM
+- クロスバリデーションにTimeSeriesSplitを使用
+- 学習と検証の間のカスタムギャップをサポート
+- 結果はOOF MSRの昇順でソート（小さいほど良い）
+- 詳細（JSON）とサマリー（CSV）の両方に自動保存
+- CSVは増分実行のために追記モードを使用
+- 完全なパイプラインを含む: SU1生成 → SU3生成 → 前処理 → LightGBM
 
-## See Also
+## 参照
 
-- [SU3 Design Document](../../../docs/feature_generation/SU3.md)
-- [SU2 Sweep Implementation](../../su2/sweep_oof.py) (reference pattern)
-- [Train SU3 Script](train_su3.py)
+- [SU3設計ドキュメント](../../../docs/feature_generation/SU3.md)
+- [SU2スイープ実装](../../su2/sweep_oof.py)（参照パターン）
+- [SU3学習スクリプト](train_su3.py)
