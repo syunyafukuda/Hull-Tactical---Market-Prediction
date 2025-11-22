@@ -21,6 +21,12 @@ uv.lock.bak
 logs/
 artifacts/
 outputs/
+results/
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
 
 # Kaggle
 .kaggle/
