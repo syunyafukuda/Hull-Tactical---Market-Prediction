@@ -298,7 +298,20 @@ class SU5FeatureGenerator(BaseEstimator, TransformerMixin):
 	def _compute_fold_boundaries(
 		self, n_rows: int, fold_indices: Optional[np.ndarray]
 	) -> List[Tuple[int, int]]:
-		"""fold境界のリストを計算する。"""
+		"""fold_indices からローリング統計の境界を計算する。
+
+		fold_indices の想定:
+		  - 0: 全 fold の train 部分（共通 prefix）
+		  - 1..K: 各 fold の validation 区間
+		reset_each_fold=True の場合、各 fold 区間の境界でローリング統計をリセットする。
+
+		Args:
+			n_rows: 行数
+			fold_indices: fold 番号の配列（None の場合は全体を 1 区間とする）
+
+		Returns:
+			(start_idx, end_idx) のリスト（各区間で連続したローリング統計を計算）
+		"""
 		if fold_indices is None or not self.config.reset_each_fold:
 			return [(0, n_rows)]
 
@@ -392,48 +405,5 @@ class SU5FeatureGenerator(BaseEstimator, TransformerMixin):
 		return degree_features
 
 
-class SU5FeatureAugmenter(BaseEstimator, TransformerMixin):
-	"""SU1 + SU5 の特徴を生成し、元の DataFrame に追加するトランスフォーマー。"""
-
-	def __init__(self, su1_generator: Any, su5_generator: SU5FeatureGenerator):
-		"""
-		Args:
-			su1_generator: SU1FeatureGenerator インスタンス
-			su5_generator: SU5FeatureGenerator インスタンス
-		"""
-		self.su1_generator = su1_generator
-		self.su5_generator = su5_generator
-
-	def fit(self, X: pd.DataFrame, y: Any = None) -> "SU5FeatureAugmenter":
-		"""SU1 と SU5 の両方を fit する。"""
-		# SU1を先にfit
-		self.su1_generator.fit(X, y)
-
-		# SU1の出力でSU5をfit
-		su1_features = self.su1_generator.transform(X)
-		self.su5_generator.fit(su1_features, y)
-
-		return self
-
-	def transform(
-		self, X: pd.DataFrame, fold_indices: Optional[np.ndarray] = None
-	) -> pd.DataFrame:
-		"""SU1 + SU5 の特徴を生成し、元のDataFrameに追加する。
-
-		Args:
-			X: 生データのDataFrame
-			fold_indices: CV用のfoldインデックス
-
-		Returns:
-			元の特徴 + SU1特徴 + SU5特徴 のDataFrame
-		"""
-		# SU1特徴を生成
-		su1_features = self.su1_generator.transform(X)
-
-		# SU5特徴を生成（fold_indicesを渡す）
-		su5_features = self.su5_generator.transform(su1_features, fold_indices=fold_indices)
-
-		# 元の特徴 + SU1特徴 + SU5特徴を結合
-		result = pd.concat([X, su1_features, su5_features], axis=1)
-
-		return result
+# Note: SU5FeatureAugmenter is defined in train_su5.py
+# (removed duplicate class definition to avoid confusion)

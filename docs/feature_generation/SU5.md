@@ -113,6 +113,24 @@ SU5 は、SU1 が扱う「単列ごとの欠損構造」を横方向（列間の
 - SU2/SU3 と異なり、fold ごとに状態を持つ必要は限定的だが、再現性のために `fold_indices` を受け取り、
 	- ローリング統計を fold 境界でリセットするかどうかをオプション化する（`reset_each_fold`）。
 
+#### fold_indices の運用仕様（SU2 との整合）
+
+- **OOF スイープ時の fold_indices 構築**:
+  - validation 区間のみに `1, 2, 3, ...` の fold 番号を振る
+  - train 側（過去の履歴データ）は `0` のまま
+  - 例: `TimeSeriesSplit` で `(train_idx, val_idx)` が得られた場合:
+
+    ```python
+    fold_indices_full = np.zeros(len(X), dtype=int)
+    for fold_idx, (_, val_idx) in enumerate(splitter.split(X)):
+        fold_indices_full[val_idx] = fold_idx + 1
+    ```
+
+- **意図**:
+  - 検証区間の境界でローリング統計をリセットする
+  - SU1/SU2/SU3 の設計と揃え、結果比較を容易にする
+  - train 側は連続した履歴として扱い、val 開始点でのみ区切る
+
 ---
 
 ## 3. 生成する特徴の詳細仕様

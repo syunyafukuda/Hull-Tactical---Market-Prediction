@@ -180,11 +180,12 @@ def run_single_config(
 	su5_prefit = SU5FeatureAugmenter(su1_config, su5_config, fill_value=args.numeric_fill_value)
 	su5_prefit.fit(X_np)
 
-	# Build fold_indices
-	fold_indices_full = np.full(len(X_np), -1, dtype=int)
-	for fold_idx, (train_idx, val_idx) in enumerate(splitter.split(X_np)):
-		fold_indices_full[train_idx] = fold_idx
-		fold_indices_full[val_idx] = fold_idx
+	# Build fold_indices (SU2-style: val区間のみにfoldID、train側は0)
+	# - fold_indices == 0: 全foldのtrain部分（共通prefix、連続した履歴として扱う）
+	# - fold_indices >= 1: 各foldのvalidation区間（境界でローリング統計をリセット）
+	fold_indices_full = np.zeros(len(X_np), dtype=int)
+	for fold_idx, (_, val_idx) in enumerate(splitter.split(X_np)):
+		fold_indices_full[val_idx] = fold_idx + 1
 
 	# Transform with fold_indices
 	X_augmented_all = su5_prefit.transform(X_np, fold_indices=fold_indices_full)
