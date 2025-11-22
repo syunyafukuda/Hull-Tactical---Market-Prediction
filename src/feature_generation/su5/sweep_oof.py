@@ -244,12 +244,13 @@ def run_single_config(
 			optimize_for=signal_optimize_for,
 			lam_grid=signal_lam_grid if signal_optimize_for == "vmsr" else (0.0,),
 		)
+		lam_for_eval = best_params_global.get("lam", 0.0)
 		best_metrics_global = evaluate_msr_proxy(
 			oof_pred[valid_mask],
 			y_np_array[valid_mask],
 			best_params_global,
 			eps=signal_eps,
-			lam=0.0,
+			lam=lam_for_eval,
 		)
 		oof_msr = float(best_metrics_global["msr"])
 		oof_msr_down = float(best_metrics_global["msr_down"])
