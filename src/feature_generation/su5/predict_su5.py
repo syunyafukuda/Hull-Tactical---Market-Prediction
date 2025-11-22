@@ -145,7 +145,20 @@ def _load_json(path: Path) -> Any:
 
 
 def _ensure_columns(frame: pd.DataFrame, columns: Sequence[str], *, max_missing: int | None = None) -> pd.DataFrame:
-	"""テストデータを学習時の列順に合わせる。"""
+	"""Ensure test data has the same columns as training data.
+
+	Args:
+		frame: Test DataFrame to align
+		columns: Expected column names from training
+		max_missing: Maximum number of missing columns tolerated before raising an error.
+			If None, any number of missing columns is allowed. Missing columns are filled with NaN.
+
+	Returns:
+		DataFrame with columns reindexed to match the training column order
+
+	Raises:
+		RuntimeError: If number of missing columns exceeds max_missing
+	"""
 	missing = [col for col in columns if col not in frame.columns]
 	if max_missing is not None and len(missing) > max_missing:
 		preview = ", ".join(str(col) for col in missing[:5])

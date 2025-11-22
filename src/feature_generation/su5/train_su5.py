@@ -165,6 +165,9 @@ class SU5FeatureAugmenter(BaseEstimator, TransformerMixin):
 		self.su1_generator_.fit(frame)
 		su1_features = self.su1_generator_.transform(frame)
 		# SU5 fit (using SU1 features)
+		# Note: fold_indices is not needed during fit() because SU5FeatureGenerator.fit()
+		# only computes global co-missingness statistics for top-k pair selection.
+		# fold_indices is only required during transform() for fold-aware rolling features.
 		self.su5_generator_ = SU5FeatureGenerator(self.su5_config)
 		self.su5_generator_.fit(su1_features)
 		su5_features = self.su5_generator_.transform(su1_features)

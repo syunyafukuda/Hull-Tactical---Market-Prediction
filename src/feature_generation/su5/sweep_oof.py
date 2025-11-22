@@ -234,7 +234,7 @@ def run_single_config(
 	valid_mask = ~np.isnan(oof_pred)
 	if valid_mask.any():
 		oof_rmse = float(math.sqrt(mean_squared_error(y_np_array[valid_mask], oof_pred[valid_mask])))
-		best_params_global, _ = grid_search_msr(
+		best_params_global, grid_all = grid_search_msr(
 			y_pred=oof_pred[valid_mask],
 			y_true=y_np_array[valid_mask],
 			mult_grid=signal_mult_grid,
@@ -244,7 +244,20 @@ def run_single_config(
 			optimize_for=signal_optimize_for,
 			lam_grid=signal_lam_grid if signal_optimize_for == "vmsr" else (0.0,),
 		)
-		lam_for_eval = best_params_global.get("lam", 0.0)
+		# Extract lambda value for vMSR evaluation
+		if signal_optimize_for == "vmsr":
+			candidates = [
+				row
+				for row in grid_all
+				if row["mult"] == best_params_global.mult and row["lo"] == best_params_global.lo and row["hi"] == best_params_global.hi
+			]
+			if candidates:
+				best_row = max(candidates, key=lambda r: r.get("vmsr", float("-inf")))
+				lam_for_eval = float(best_row.get("vmsr_lam", 0.0))
+			else:
+				lam_for_eval = float(signal_lam_grid[0]) if signal_lam_grid else 0.0
+		else:
+			lam_for_eval = 0.0
 		best_metrics_global = evaluate_msr_proxy(
 			oof_pred[valid_mask],
 			y_np_array[valid_mask],
