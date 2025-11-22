@@ -13,8 +13,8 @@ SU3特徴生成の特徴選択パラメータを最適化するハイパーパ�
 ## ファイル
 
 - `sweep_oof.py`: メインスイープ実装（553行）
-- `../../../tests/feature_generation/test_su3_sweep.py`: ユニットテスト（327行、4テストケース）
-- `../../../scripts/run_su3_sweep.sh`: スイープ実行用ヘルパースクリプト
+- `run_su3_sweep.sh`: スイープ実行用ヘルパースクリプト
+- `../../../tests/feature_generation/test_su3.py`: ユニットテスト（スイープ機能を含む）
 
 ## 使用方法
 
@@ -36,10 +36,10 @@ python3 src/feature_generation/su3/sweep_oof.py \
 
 ```bash
 # デフォルトパラメータで実行
-./scripts/run_su3_sweep.sh
+./src/feature_generation/su3/run_su3_sweep.sh
 
 # カスタムパラメータで実行
-DATA_DIR=data/raw N_SPLITS=5 N_ESTIMATORS=600 ./scripts/run_su3_sweep.sh
+DATA_DIR=data/raw N_SPLITS=5 N_ESTIMATORS=600 ./src/feature_generation/su3/run_su3_sweep.sh
 ```
 
 ### Stage 2: 代入影響トレース付き
@@ -138,11 +138,11 @@ PARAM_GRID = {
 
 ## テストカバレッジ
 
-`test_su3_sweep.py`の4ユニットテスト：
-1. `test_build_param_combinations`: パラメータグリッド生成
-2. `test_evaluate_single_config_small_data`: エンドツーエンドOOF評価
-3. `test_save_results`: 結果ファイル形式の検証
-4. `test_build_param_combinations_with_imputation`: Stage 2パラメータ生成
+`test_su3.py`の4つのスイープ関連ユニットテスト：
+1. `test_sweep_build_param_combinations`: パラメータグリッド生成
+2. `test_sweep_evaluate_single_config_small_data`: エンドツーエンドOOF評価
+3. `test_sweep_save_results`: 結果ファイル形式の検証
+4. `test_sweep_build_param_combinations_with_imputation`: Stage 2パラメータ生成
 
 すべてのテストはRuffおよびPyrightの検証に合格しています。
 

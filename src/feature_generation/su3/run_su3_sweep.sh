@@ -1,5 +1,5 @@
 #!/bin/bash
-# scripts/run_su3_sweep.sh
+# src/feature_generation/su3/run_su3_sweep.sh
 # SU3 hyperparameter sweep execution script
 
 set -e
