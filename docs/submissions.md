@@ -138,3 +138,57 @@
     - 特徴量数94→462(SU1)→1397(SU2)の爆発的増加が主因
     - SU1の368列で十分有効であり、SU2による複雑化は不要
     - 今後の改善方向: SU1ベースで特徴量選択・正則化強化を検討
+
+## 2025-11-22 su3_stage1 (Submission Unit 3 - Stage 1)
+
+- Branch: `feat/miss-core-su3`
+- Status: **採用決定** (Kaggle提出準備中)
+- ベスト構成 (OOF sweep結果):
+  - reappear_top_k: 20
+  - temporal_top_k: 10
+  - holiday_top_k: 10
+  - include_imputation_trace: False (Stage 1)
+- OOF性能:
+  - OOF RMSE: 0.011107
+  - OOF MSR: 0.005772
+  - 特徴量数: 444列 (SU1: 368列 + SU3: 76列)
+  - 実行時間: 12.0秒/構成
+- 特徴量構成:
+  - SU1特徴: 368列 (欠損構造一次特徴)
+  - SU3特徴: ~76列
+    - 遷移フラグ（群集約）: 6列
+    - 再出現パターン（top-20）: ~40列
+    - 時間的欠損傾向（top-10）: ~20列
+    - 祝日関連欠損（top-10）: ~10列
+- SU2の教訓を反映:
+  - ✅ 特徴量数の厳格な制限: 444列 (SU2: 1397列 → 68%削減)
+  - ✅ top-k選択による枝刈り: 重要度上位のみ採用
+  - ✅ 群集約による次元削減: 遷移フラグは列単位ではなくグループ単位
+  - ✅ Stage 1でミニマル実装: 代入影響トレース(C)はStage 2に保留
+- スイープ結果 (48構成):
+  - MSR範囲: -0.009764 ～ 0.005772
+  - RMSE範囲: 0.011107 ～ 0.011116
+  - reappear_top_k=20が最高MSR、temporal_top_k=30で過学習傾向
+- 採用判断基準:
+  - ✅ 特徴量数 < 500列 (目標達成: 444列)
+  - ✅ SU2の過学習回避 (top-k選択、群集約)
+  - ⏳ LB性能: SU1比で非劣化を確認予定 (目標: ≥0.672)
+- Stage 2について:
+  - 内容: 代入影響トレース追加 (~220列追加見込み)
+  - 判断: Stage 1でKaggle提出後、LB性能を見て検討
+  - リスク: 特徴量660列超→過学習懸念、SU2の二の舞
+- トラブルシューティング:
+  - MSR=0問題 (2025-11-22解決済み)
+    - 原因: PostProcessParams(lo=1.0, hi=1.0)でシグナルが定数化
+    - 修正: lo=0.0, hi=2.0に変更（デフォルト値準拠）
+    - 詳細: docs/feature_generation/troubleshooting/MSR_zero_issue.md
+- 成果物:
+  - スイープ結果: results/ablation/SU3/sweep_2025-11-22_110535.json
+  - 構成: configs/feature_generation.yaml (su3.enabled=true予定)
+  - アーティファクト: artifacts/SU3/ (Kaggle提出後生成)
+- Notes:
+  - SU3はSU1の出力（m/<col>, gap_ffill/<col>など）を前提とする
+  - fold_indices実装: validation区間ベースで境界リセット（TimeSeriesSplit対応）
+  - MSRソート順: 降順（大きいほど良い、Sharpe-like指標）
+  - numpy==1.26.4固定（Kaggle互換性確保）
+

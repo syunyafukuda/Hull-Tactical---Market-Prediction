@@ -89,18 +89,43 @@ su2:
     notes: "⚠️ NON-ADOPTED: LB score 0.597 (vs SU1's 0.674). Overfitting due to 935 secondary features. Stage2 best config (id=3) parameters preserved for reference: windows=[5], alpha=0.1, transitions/normalization windows=[5,10,20,60], metrics=mean|std, signals=m|gap_ffill, recovery_clip=60, clip_max=30."
 
 su3:
-  enabled: false  # 初期はfalse、実装完了後にtrue
+  # ✅ SU3 Stage 1 採用決定 (2025-11-22)
+  # LB提出準備中 (目標: ≥0.672、SU1比で非劣化)
+  # Stage 2（代入影響トレース）は提出後のLB結果で判断
+  enabled: true  # ✅ 採用決定、訓練開始
   base_features: su1
   id_column: date_id
   output_prefix: su3
   
-  # Stage 1: ミニマル実装（約96列）
+  # ========================================
+  # Stage 1 採用構成（OOF Sweep ベスト）
+  # ========================================
+  # OOF性能:
+  #   - RMSE: 0.011107
+  #   - MSR: 0.005772 (Sharpe-like指標)
+  #   - 特徴量数: 444列 (SU1: 368列 + SU3: 76列)
+  #   - 実行時間: 12.0秒/構成
+  # 
+  # スイープ結果 (48構成):
+  #   - MSR範囲: -0.009764 ～ 0.005772
+  #   - reappear_top_k=20が最高MSR
+  #   - temporal_top_k=10で安定、30で過学習傾向
+  #   - holiday_top_k=10で十分
+  # 
+  # SU2の教訓を反映:
+  #   ✅ 特徴量数444列（SU2: 1397列から68%削減）
+  #   ✅ top-k選択で枝刈り（過学習回避）
+  #   ✅ 群集約で次元削減（遷移フラグ: 188列→6列）
+  #   ✅ Stage 1でミニマル実装（Stage 2は慎重判断）
+  # ========================================
+  
+  # Stage 1: ミニマル実装（~76列追加）
   include_transitions: true
   transition_group_agg: true  # 群集約のみ（6列）
   
   include_reappearance: true
   reappear_clip: 60
-  reappear_top_k: 20  # importance上位K列
+  reappear_top_k: 20  # ✅ ベスト構成（スイープ結果）
   
   include_imputation_trace: false  # Stage 1ではオフ
   imp_delta_winsorize_p: 0.99
@@ -109,10 +134,10 @@ su3:
   
   include_temporal_bias: true
   temporal_burn_in: 3
-  temporal_top_k: 20
+  temporal_top_k: 10  # ✅ ベスト構成（スイープ結果、20→10に変更）
   
   include_holiday_interaction: true
-  holiday_top_k: 20
+  holiday_top_k: 10  # ✅ ベスト構成（スイープ結果、20→10に変更）
   
   # データ型
   dtype:
@@ -123,10 +148,53 @@ su3:
   # fold境界リセット
   reset_each_fold: true
   
+  # ========================================
+  # Stage 2 構成（未実装、提出後検討）
+  # ========================================
+  # 追加内容:
+  #   - imp_used/<col>: 代入実施フラグ (94列)
+  #   - imp_delta/<col>: 補完値との差分 (94列)
+  #   - imp_absdelta/<col>: 差分の絶対値 (94列)
+  #   - imp_policy_<grp>/<policy>: 補完ポリシー (30-50列)
+  #   - 合計: ~220-240列追加 → 総計660-684列
+  # 
+  # 実行条件（すべて満たす場合のみ）:
+  #   1. Stage 1 LB ≥ 0.672 (SU1比で非劣化)
+  #   2. Stage 1が安定稼働
+  #   3. _generate_imputation_features()実装完了
+  #   4. Stage 2スイープでMSR +0.001以上
+  #   5. 特徴量数 < 700列
+  # 
+  # リスク:
+  #   - 特徴量660列超→SU2の二の舞
+  #   - 過学習の懸念（CV良好→LB劣化）
+  # 
+  # 判断: Stage 1のLB結果を見て決定
+  # ========================================
+  
   metadata:
     artifacts_dir: artifacts/SU3
     depends_on: SU1
-    expected_usage: "Transition, reappearance, and imputation impact features"
+    expected_usage: "Transition, reappearance, temporal bias features (Stage 1)"
     numpy_version: 1.26.4
-    status: development
-    updated_at: 2025-11-21
+    status: adoption_pending  # development → adoption_pending
+    stage: 1  # Stage 1採用、Stage 2は保留
+    kaggle_lb: null  # 提出後更新
+    oof_rmse: 0.011107
+    oof_msr: 0.005772
+    feature_count: 444
+    sweep_date: 2025-11-22
+    sweep_configs: 48
+    best_config:
+      reappear_top_k: 20
+      temporal_top_k: 10
+      holiday_top_k: 10
+      include_imputation_trace: false
+    decision: stage1_adopted  # Stage 1採用決定
+    troubleshooting:
+      - issue: "MSR=0問題 (2025-11-22解決済み)"
+        cause: "PostProcessParams(lo=1.0, hi=1.0)でシグナル定数化"
+        fix: "lo=0.0, hi=2.0に変更"
+        doc: "docs/feature_generation/troubleshooting/MSR_zero_issue.md"
+    updated_at: 2025-11-22
+    notes: "✅ Stage 1採用決定。特徴量444列（SU2比68%削減）、OOF MSR=0.005772。top-k選択と群集約でSU2の過学習を回避。Kaggle提出準備中（目標LB≥0.672）。Stage 2は提出後のLB結果で判断。"
