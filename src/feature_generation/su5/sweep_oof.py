@@ -146,7 +146,6 @@ def run_single_config(
 ) -> Dict[str, Any]:
 	"""Run OOF evaluation for a single SU5 configuration."""
 	start_time = time.time()
-	
 	# Build SU5 config from params
 	su5_config = SU5Config(
 		id_column=su1_config.id_column,
@@ -235,7 +234,6 @@ def run_single_config(
 	valid_mask = ~np.isnan(oof_pred)
 	if valid_mask.any():
 		oof_rmse = float(math.sqrt(mean_squared_error(y_np_array[valid_mask], oof_pred[valid_mask])))
-		
 		best_params_global, _ = grid_search_msr(
 			y_pred=oof_pred[valid_mask],
 			y_true=y_np_array[valid_mask],
@@ -392,7 +390,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 		for row in all_results:
 			writer.writerow(row)
 	print(f"[ok] wrote summary: {csv_path}")
-	
 	# Print best result
 	valid_results = [r for r in all_results if not math.isnan(r["oof_msr"])]
 	if valid_results:

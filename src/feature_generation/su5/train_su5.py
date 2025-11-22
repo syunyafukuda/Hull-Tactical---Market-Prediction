@@ -160,12 +160,10 @@ class SU5FeatureAugmenter(BaseEstimator, TransformerMixin):
 
 	def fit(self, X: pd.DataFrame, y: Any = None) -> "SU5FeatureAugmenter":
 		frame = self._ensure_dataframe(X)
-		
 		# SU1 fit
 		self.su1_generator_ = SU1FeatureGenerator(self.su1_config)
 		self.su1_generator_.fit(frame)
 		su1_features = self.su1_generator_.transform(frame)
-		
 		# SU5 fit (using SU1 features)
 		self.su5_generator_ = SU5FeatureGenerator(self.su5_config)
 		self.su5_generator_.fit(su1_features)
@@ -185,7 +183,6 @@ class SU5FeatureAugmenter(BaseEstimator, TransformerMixin):
 			raise RuntimeError("SU5FeatureAugmenter must be fitted before transform().")
 
 		frame = self._ensure_dataframe(X)
-		
 		# Generate SU1 features
 		su1_features = self.su1_generator_.transform(frame)
 		su1_features = su1_features.reindex(columns=self.su1_feature_names_, copy=True)
