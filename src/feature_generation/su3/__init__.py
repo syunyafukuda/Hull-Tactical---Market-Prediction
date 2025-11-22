@@ -8,12 +8,14 @@ from __future__ import annotations
 
 from src.feature_generation.su3.feature_su3 import (
     SU3Config,
+    SU3FeatureAugmenter,
     SU3FeatureGenerator,
     load_su3_config,
 )
 
 __all__ = [
     "SU3Config",
+    "SU3FeatureAugmenter",
     "SU3FeatureGenerator",
     "load_su3_config",
 ]

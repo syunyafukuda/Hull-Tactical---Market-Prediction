@@ -560,11 +560,11 @@ def test_su3_augmenter_column_count() -> None:
 	su3_config = SU3Config.from_mapping(su3_mapping)
 	
 	# 多数の列を持つ生データを模擬（10列×5グループ=50列）
-	data_dict = {"date_id": list(range(10))}
+	data_dict: dict[str, list[float]] = {"date_id": list(range(10))}
 	for group in ["M", "E", "I", "P", "S"]:
 		for i in range(10):
 			col_name = f"{group}{i+1}"
-			data_dict[col_name] = np.random.choice([1.0, np.nan], size=10)
+			data_dict[col_name] = np.random.choice([1.0, np.nan], size=10).tolist()
 	
 	data = pd.DataFrame(data_dict).set_index("date_id")
 	
