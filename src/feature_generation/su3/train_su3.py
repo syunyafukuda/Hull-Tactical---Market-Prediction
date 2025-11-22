@@ -1,15 +1,15 @@
 #!/usr/bin/env python
-"""SU2 特徴量バンドルの学習エントリーポイント。
+"""SU3 特徴量バンドルの学習エントリーポイント。
 
-本スクリプトは生データから SU1 特徴量を生成し、その上に SU2 二次特徴量を追加して
+本スクリプトは生データから SU1 特徴量を生成し、その上に SU3 三次特徴量を追加して
 軽量な前処理パイプラインを通し、LightGBM 回帰器を学習する。生成された
 ``sklearn.Pipeline``（特徴量生成＋前処理＋モデル）は
-``artifacts/SU2/inference_bundle.pkl`` に保存され、推論時に同じ処理フローを再利用できる。
+``artifacts/SU3/inference_bundle.pkl`` に保存され、推論時に同じ処理フローを再利用できる。
 
 主な役割
 --------
-* SU1/SU2 用 YAML 設定を読み込む。
-* :class:`SU1FeatureGenerator` で SU1 特徴量を作成し、:class:`SU2FeatureGenerator` で SU2 特徴量を追加する。
+* SU1/SU3 用 YAML 設定を読み込む。
+* :class:`SU3FeatureAugmenter` で SU1+SU3 特徴量を作成する。
 * 時系列分割で OOF 指標を算出し、挙動を記録する。
 * 全学習データで再学習したパイプラインやメタ情報、特徴量リストを成果物として出力する。
 """
@@ -40,7 +40,7 @@ except Exception:  # pragma: no cover - ガード用分岐
 	lgb = None  # type: ignore
 	HAS_LGBM = False
 
-from sklearn.base import BaseEstimator, TransformerMixin, clone
+from sklearn.base import clone
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import mean_squared_error
@@ -127,13 +127,12 @@ _ensure_numpy_bitgenerator_aliases()
 
 from src.feature_generation.su1.feature_su1 import (  # noqa: E402
 	SU1Config,
-	SU1FeatureGenerator,
 	load_su1_config,
 )
-from src.feature_generation.su2.feature_su2 import (  # noqa: E402
-	SU2Config,
-	SU2FeatureGenerator,
-	load_su2_config,
+from src.feature_generation.su3.feature_su3 import (  # noqa: E402
+	SU3Config,
+	SU3FeatureAugmenter,
+	load_su3_config,
 )
 from preprocess.M_group.m_group import MGroupImputer  # noqa: E402
 from preprocess.E_group.e_group import EGroupImputer  # noqa: E402
@@ -147,76 +146,8 @@ from scripts.utils_msr import (  # noqa: E402
 )
 
 
-class SU2FeatureAugmenter(BaseEstimator, TransformerMixin):
-	"""下流前処理の前に SU1+SU2 特徴量を入力フレームへ追加するトランスフォーマー。
-
-	:class:`SU1FeatureGenerator` と :class:`SU2FeatureGenerator` を組み合わせて使用し、
-	fold境界情報を活用してSU2特徴を生成する。
-	"""
-
-	def __init__(self, su1_config: SU1Config, su2_config: SU2Config, fill_value: float | None = 0.0) -> None:
-		self.su1_config = su1_config
-		self.su2_config = su2_config
-		self.fill_value = fill_value
-
-	def fit(self, X: pd.DataFrame, y: Any = None) -> "SU2FeatureAugmenter":
-		frame = self._ensure_dataframe(X)
-		
-		# Fit SU1 generator
-		su1_generator = SU1FeatureGenerator(self.su1_config)
-		su1_generator.fit(frame)
-		
-		# Generate SU1 features for fitting SU2
-		su1_features = su1_generator.transform(frame)
-		if self.fill_value is not None:
-			su1_features = su1_features.fillna(self.fill_value)
-		
-		# Fit SU2 generator on SU1 output
-		su2_generator = SU2FeatureGenerator(self.su2_config)
-		su2_generator.fit(su1_features)
-		
-		# Store generators
-		self.su1_generator_ = su1_generator
-		self.su2_generator_ = su2_generator
-		self.input_columns_ = list(frame.columns)
-		
-		# Get feature names for tracking
-		su1_sample = su1_generator.transform(frame)
-		su2_sample = su2_generator.transform(su1_sample)
-		
-		self.su1_feature_names_ = list(su1_sample.columns)
-		self.su2_feature_names_ = list(su2_sample.columns)
-		
-		return self
-
-	def transform(self, X: pd.DataFrame, *, fold_indices: np.ndarray | None = None) -> pd.DataFrame:
-		if not hasattr(self, "su1_generator_") or not hasattr(self, "su2_generator_"):
-			raise RuntimeError("SU2FeatureAugmenter must be fitted before transform().")
-
-		frame = self._ensure_dataframe(X)
-		
-		# Generate SU1 features
-		su1_features = self.su1_generator_.transform(frame)
-		su1_features = su1_features.reindex(columns=self.su1_feature_names_, copy=True)
-		if self.fill_value is not None:
-			su1_features = su1_features.fillna(self.fill_value)
-		
-		# Generate SU2 features with fold boundary reset
-		su2_features = self.su2_generator_.transform(su1_features, fold_indices=fold_indices)
-		su2_features = su2_features.reindex(columns=self.su2_feature_names_, copy=True)
-		if self.fill_value is not None:
-			su2_features = su2_features.fillna(self.fill_value)
-		
-		# Combine: original + SU1 + SU2
-		augmented = pd.concat([frame, su1_features, su2_features], axis=1)
-		augmented.index = frame.index
-		return augmented
-
-	@staticmethod
-	def _ensure_dataframe(X: pd.DataFrame) -> pd.DataFrame:
-		if not isinstance(X, pd.DataFrame):  # pragma: no cover - 防御的な分岐
-			raise TypeError("SU2FeatureAugmenter expects a pandas.DataFrame input")
-		return X.copy()
+# SU3FeatureAugmenter is defined in feature_su3.py
+# It combines SU1 and SU3 feature generation
 
 
 def infer_train_file(data_dir: Path, explicit: str | None) -> Path:
@@ -413,14 +344,14 @@ def _build_preprocess(num_fill_value: float, *, handle_unknown: str = "ignore") 
 
 def build_pipeline(
 	su1_config: SU1Config,
-	su2_config: SU2Config,
+	su3_config: SU3Config,
 	preprocess_settings: Mapping[str, Dict[str, Any]],
 	*,
 	numeric_fill_value: float,
 	model_kwargs: Dict[str, Any],
 	random_state: int,
 ) -> Pipeline:
-	augmenter = SU2FeatureAugmenter(su1_config, su2_config, fill_value=numeric_fill_value)
+	augmenter = SU3FeatureAugmenter(su1_config, su3_config)
 	m_cfg = preprocess_settings.get("m_group", {})
 	e_cfg = preprocess_settings.get("e_group", {})
 	i_cfg = preprocess_settings.get("i_group", {})
@@ -506,7 +437,7 @@ def build_pipeline(
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-	ap = argparse.ArgumentParser(description="Train a LightGBM model with SU1+SU2 features.")
+	ap = argparse.ArgumentParser(description="Train a LightGBM model with SU3 features (SU1+SU3).")
 	ap.add_argument("--data-dir", type=str, default="data/raw", help="Directory containing train/test files")
 	ap.add_argument("--train-file", type=str, default=None, help="Explicit path to the training file")
 	ap.add_argument("--test-file", type=str, default=None, help="Explicit path to the test file")
@@ -514,8 +445,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 	ap.add_argument("--preprocess-config", type=str, default="configs/preprocess.yaml", help="Path to preprocess.yaml")
 	ap.add_argument("--target-col", type=str, default="market_forward_excess_returns")
 	ap.add_argument("--id-col", type=str, default="date_id")
-	ap.add_argument("--out-dir", type=str, default="artifacts/SU2")
-	ap.add_argument("--numeric-fill-value", type=float, default=0.0, help="Value used to fill numeric NaNs after SU1+SU2 generation")
+	ap.add_argument("--out-dir", type=str, default="artifacts/SU3")
+	ap.add_argument("--numeric-fill-value", type=float, default=0.0, help="Value used to fill numeric NaNs after SU1 generation")
 	ap.add_argument("--n-splits", type=int, default=5, help="Number of folds for TimeSeriesSplit")
 	ap.add_argument("--gap", type=int, default=0, help="Gap between train and validation indices in each fold")
 	ap.add_argument("--min-val-size", type=int, default=0, help="Skip folds where validation after gap is smaller than this size")
@@ -526,6 +457,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 	ap.add_argument("--feature-fraction", type=float, default=0.9)
 	ap.add_argument("--bagging-fraction", type=float, default=0.9)
 	ap.add_argument("--bagging-freq", type=int, default=1)
+	ap.add_argument("--reg-alpha", type=float, default=0.1, help="L1 regularization (SU3 default: 0.1)")
+	ap.add_argument("--reg-lambda", type=float, default=0.1, help="L2 regularization (SU3 default: 0.1)")
 	ap.add_argument("--random-state", type=int, default=42)
 	ap.add_argument("--verbosity", type=int, default=-1, help="LightGBM verbosity level")
 	ap.add_argument("--no-artifacts", action="store_true", help="If set, do not write artifacts to disk")
@@ -636,7 +569,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 		out_dir.mkdir(parents=True, exist_ok=True)
 
 	su1_config = load_su1_config(args.config_path)
-	su2_config = load_su2_config(args.config_path)
+	su3_config = load_su3_config(args.config_path)
 	preprocess_settings = load_preprocess_policies(args.preprocess_config)
 
 	train_path = infer_train_file(data_dir, args.train_file)
@@ -665,6 +598,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 		"feature_fraction": args.feature_fraction,
 		"bagging_fraction": args.bagging_fraction,
 		"bagging_freq": args.bagging_freq,
+		"reg_alpha": args.reg_alpha,
+		"reg_lambda": args.reg_lambda,
 		"random_state": args.random_state,
 		"n_jobs": -1,
 		"verbosity": args.verbosity,
@@ -679,7 +614,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 		raise ValueError("Signal post-process grids must not be empty.")
 	base_pipeline = build_pipeline(
 		su1_config,
-		su2_config,
+		su3_config,
 		preprocess_settings,
 		numeric_fill_value=args.numeric_fill_value,
 		model_kwargs=model_kwargs,
@@ -692,21 +627,21 @@ def main(argv: Sequence[str] | None = None) -> int:
 	y_np = y.reset_index(drop=True)
 	y_np_array = y_np.to_numpy()
 	
-	# Pre-fit SU2 augmenter to get full augmented dataset
-	# For CV, we'll manually handle fold indices
-	su2_prefit = SU2FeatureAugmenter(su1_config, su2_config, fill_value=args.numeric_fill_value)
-	su2_prefit.fit(X_np)
+	# Pre-fit SU3 augmenter to get full augmented dataset
+	# For CV, we'll manually handle fold indices to ensure proper fold boundary reset
+	su3_prefit = SU3FeatureAugmenter(su1_config, su3_config)
+	su3_prefit.fit(X_np)
 	
-	# Build fold_indices array for proper SU2 state reset
+	# Build fold_indices array for proper SU3 state reset (fold boundary awareness)
 	# 
 	# Design rationale:
 	# - TimeSeriesSplit has overlapping train windows (each row appears in multiple folds)
 	# - Using train_idx would cause later folds to overwrite earlier fold assignments
 	# - Instead, we assign fold_id based on validation regions (non-overlapping)
-	# - This ensures SU2Generator._compute_fold_boundaries sees clear segment boundaries
+	# - This ensures SU3Generator._compute_fold_boundaries sees clear segment boundaries
 	# - Early training-only data (before first validation) gets fold=0 as fallback
 	# - Result: "first train + first val" becomes segment 0, "second val" becomes segment 1, etc.
-	# - This design is consistent between train_su2, sweep_oof (SU2), and their SU3 counterparts
+	# - This design is consistent between train_su3, sweep_oof (SU3), and their SU2 counterparts
 	fold_indices_all = np.full(len(X_np), -1, dtype=int)
 	for fold_idx, (_, val_idx) in enumerate(splitter.split(X_np)):
 		fold_indices_all[val_idx] = fold_idx
@@ -718,7 +653,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 	fold_indices_all[:first_assigned[0]] = 0
 	
 	# Generate full augmented dataset with fold boundaries
-	X_augmented_all = su2_prefit.transform(X_np, fold_indices=fold_indices_all)
+	# SU3 will use fold_indices to reset internal state at fold boundaries
+	X_augmented_all = su3_prefit.transform(X_np, fold_indices=fold_indices_all)
 	core_pipeline_template = cast(Pipeline, Pipeline(base_pipeline.steps[1:]))
 
 	oof_pred = np.full(len(X_np), np.nan, dtype=float)
@@ -748,8 +684,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 		pipe = cast(Pipeline, clone(core_pipeline_template))
 		fit_kwargs: Dict[str, Any] = {}
 		if callbacks:
-			# Avoid passing raw DataFrame eval_set to LightGBM to prevent feature-name issues
 			fit_kwargs["model__callbacks"] = callbacks
+			fit_kwargs["model__eval_set"] = [(X_valid, y_valid)]
+			fit_kwargs["model__eval_metric"] = "rmse"
 
 		pipe.fit(X_train, y_train, **fit_kwargs)
 		pred = pipe.predict(X_valid)
@@ -874,11 +811,29 @@ def main(argv: Sequence[str] | None = None) -> int:
 		}
 
 	# 成果物出力用に全データで再学習する。
-	final_pipeline = cast(Pipeline, clone(base_pipeline))
+	# NOTE: 推論時はfold_indicesを渡せないため、最終学習でもfold_indicesなしで学習する。
+	# これにより、OOFと最終学習で特徴生成ロジックが異なる問題は残るが、
+	# train/inference不整合（最終学習 vs 推論）は解消される。
+	# OOF性能は参考値として扱い、実際の性能はLBで評価する。
+	
+	su3_final = SU3FeatureAugmenter(su1_config, su3_config)
+	su3_final.fit(X_np)
+	# fold_indicesを渡さない（推論時と同じ挙動）
+	X_augmented_final = su3_final.transform(X_np)
+	
+	# augment stepを除いたcore pipelineを最終学習
+	core_pipeline_final = cast(Pipeline, Pipeline(base_pipeline.steps[1:]))
 	fit_kwargs_final: Dict[str, Any] = {}
 	if callbacks:
 		fit_kwargs_final["model__callbacks"] = callbacks
-	final_pipeline.fit(X_np, y_np, **fit_kwargs_final)
+		fit_kwargs_final["model__eval_metric"] = "rmse"
+	core_pipeline_final.fit(X_augmented_final, y_np, **fit_kwargs_final)
+	
+	# 最終pipelineを構築（augment step + core pipeline）
+	final_pipeline = Pipeline([
+		("augment", su3_final),
+		*core_pipeline_final.steps
+	])
 
 	named_steps = cast(Mapping[str, Any], final_pipeline.named_steps)
 	augment_step = named_steps.get("augment")
@@ -887,14 +842,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 		raise RuntimeError("Pipeline is missing a 'model' step.")
 
 	su1_generated_columns = list(getattr(augment_step, "su1_feature_names_", [])) if augment_step is not None else []
-	su2_generated_columns = list(getattr(augment_step, "su2_feature_names_", [])) if augment_step is not None else []
+	su3_generated_columns = list(getattr(augment_step, "su3_feature_names_", [])) if augment_step is not None else []
 	feature_manifest: Dict[str, Any] = {
 		"pipeline_input_columns": feature_cols,
 		"su1_generated_columns": su1_generated_columns,
-		"su2_generated_columns": su2_generated_columns,
+		"su3_generated_columns": su3_generated_columns,
 	}
-	feature_manifest["su1_generated_columns_cv"] = getattr(su2_prefit, "su1_feature_names_", [])
-	feature_manifest["su2_generated_columns_cv"] = getattr(su2_prefit, "su2_feature_names_", [])
+	feature_manifest["su1_generated_columns_cv"] = getattr(su3_prefit, "su1_feature_names_", [])
+	feature_manifest["su3_generated_columns_cv"] = getattr(su3_prefit, "su3_feature_names_", [])
 	preprocess_obj = named_steps.get("preprocess")
 	if preprocess_obj is None:
 		raise RuntimeError("Pipeline is missing a 'preprocess' step.")
@@ -912,7 +867,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 	imputer_metadata = _collect_imputer_metadata(final_pipeline)
 	model_params_serialized = {k: _normalise_scalar(v) for k, v in model_step.get_params().items()}
 	su1_config_serialized = _normalise_scalar(asdict(su1_config))
-	su2_config_serialized = _normalise_scalar(asdict(su2_config))
+	su3_config_serialized = _normalise_scalar(asdict(su3_config))
 	preprocess_snapshot = _normalise_scalar(preprocess_settings)
 	oof_best_params_serialized = {
 		"mult": float(best_params_global.mult),
@@ -955,14 +910,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 			"signal_eps": signal_eps,
 			"fold_logs": fold_logs,
 			"su1_config": su1_config_serialized,
-			"su2_config": su2_config_serialized,
+			"su3_config": su3_config_serialized,
 			"feature_count_before_su1": len(feature_cols),
 			"su1_feature_count": len(feature_manifest.get("su1_generated_columns", [])),
-			"su2_feature_count": len(feature_manifest.get("su2_generated_columns", [])),
+			"su3_feature_count": len(feature_manifest.get("su3_generated_columns", [])),
 			"preprocess_policy_snapshot": preprocess_snapshot,
 			"imputer_metadata": imputer_metadata,
-			"su2_cv_strategy": {
-				"mode": "global_fit_with_fold_reset",
+			"su3_cv_strategy": {
+				"mode": "global_fit",
 				"fill_value": args.numeric_fill_value,
 			},
 			"postprocess_defaults": {

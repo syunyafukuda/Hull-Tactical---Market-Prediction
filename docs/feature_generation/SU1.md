@@ -38,3 +38,36 @@
 - 単体テスト: 全NaN列、先頭連続NaN、島状NaN の3系で期待値一致。
 - 指標: OOFでMSR/Sharpeの差分、予測分布の平均と分散の変化、PSI(train後期 vs test)。
 - 採用条件: OOF MSRがベース比 +1σ、LB非劣化。劣化時はロールバック。
+
+---
+
+## トラブルシューティング
+
+### MSR=0問題（2025-11-22解決）
+
+**症状**: スイープ実行時に全構成でMSR=0.0となる異常
+
+**原因**: シグナルパラメータの誤設定
+```python
+# 問題のコード
+signal_params = PostProcessParams(mult=1.0, lo=1.0, hi=1.0)
+# → lo=hi=1.0でシグナルが定数1.0に固定
+# → r=(signal-1.0)*target=0（常にゼロ）
+# → MSR=0/0=0
+```
+
+**修正**:
+```python
+# 正しい設定（デフォルト値準拠）
+signal_params = PostProcessParams(mult=1.0, lo=0.0, hi=2.0)
+# → シグナルが[0.0, 2.0]の範囲で可変
+# → トレードリターンが変動し、MSRが正常計算される
+```
+
+**教訓**:
+1. シグナルパラメータ（mult, lo, hi）がデフォルトと異なる場合は理由をコメント
+2. lo≠hiであることを確認（退化ケース防止）
+3. スイープ結果で全構成のMSRが同じ値になっていないか確認
+
+詳細は [`docs/feature_generation/troubleshooting/MSR_zero_issue.md`](./troubleshooting/MSR_zero_issue.md) を参照。
+

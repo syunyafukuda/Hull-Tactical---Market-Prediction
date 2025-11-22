@@ -541,12 +541,18 @@ def _evaluate_candidate(
 	y_np = y.reset_index(drop=True)
 	y_np_array = y_np.to_numpy()
 
+	# Build fold_indices array for proper SU2 state reset
+	# Use validation indices to assign fold boundaries (avoids TimeSeriesSplit overlap issues)
+	# Each validation region gets its fold_idx; earlier training-only regions get fold 0
 	fold_indices_all = np.full(len(X_np), -1, dtype=int)
-	for fold_id, (train_idx, val_idx) in enumerate(split_indices):
-		fold_indices_all[train_idx] = fold_id
+	for fold_id, (_, val_idx) in enumerate(split_indices):
 		fold_indices_all[val_idx] = fold_id
-	if np.any(fold_indices_all < 0):
-		raise RuntimeError("Fold index assignment failed; found unassigned rows.")
+	
+	# Assign fold 0 to rows that were never in validation (early training-only data)
+	first_assigned = np.where(fold_indices_all >= 0)[0]
+	if first_assigned.size == 0:
+		raise RuntimeError("No validation indices assigned in TimeSeriesSplit.")
+	fold_indices_all[:first_assigned[0]] = 0
 
 	# fit performs structural preparation only; SU2FeatureAugmenter computes any statistics with past-only data inside transform.
 	su2_prefit = SU2FeatureAugmenter(su1_config, su2_config, fill_value=args.numeric_fill_value)

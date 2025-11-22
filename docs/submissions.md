@@ -138,3 +138,59 @@
     - 特徴量数94→462(SU1)→1397(SU2)の爆発的増加が主因
     - SU1の368列で十分有効であり、SU2による複雑化は不要
     - 今後の改善方向: SU1ベースで特徴量選択・正則化強化を検討
+
+## 2025-11-22 su3_stage1 (Submission Unit 3 - Stage 1) - **非採用**
+
+- Branch: `feat/miss-core-su3`
+- Status: **非採用** - LBスコア改善なし、SU1をベースラインとして継続
+- Kaggle Notebook: Private（Dataset: su3-missingness-core）
+- LB score: **0.461 (Public)** ← **初回提出と同じ、修正の効果なし**
+- Decision: **完全放棄** - Stage 2の開発は行わない
+- ベスト構成 (OOF sweep結果):
+  - reappear_top_k: 20
+  - temporal_top_k: 10
+  - holiday_top_k: 10
+  - include_imputation_trace: False (Stage 1)
+- OOF性能:
+  - OOF RMSE: 0.011418
+  - OOF MSR: 0.017162 ← **SU1の0.026376の65.1%（大幅劣化）**
+  - 特徴量数: 444列 (SU1: 368列 + SU3: 76列)
+- LB推移:
+  - 初回提出（fold_indices不整合あり）: 0.461
+  - 修正版（fold_indices不整合解消）: **0.461（変化なし）**
+- 問題分析:
+  - **致命的な性能劣化**: OOF MSRがSU1の65%しかない
+  - **修正の無効性**: train/inference不整合の修正後もLBスコア不変
+  - **根本的なコンセプトの失敗**: 欠損パターンの二次特徴（遷移/再出現/時間的傾向）が本コンペでは無効
+  - **テストデータでの予測崩壊**: 予測値が全て同じ値（-0.0046前後）→signal変換後に全て1.0
+- 修正履歴:
+  1. **fold_indices不整合の修正**:
+     - 問題: 最終学習時にfold_indicesを渡していなかった
+     - 修正: 推論時と同じ挙動（fold_indicesなし）に統一
+     - 結果: **LBスコア不変（0.461）** → 修正は無意味だった
+  2. **トラブルシューティング記録**:
+     - MSR=0問題: PostProcessParams(lo=1.0, hi=1.0)の設定ミス（解決済み）
+     - 詳細: docs/feature_generation/troubleshooting/MSR_zero_issue.md
+     - LB崩壊分析: docs/feature_generation/SU3_LB_COLLAPSE_ANALYSIS.md
+- SU2との比較:
+  - SU2: OOF良好 → LB 0.597（過学習）
+  - SU3: OOF時点で劣化 → LB 0.461（コンセプトの失敗）
+  - SU3の方がより根本的な問題を抱えている
+- 教訓:
+  - ❌ 欠損パターンの高次特徴化は本コンペでは効果なし
+  - ❌ OOF MSRがベースラインの65%の時点で採用すべきでなかった
+  - ✅ SU1（一次欠損特徴）が最適解、これ以上の複雑化は不要
+  - ✅ Stage 2の開発は時間の無駄、SU1の改善に集中すべき
+- 最終判断:
+  - **SU3完全放棄**: Stage 2は開発しない
+  - **SU1継続採用**: LB 0.674がベストスコア
+  - **今後の方向性**: SU1のハイパーパラメータチューニング、アンサンブル検討
+- 成果物:
+  - スイープ結果: results/ablation/SU3/sweep_2025-11-22_110535.json
+  - アーティファクト: artifacts/SU3/ (参考保存のみ)
+  - 構成: configs/feature_generation.yaml (su3.enabled=false に戻す)
+- Notes:
+  - numpy==1.26.4固定（Kaggle互換性確保）
+  - 修正後のinference_bundle.pkl (3.56MB), model_meta.json, feature_list.json生成済み
+  - 今後SU3関連のコードは保守対象外
+

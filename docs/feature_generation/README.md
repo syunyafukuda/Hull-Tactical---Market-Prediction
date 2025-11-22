@@ -256,6 +256,36 @@ SU2 以降は同様に `feature_su2.py`, `config_su2.yaml`, `train_su2.py`…と
 - CV では SU1 を全期間一括で生成した後に時系列分割し、fold 内では確定前処理以降を clone して学習する（履歴の切断を防ぐため）。
 - `train_su1.py` / `predict_su1.py` は上記パイプラインをバンドルとして保存・再利用するため、学習時と同じ確定前処理が推論にも確実に適用される。
 
+### SU2/SU3 の CV 戦略: fold_indices 設計
+
+SU2・SU3 の特徴生成器は時系列内での「fold 境界リセット」を制御するため、`fold_indices` パラメータを受け取る。
+この実装では **validation 区間ベース** で fold 番号を割り当てることで、TimeSeriesSplit の訓練ウィンドウ重複に起因する上書き問題を回避している。
+
+**設計根拠:**
+- TimeSeriesSplit は訓練ウィンドウが前に伸びていく構造のため、各行が複数 fold の train に含まれる
+- train_idx ベースで割り当てると、後の fold が前の fold の番号を上書きしてしまう
+- validation 区間は fold 間で重複しないため、val_idx ベースで割り当てることで明確な境界が確保される
+- SU2Generator/SU3Generator 内の `_compute_fold_boundaries` が連続区間として認識し、reset_each_fold=True が意図通り機能する
+
+**結果:**
+- 初期訓練専用データ（最初の validation 前）は fold=0
+- 最初の train+validation → segment 0、次の validation → segment 1、という形で段階的にリセット
+- train_su2/train_su3, sweep_oof (SU2/SU3), それぞれの SU2/SU3 コードで一貫した実装
+
+この設計により、fold ごとの状態リセット（EWMA・正規化統計など）が正しく動作し、未来情報の漏れを防ぐ。
+
+### スイープ設計: MSR ソート順
+
+`sweep_oof.py` では OOF MSR の **降順**（大きいほど良い）でソートする。
+MSR は Sharpe-like 指標（`mean/std` 形式）で、高いほど良い性能を示すため、結果リストは以下の形で整理される：
+
+```python
+# MSR降順（良→悪）、タイブレークはRMSE昇順（小→良）
+results.sort(key=lambda x: (-x['oof_msr'] if not math.isnan(x['oof_msr']) else float('-inf'), x['oof_rmse']))
+```
+
+SU2 の sweep_oof.py でも同じ方針（`ascending=[False, True]`）で統一されており、ベスト構成の選定基準が明確になっている。
+
 ## SU 単位ごとの運用メモ
 
 - **SU1_単列コア**
