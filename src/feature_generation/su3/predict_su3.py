@@ -367,7 +367,15 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
 def _predict_with_task(pipe: Any, X: pd.DataFrame, meta: Mapping[str, Any]) -> np.ndarray:
 	task_type = str(meta.get("task_type", "regression")).lower()
 	if task_type in {"regression", "regressor"}:
+		# DEBUG: 中間出力を確認
+		augment_step = pipe.named_steps.get('augment')
+		if augment_step is not None:
+			X_aug = augment_step.transform(X)
+			X_aug_arr = np.asarray(X_aug)
+			print(f"[debug] X_aug shape={X_aug_arr.shape}, mean={X_aug_arr.mean():.6f}, std={X_aug_arr.std():.6f}")
+			print(f"[debug] X_aug 最初の行の一部: {X_aug_arr[0, :10]}")
 		raw_pred = pipe.predict(X)
+		print(f"[debug] raw_pred shape={raw_pred.shape}, min={raw_pred.min():.6f}, max={raw_pred.max():.6f}, mean={raw_pred.mean():.6f}")
 	elif task_type in {"probability", "proba", "binary_proba"}:
 		proba = pipe.predict_proba(X)
 		proba_array = np.asarray(proba)

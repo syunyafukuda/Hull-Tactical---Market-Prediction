@@ -811,12 +811,29 @@ def main(argv: Sequence[str] | None = None) -> int:
 		}
 
 	# 成果物出力用に全データで再学習する。
-	final_pipeline = cast(Pipeline, clone(base_pipeline))
+	# NOTE: 推論時はfold_indicesを渡せないため、最終学習でもfold_indicesなしで学習する。
+	# これにより、OOFと最終学習で特徴生成ロジックが異なる問題は残るが、
+	# train/inference不整合（最終学習 vs 推論）は解消される。
+	# OOF性能は参考値として扱い、実際の性能はLBで評価する。
+	
+	su3_final = SU3FeatureAugmenter(su1_config, su3_config)
+	su3_final.fit(X_np)
+	# fold_indicesを渡さない（推論時と同じ挙動）
+	X_augmented_final = su3_final.transform(X_np)
+	
+	# augment stepを除いたcore pipelineを最終学習
+	core_pipeline_final = cast(Pipeline, Pipeline(base_pipeline.steps[1:]))
 	fit_kwargs_final: Dict[str, Any] = {}
 	if callbacks:
 		fit_kwargs_final["model__callbacks"] = callbacks
 		fit_kwargs_final["model__eval_metric"] = "rmse"
-	final_pipeline.fit(X_np, y_np, **fit_kwargs_final)
+	core_pipeline_final.fit(X_augmented_final, y_np, **fit_kwargs_final)
+	
+	# 最終pipelineを構築（augment step + core pipeline）
+	final_pipeline = Pipeline([
+		("augment", su3_final),
+		*core_pipeline_final.steps
+	])
 
 	named_steps = cast(Mapping[str, Any], final_pipeline.named_steps)
 	augment_step = named_steps.get("augment")
