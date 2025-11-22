@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from src.feature_generation.su5.feature_su5 import (
 	SU5Config,
-	SU5FeatureAugmenter,
 	SU5FeatureGenerator,
 	load_su5_config,
 )
@@ -16,6 +15,5 @@ from src.feature_generation.su5.feature_su5 import (
 __all__ = [
 	"SU5Config",
 	"SU5FeatureGenerator",
-	"SU5FeatureAugmenter",
 	"load_su5_config",
 ]
