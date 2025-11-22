@@ -89,112 +89,87 @@ su2:
     notes: "⚠️ NON-ADOPTED: LB score 0.597 (vs SU1's 0.674). Overfitting due to 935 secondary features. Stage2 best config (id=3) parameters preserved for reference: windows=[5], alpha=0.1, transitions/normalization windows=[5,10,20,60], metrics=mean|std, signals=m|gap_ffill, recovery_clip=60, clip_max=30."
 
 su3:
-  # ✅ SU3 Stage 1 採用決定 (2025-11-22)
-  # LB提出準備中 (目標: ≥0.672、SU1比で非劣化)
-  # Stage 2（代入影響トレース）は提出後のLB結果で判断
-  enabled: true  # ✅ 採用決定、訓練開始
+  # ❌ SU3 完全放棄 (2025-11-22決定)
+  # 理由: LB 0.461 (初回も修正版も変化なし)、OOF MSRがSU1の65%しかない
+  # 原因: 欠損パターンの二次特徴化が本コンペでは無効、根本的なコンセプトの失敗
+  # 結論: Stage 2は開発しない、SU1をベースラインとして継続採用
+  enabled: false  # ❌ 完全放棄
   base_features: su1
   id_column: date_id
   output_prefix: su3
   
   # ========================================
-  # Stage 1 採用構成（OOF Sweep ベスト）
+  # Stage 1 構成（参考保存のみ）
   # ========================================
   # OOF性能:
-  #   - RMSE: 0.011107
-  #   - MSR: 0.005772 (Sharpe-like指標)
+  #   - RMSE: 0.011418
+  #   - MSR: 0.017162 ← ❌ SU1の0.026376の65.1%（大幅劣化）
   #   - 特徴量数: 444列 (SU1: 368列 + SU3: 76列)
-  #   - 実行時間: 12.0秒/構成
   # 
-  # スイープ結果 (48構成):
-  #   - MSR範囲: -0.009764 ～ 0.005772
-  #   - reappear_top_k=20が最高MSR
-  #   - temporal_top_k=10で安定、30で過学習傾向
-  #   - holiday_top_k=10で十分
+  # LB推移:
+  #   - 初回提出（fold_indices不整合あり）: 0.461
+  #   - 修正版（fold_indices不整合解消）: 0.461 ← ❌ 変化なし
   # 
-  # SU2の教訓を反映:
-  #   ✅ 特徴量数444列（SU2: 1397列から68%削減）
-  #   ✅ top-k選択で枝刈り（過学習回避）
-  #   ✅ 群集約で次元削減（遷移フラグ: 188列→6列）
-  #   ✅ Stage 1でミニマル実装（Stage 2は慎重判断）
+  # 問題分析:
+  #   ❌ OOF時点で致命的な性能劣化（MSR 65%）
+  #   ❌ 修正してもLBスコア不変（コンセプトの失敗）
+  #   ❌ テストデータで予測崩壊（全て同じ値）
+  #   ❌ 欠損パターンの高次特徴化が本コンペでは無効
+  # 
+  # 教訓:
+  #   - SU1（一次欠損特徴）が最適解、これ以上の複雑化は不要
+  #   - OOF MSRがベースラインの65%の時点で採用すべきでなかった
+  #   - Stage 2の開発は時間の無駄
   # ========================================
   
-  # Stage 1: ミニマル実装（~76列追加）
+  # Stage 1構成（参考）
   include_transitions: true
-  transition_group_agg: true  # 群集約のみ（6列）
+  transition_group_agg: true
   
   include_reappearance: true
   reappear_clip: 60
-  reappear_top_k: 20  # ✅ ベスト構成（スイープ結果）
+  reappear_top_k: 20
   
-  include_imputation_trace: false  # Stage 1ではオフ
+  include_imputation_trace: false
   imp_delta_winsorize_p: 0.99
   imp_delta_top_k: 20
   imp_policy_group_level: true
   
   include_temporal_bias: true
   temporal_burn_in: 3
-  temporal_top_k: 10  # ✅ ベスト構成（スイープ結果、20→10に変更）
+  temporal_top_k: 10
   
   include_holiday_interaction: true
-  holiday_top_k: 10  # ✅ ベスト構成（スイープ結果、20→10に変更）
+  holiday_top_k: 10
   
-  # データ型
   dtype:
     flag: uint8
     int: int16
     float: float32
   
-  # fold境界リセット
   reset_each_fold: true
-  
-  # ========================================
-  # Stage 2 構成（未実装、提出後検討）
-  # ========================================
-  # 追加内容:
-  #   - imp_used/<col>: 代入実施フラグ (94列)
-  #   - imp_delta/<col>: 補完値との差分 (94列)
-  #   - imp_absdelta/<col>: 差分の絶対値 (94列)
-  #   - imp_policy_<grp>/<policy>: 補完ポリシー (30-50列)
-  #   - 合計: ~220-240列追加 → 総計660-684列
-  # 
-  # 実行条件（すべて満たす場合のみ）:
-  #   1. Stage 1 LB ≥ 0.672 (SU1比で非劣化)
-  #   2. Stage 1が安定稼働
-  #   3. _generate_imputation_features()実装完了
-  #   4. Stage 2スイープでMSR +0.001以上
-  #   5. 特徴量数 < 700列
-  # 
-  # リスク:
-  #   - 特徴量660列超→SU2の二の舞
-  #   - 過学習の懸念（CV良好→LB劣化）
-  # 
-  # 判断: Stage 1のLB結果を見て決定
-  # ========================================
   
   metadata:
     artifacts_dir: artifacts/SU3
     depends_on: SU1
-    expected_usage: "Transition, reappearance, temporal bias features (Stage 1)"
+    expected_usage: "[DEPRECATED] Transition, reappearance, temporal bias features"
     numpy_version: 1.26.4
-    status: adoption_pending  # development → adoption_pending
-    stage: 1  # Stage 1採用、Stage 2は保留
-    kaggle_lb: null  # 提出後更新
-    oof_rmse: 0.011107
-    oof_msr: 0.005772
+    status: deprecated  # adoption_pending → deprecated
+    stage: 1
+    kaggle_lb: 0.461  # 初回・修正版ともに変化なし
+    oof_rmse: 0.011418
+    oof_msr: 0.017162  # SU1の65.1%
     feature_count: 444
-    sweep_date: 2025-11-22
-    sweep_configs: 48
-    best_config:
-      reappear_top_k: 20
-      temporal_top_k: 10
-      holiday_top_k: 10
-      include_imputation_trace: false
-    decision: stage1_adopted  # Stage 1採用決定
+    decision: fully_abandoned  # stage1_adopted → fully_abandoned
+    abandonment_reason: "LBスコア0.461（SU1の0.674から-0.213）、OOF MSR SU1比65%、修正の効果なし"
     troubleshooting:
-      - issue: "MSR=0問題 (2025-11-22解決済み)"
+      - issue: "fold_indices不整合"
+        fix: "最終学習時にfold_indicesを渡さない（推論時と一致）"
+        result: "LBスコア不変（0.461）、修正は無意味だった"
+        doc: "docs/feature_generation/SU3_LB_COLLAPSE_ANALYSIS.md"
+      - issue: "MSR=0問題"
         cause: "PostProcessParams(lo=1.0, hi=1.0)でシグナル定数化"
         fix: "lo=0.0, hi=2.0に変更"
         doc: "docs/feature_generation/troubleshooting/MSR_zero_issue.md"
     updated_at: 2025-11-22
-    notes: "✅ Stage 1採用決定。特徴量444列（SU2比68%削減）、OOF MSR=0.005772。top-k選択と群集約でSU2の過学習を回避。Kaggle提出準備中（目標LB≥0.672）。Stage 2は提出後のLB結果で判断。"
+    notes: "❌ 完全放棄。LB 0.461（初回・修正版ともに変化なし）、OOF MSR SU1の65%。欠損パターンの高次特徴化は本コンペでは無効と判断。Stage 2は開発しない。SU1をベースラインとして継続採用。"

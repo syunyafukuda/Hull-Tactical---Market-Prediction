@@ -139,56 +139,58 @@
     - SU1の368列で十分有効であり、SU2による複雑化は不要
     - 今後の改善方向: SU1ベースで特徴量選択・正則化強化を検討
 
-## 2025-11-22 su3_stage1 (Submission Unit 3 - Stage 1)
+## 2025-11-22 su3_stage1 (Submission Unit 3 - Stage 1) - **非採用**
 
 - Branch: `feat/miss-core-su3`
-- Status: **採用決定** (Kaggle提出準備中)
+- Status: **非採用** - LBスコア改善なし、SU1をベースラインとして継続
+- Kaggle Notebook: Private（Dataset: su3-missingness-core）
+- LB score: **0.461 (Public)** ← **初回提出と同じ、修正の効果なし**
+- Decision: **完全放棄** - Stage 2の開発は行わない
 - ベスト構成 (OOF sweep結果):
   - reappear_top_k: 20
   - temporal_top_k: 10
   - holiday_top_k: 10
   - include_imputation_trace: False (Stage 1)
 - OOF性能:
-  - OOF RMSE: 0.011107
-  - OOF MSR: 0.005772
+  - OOF RMSE: 0.011418
+  - OOF MSR: 0.017162 ← **SU1の0.026376の65.1%（大幅劣化）**
   - 特徴量数: 444列 (SU1: 368列 + SU3: 76列)
-  - 実行時間: 12.0秒/構成
-- 特徴量構成:
-  - SU1特徴: 368列 (欠損構造一次特徴)
-  - SU3特徴: ~76列
-    - 遷移フラグ（群集約）: 6列
-    - 再出現パターン（top-20）: ~40列
-    - 時間的欠損傾向（top-10）: ~20列
-    - 祝日関連欠損（top-10）: ~10列
-- SU2の教訓を反映:
-  - ✅ 特徴量数の厳格な制限: 444列 (SU2: 1397列 → 68%削減)
-  - ✅ top-k選択による枝刈り: 重要度上位のみ採用
-  - ✅ 群集約による次元削減: 遷移フラグは列単位ではなくグループ単位
-  - ✅ Stage 1でミニマル実装: 代入影響トレース(C)はStage 2に保留
-- スイープ結果 (48構成):
-  - MSR範囲: -0.009764 ～ 0.005772
-  - RMSE範囲: 0.011107 ～ 0.011116
-  - reappear_top_k=20が最高MSR、temporal_top_k=30で過学習傾向
-- 採用判断基準:
-  - ✅ 特徴量数 < 500列 (目標達成: 444列)
-  - ✅ SU2の過学習回避 (top-k選択、群集約)
-  - ⏳ LB性能: SU1比で非劣化を確認予定 (目標: ≥0.672)
-- Stage 2について:
-  - 内容: 代入影響トレース追加 (~220列追加見込み)
-  - 判断: Stage 1でKaggle提出後、LB性能を見て検討
-  - リスク: 特徴量660列超→過学習懸念、SU2の二の舞
-- トラブルシューティング:
-  - MSR=0問題 (2025-11-22解決済み)
-    - 原因: PostProcessParams(lo=1.0, hi=1.0)でシグナルが定数化
-    - 修正: lo=0.0, hi=2.0に変更（デフォルト値準拠）
-    - 詳細: docs/feature_generation/troubleshooting/MSR_zero_issue.md
+- LB推移:
+  - 初回提出（fold_indices不整合あり）: 0.461
+  - 修正版（fold_indices不整合解消）: **0.461（変化なし）**
+- 問題分析:
+  - **致命的な性能劣化**: OOF MSRがSU1の65%しかない
+  - **修正の無効性**: train/inference不整合の修正後もLBスコア不変
+  - **根本的なコンセプトの失敗**: 欠損パターンの二次特徴（遷移/再出現/時間的傾向）が本コンペでは無効
+  - **テストデータでの予測崩壊**: 予測値が全て同じ値（-0.0046前後）→signal変換後に全て1.0
+- 修正履歴:
+  1. **fold_indices不整合の修正**:
+     - 問題: 最終学習時にfold_indicesを渡していなかった
+     - 修正: 推論時と同じ挙動（fold_indicesなし）に統一
+     - 結果: **LBスコア不変（0.461）** → 修正は無意味だった
+  2. **トラブルシューティング記録**:
+     - MSR=0問題: PostProcessParams(lo=1.0, hi=1.0)の設定ミス（解決済み）
+     - 詳細: docs/feature_generation/troubleshooting/MSR_zero_issue.md
+     - LB崩壊分析: docs/feature_generation/SU3_LB_COLLAPSE_ANALYSIS.md
+- SU2との比較:
+  - SU2: OOF良好 → LB 0.597（過学習）
+  - SU3: OOF時点で劣化 → LB 0.461（コンセプトの失敗）
+  - SU3の方がより根本的な問題を抱えている
+- 教訓:
+  - ❌ 欠損パターンの高次特徴化は本コンペでは効果なし
+  - ❌ OOF MSRがベースラインの65%の時点で採用すべきでなかった
+  - ✅ SU1（一次欠損特徴）が最適解、これ以上の複雑化は不要
+  - ✅ Stage 2の開発は時間の無駄、SU1の改善に集中すべき
+- 最終判断:
+  - **SU3完全放棄**: Stage 2は開発しない
+  - **SU1継続採用**: LB 0.674がベストスコア
+  - **今後の方向性**: SU1のハイパーパラメータチューニング、アンサンブル検討
 - 成果物:
   - スイープ結果: results/ablation/SU3/sweep_2025-11-22_110535.json
-  - 構成: configs/feature_generation.yaml (su3.enabled=true予定)
-  - アーティファクト: artifacts/SU3/ (Kaggle提出後生成)
+  - アーティファクト: artifacts/SU3/ (参考保存のみ)
+  - 構成: configs/feature_generation.yaml (su3.enabled=false に戻す)
 - Notes:
-  - SU3はSU1の出力（m/<col>, gap_ffill/<col>など）を前提とする
-  - fold_indices実装: validation区間ベースで境界リセット（TimeSeriesSplit対応）
-  - MSRソート順: 降順（大きいほど良い、Sharpe-like指標）
   - numpy==1.26.4固定（Kaggle互換性確保）
+  - 修正後のinference_bundle.pkl (3.56MB), model_meta.json, feature_list.json生成済み
+  - 今後SU3関連のコードは保守対象外
 
