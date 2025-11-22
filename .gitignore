@@ -23,6 +23,11 @@ artifacts/
 outputs/
 results/
 
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
 # Kaggle
 .kaggle/
 kaggle.json
