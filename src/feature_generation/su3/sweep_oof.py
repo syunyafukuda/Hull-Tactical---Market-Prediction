@@ -303,7 +303,8 @@ def evaluate_single_config(
 		rmse = float(math.sqrt(mean_squared_error(y_val, pred)))
 
 		# fold MSRを計算（デフォルトのシグナルパラメータを使用）
-		signal_params = PostProcessParams(mult=1.0, lo=1.0, hi=1.0)
+		# NOTE: lo=0.0, hi=2.0 を使用（lo=hi=1.0だとシグナルが定数になりMSR=0）
+		signal_params = PostProcessParams(mult=1.0, lo=0.0, hi=2.0)
 		metrics = evaluate_msr_proxy(pred, y_val.to_numpy(), signal_params, eps=1e-8, lam=0.0)
 		msr = float(metrics['msr'])
 
@@ -317,7 +318,8 @@ def evaluate_single_config(
 	valid_mask = ~np.isnan(oof_pred)
 	if valid_mask.any():
 		oof_rmse = float(math.sqrt(mean_squared_error(target[valid_mask], oof_pred[valid_mask])))
-		signal_params = PostProcessParams(mult=1.0, lo=1.0, hi=1.0)
+		# NOTE: lo=0.0, hi=2.0 を使用（lo=hi=1.0だとシグナルが定数になりMSR=0）
+		signal_params = PostProcessParams(mult=1.0, lo=0.0, hi=2.0)
 		oof_metrics = evaluate_msr_proxy(oof_pred[valid_mask], target[valid_mask], signal_params, eps=1e-8, lam=0.0)
 		oof_msr = float(oof_metrics['msr'])
 	else:
