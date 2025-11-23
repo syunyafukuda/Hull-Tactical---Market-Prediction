@@ -3,7 +3,8 @@
 
 set -e
 
-PROJECT_ROOT="/workspaces/Hull-Tactical---Market-Prediction"
+# Dynamically determine the project root based on the script's location
+PROJECT_ROOT="$(dirname "$(dirname "$(dirname "${BASH_SOURCE[0]}")")")"
 cd "$PROJECT_ROOT"
 
 echo "==================================="
