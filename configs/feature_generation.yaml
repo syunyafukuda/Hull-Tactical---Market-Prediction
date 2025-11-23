@@ -222,3 +222,85 @@ su5:
         lb_score: 0.679
         adopted: false
     notes: "✅ ADOPTED: Policy1 achieves LB 0.681 (best score ever). Policy2 scored 0.679. Policy1 selected for simpler configuration and higher LB."
+
+su4:
+  # ❌ SU4削除決定 (2025-11-23)
+  # 理由: 特徴重要度分析・Ablation Studyにより予測性能への寄与がほぼゼロと判明
+  # 証拠:
+  #   - 138特徴中136特徴が重要度0（LightGBMがほぼ使用していない）
+  #   - SU4なしOOF RMSE: 0.012284 vs SU4ありOOF RMSE: 0.012141（差分+0.000143、誤差範囲内）
+  #   - ハイパーパラメータスイープ18設定で完全に同一の性能
+  # 結論: 補完トレース情報（どう補完されたか）がtarget予測に無相関
+  # 詳細: docs/feature_generation/SU4-ablation-conclusion.md
+  # 削除計画: docs/feature_generation/SU4-deletion-plan.md
+  enabled: false  # ❌ 削除決定
+  base_features: su1
+  id_column: date_id
+  output_prefix: su4
+
+  # ========================================
+  # 開発時の構成（参考保存のみ）
+  # ========================================
+  # 特徴量:
+  #   - imp_used/*: 代入実施フラグ（94列）
+  #   - imp_delta/*: 代入差分（top-25列）
+  #   - imp_absdelta/*: 代入絶対差分（top-25列）
+  #   - imp_method/*: 代入手法one-hot（6列）
+  #   - holiday_bridge_x_m/*: holiday×SU1 m/交差（top-10列）
+  # 合計: 138列
+  #
+  # OOF性能:
+  #   - SU4あり: RMSE=0.012141, MSR=0.023319
+  #   - SU4なし: RMSE=0.012284, MSR=0.012284
+  #   - 差分: +0.000143 (誤差範囲内)
+  #
+  # 特徴重要度:
+  #   - SU4合計: 2.00 (全体の0.0%)
+  #   - 非SU4合計: 37,198.00 (全体の100.0%)
+  #   - SU4平均: 0.01 vs 非SU4平均: 65.60
+  #   - 重要度>0: わずか2特徴（imp_method/missforest, imp_method/ridge_stack）
+  # ========================================
+
+  # 列数制御パラメータ
+  top_k_imp_delta: 25
+  top_k_holiday_cross: 10
+
+  # Winsorization
+  winsor_p: 0.99
+
+  # 代入手法リスト（主要ポリシーのみ）
+  imp_methods:
+    - ffill
+    - mice
+    - missforest
+    - ridge_stack
+    - holiday_bridge
+    - other
+
+  # fold リセット
+  reset_each_fold: true
+
+  # データ型
+  dtype:
+    flag: uint8
+    int: int16
+    float: float32
+
+  # メタデータ
+  metadata:
+    artifacts_dir: artifacts/SU4
+    depends_on: [SU1, M/E/I/P/S GroupImputers]
+    expected_usage: "[DEPRECATED] Imputation trace features"
+    numpy_version: 1.26.4
+    status: deprecated  # development → deprecated
+    decision: fully_abandoned
+    decision_date: 2025-11-23
+    abandonment_reason: "特徴重要度分析で138特徴中136特徴が重要度0、Ablation Studyで性能差+0.000143（誤差範囲内）"
+    feature_count: 138
+    oof_rmse_with_su4: 0.012141
+    oof_rmse_without_su4: 0.012284
+    delta_rmse: 0.000143
+    feature_importance_su4_total: 2.00
+    feature_importance_non_su4_total: 37198.00
+    target_feature_count: ~151
+    notes: "❌ 削除決定。補完トレース情報が予測に寄与しないことが判明。SU4なし（SU1+SU5+GroupImputers）を標準パイプラインとする。"
