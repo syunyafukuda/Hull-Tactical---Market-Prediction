@@ -303,11 +303,18 @@ SU2 の sweep_oof.py でも同じ方針（`ascending=[False, True]`）で統一�
 	- ブランチ: `feat/miss-transitions-su3`
 	- 提出可否: `ΔMSR` が僅少でも予測分散が安定なら提出候補
 	- 備考: すべて過去参照のみ
-- **SU4_代入影響トレース**
+- **SU4_代入影響トレース** ❌ **削除決定（2025-11-23）**
 	- 内容: `imp_used/<col>`, `imp_delta/<col>`, `imp_absdelta/<col>`, 代入種別 One-hot（`ffill/bfill/missforest/holiday_bridge`）, 交差 `holiday_bridge * m/<col>`
 	- ブランチ: `feat/miss-imptrace-su4`
-	- 提出可否: `ΔMSR ≥ +0.5σ` または外れ提出で LB ↑
-	- 備考: `imp_delta` は ±p99 winsorize
+	- ステータス: **実装完了後、削除決定**
+	- 削除理由:
+		- 138特徴中136特徴が重要度0（LightGBMがほぼ使用していない）
+		- ハイパーパラメータスイープで全18設定が同一性能（SU4の影響なし）
+		- Ablation Study: SU4なしRMSE=0.012284 vs SU4ありRMSE=0.012141（差分+0.000143、誤差範囲内）
+		- 補完トレース情報がtarget予測に無相関と判明
+	- 削除によるメリット: 138特徴削減、計算コスト・メモリ削減、コードベース簡略化
+	- 詳細: `docs/feature_generation/SU4.md` (削除決定の経緯を記録)
+	- 備考: Kaggle提出せず、OOF評価で無効性確認のため開発中止
 - **SU5_共欠損・交差** ✅ **実装完了（コア機能）**
 	- 内容: `co_miss_now/<a>__<b>`, `co_miss_rollrate_W/<a>__<b>`, `co_miss_deg/<col>`
 	- ブランチ: `feat/miss-core-su5`

@@ -1,21 +1,97 @@
-# 欠損構造特徴 SU4 仕様（代入影響トレース・Imputation Trace）
+# 欠損構造特徴 SU4（代入影響トレース・Imputation Trace）
 
 最終更新: 2025-11-23
 
-## 実装ステータス
+## ⚠️ 重要: SU4削除決定（2025-11-23）
 
-**Status**: 📋 **未実装** - 実装開始準備中
+**Status**: ❌ **実装完了後、削除決定** - 予測性能への寄与がほぼゼロと判明
 
-### 実装計画
-- 📋 `feature_su4.py`: Core feature generation logic
-- 📋 `SU4Config`: 設定用 dataclass
-- 📋 `SU4FeatureGenerator`: sklearn-compatible transformer
-- 📋 `SU4FeatureAugmenter`: パイプライン統合クラス
-- 📋 Unit tests: `tests/feature_generation/test_su4.py`
-- 📋 Configuration: `configs/feature_generation.yaml` に `su4` セクション追加
-- 📋 Pipeline scripts: `train_su4.py`, `predict_su4.py`, `sweep_oof.py`
+### 削除決定の経緯
 
-この仕様書は、SU5（共欠損構造）のパターンを踏襲しつつ、「代入影響（imputation trace）」を系統的に扱うための設計ドキュメントです。実装者が迷わずコードを書けること、後から見ても設計意図がわかることを目的とします。
+#### 実装完了状況（削除前）
+- ✅ `feature_su4.py`: 完全実装（539行）
+- ✅ `SU4Config`, `SU4FeatureGenerator`, `SU4FeatureAugmenter`: 実装完了
+- ✅ `train_su4.py`: OOF学習パイプライン（1157行）
+- ✅ Unit tests: 7テストケース全通過、85%カバレッジ
+- ✅ `configs/feature_generation.yaml`: su4セクション（enabled=false に変更済み）
+- ✅ OOF評価完了: RMSE=0.012141, MSR=0.023319、138特徴生成
+
+#### 削除決定の3つの根拠
+
+**1. 特徴重要度分析結果**（決定的証拠）
+- **138個のSU4特徴のうち136個が重要度0**
+- わずか2個（`imp_method/missforest`, `imp_method/ridge_stack`）のみ重要度1
+- SU4合計重要度: 2.00（全体の0.0%）、非SU4: 37,198.00（100.0%）
+- SU4平均重要度: 0.01 vs 非SU4平均: 65.60
+- **結論**: LightGBMがSU4特徴をほぼ使用していない
+
+**2. ハイパーパラメータスイープ結果**
+- 18設定（top_k_imp_delta × top_k_holiday_cross × winsor_p）で**完全に同一のRMSE/MSR**
+- 全設定でOOF RMSE=0.012141, MSR=0.023319
+- **結論**: SU4パラメータが予測性能に一切影響していない
+
+**3. Ablation Study結果**
+- **SU4なし**（SU1+SU5+GroupImputersのみ）: OOF RMSE **0.012284**
+- **SU4あり**（baseline）: OOF RMSE **0.012141**
+- 差分: **+0.000143** (+1.2%、統計的に有意でない誤差範囲内)
+- **結論**: SU4削除の性能への影響はほぼゼロ
+
+#### コンセプトの問題点
+
+**なぜSU4が機能しなかったか**:
+1. **補完トレース情報がtargetと無相関**: 欠損値がどう補完されたかは、市場リターン予測に寄与しない
+2. **情報の冗長性**: 既存特徴（元データ+SU1+SU5）で予測に必要な情報は網羅されている
+3. **特徴設計の問題**: `imp_delta`などが補完率の低い箇所では0になり、分散が小さく情報量が少ない
+
+**他のデータセットでも同様の問題が予想される**: 補完トレース情報が予測に寄与するユースケースは限定的
+
+#### 削除によるメリット
+
+- 138特徴分の計算コスト削減
+- 訓練時間短縮（SU4生成・補完トレース計算の削減）
+- メモリ使用量削減（2.1GB削減）
+- コードベース簡略化・保守性向上
+
+#### 今後の方向性
+
+**標準パイプライン**（SU4削除後）:
+```
+入力データ（94列）
+  ↓
+SU1FeatureAugmenter（+368列） → 462列
+  ↓
+SU5FeatureAugmenter（+105列） → 567列
+  ↓
+GroupImputers（M/E/I/P/S欠損値補完）
+  ↓
+Preprocessing（StandardScaler）
+  ↓
+LightGBMRegressor
+```
+
+**期待される性能**:
+- OOF RMSE: 0.01228程度（SU4ありの0.01214から+0.00014）
+- LB score: SU5の0.681と同等またはわずかに低下（推定0.680程度）
+
+#### 学んだ教訓
+
+1. **特徴重要度分析を早期に実施すべき**: スイープ前に実施していれば無駄な計算を避けられた
+2. **Ablation Studyは基本**: 新特徴追加時は常に「なし」バージョンとの比較が必要
+3. **コンセプトの妥当性検証**: 実装前に「なぜこの特徴がtargetと相関するか」の仮説を立て、簡易検証すべき
+4. **LightGBMの特徴選択能力を信頼**: 重要度0の特徴が多い場合、設計を見直す
+
+#### 参照ドキュメント
+- **特徴重要度分析結果**: `results/ablation/SU4/feature_importance_analysis.csv`
+- **スイープ結果**: `results/ablation/SU4/sweep_summary.csv`
+- **Ablation実行スクリプト**: `src/feature_generation/su4/ablation_no_su4.py`
+- **設定ファイル**: `configs/feature_generation.yaml` (su4.enabled=false)
+- **提出履歴**: `docs/submissions.md` (SU4エントリ参照)
+
+---
+
+## 以下は参考: SU4の当初設計仕様（実装済み、削除決定）
+
+この仕様書は、SU5（共欠損構造）のパターンを踏襲しつつ、「代入影響（imputation trace）」を系統的に扱うための設計ドキュメントです。実装は完了しましたが、予測性能への寄与がゼロのため削除が決定されました。
 
 ---
 

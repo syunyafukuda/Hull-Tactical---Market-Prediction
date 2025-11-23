@@ -230,3 +230,86 @@
   - Kaggle Notebook: notebooks/submit/su5.ipynb (3749行)
   - Private Dataset: su5-missingness-core
   - スイープ結果: 12パターン検証、Policy1が最良
+
+## 2025-11-23 su4 (Submission Unit 4) - **開発完了後、削除決定❌**
+
+- Branch: `feat/miss-imptrace-su4`
+- Status: **削除決定** - 特徴重要度分析・Ablation Studyにより予測性能への寄与がほぼゼロと判明
+- Kaggle提出: **実施せず**（OOF評価で無効性が確認されたため）
+- 開発状況:
+  - 実装完了: src/feature_generation/su4/（1157行のtrain_su4.py含む）
+  - OOF評価完了: RMSE=0.012141, MSR=0.023319
+  - ハイパーパラメータスイープ完了: 18設定検証
+  - 特徴重要度分析完了
+  - Ablation Study完了
+
+### 削除決定の根拠
+
+**1. 特徴重要度分析結果**:
+- 138個のSU4特徴のうち136個が重要度0
+- わずか2個（`imp_method/missforest`, `imp_method/ridge_stack`）のみ重要度1
+- SU4合計重要度: 2.00（全体の0.0%）
+- 非SU4合計重要度: 37,198.00（全体の100.0%）
+- SU4平均重要度: 0.01 vs 非SU4平均: 65.60
+- **結論**: LightGBMがSU4特徴をほぼ使用していない
+
+**2. ハイパーパラメータスイープ結果**:
+- 18設定で完全に同一のRMSE/MSR
+- 全設定でOOF RMSE=0.012141, MSR=0.023319
+- **結論**: SU4パラメータが予測性能に影響していない
+
+**3. Ablation Study結果**:
+- SU4なし（SU1+SU5+GroupImputersのみ）: OOF RMSE **0.012284**
+- SU4あり（baseline）: OOF RMSE **0.012141**
+- 差分: **+0.000143** (+1.2%、誤差範囲内)
+- **結論**: SU4削除の性能への影響はほぼゼロ
+
+### 削除理由
+
+**補完トレース情報がtarget予測に無相関**:
+- 欠損値がどう補完されたかは市場リターン予測に寄与しない
+- 既存特徴（元データ+SU1+SU5）で予測に必要な情報は網羅済み
+- 138特徴追加のコストに見合う性能改善なし
+
+### 削除によるメリット
+
+- 138特徴分の計算コスト削減
+- 訓練時間短縮（SU4生成・補完トレース計算の削減）
+- メモリ使用量削減（2.1GB削減）
+- コードベース簡略化・保守性向上
+
+### 今後の方向性
+
+**標準パイプライン**（SU4削除後）:
+```
+入力データ（94列）
+  ↓
+SU1FeatureAugmenter（+368列） → 462列
+  ↓
+SU5FeatureAugmenter（+105列） → 567列
+  ↓
+GroupImputers（M/E/I/P/S欠損値補完）
+  ↓
+Preprocessing（StandardScaler）
+  ↓
+LightGBMRegressor
+```
+
+**期待される性能**:
+- OOF RMSE: 0.01228程度（SU4ありの0.01214から+0.00014）
+- LB score: SU5の0.681と同等またはわずかに低下（推定0.680程度）
+
+### 参照
+
+- **削除決定詳細**: `docs/feature_generation/SU4-ablation-conclusion.md`
+- **削除アクションプラン**: `docs/feature_generation/SU4-deletion-plan.md`
+- **特徴重要度分析結果**: `results/ablation/SU4/feature_importance_analysis.csv`
+- **スイープ結果**: `results/ablation/SU4/sweep_summary.csv`
+- **Ablation実行スクリプト**: `src/feature_generation/su4/ablation_no_su4.py`
+
+### 学んだ教訓
+
+1. 特徴重要度分析を早期に実施すべき
+2. Ablation Studyは新特徴追加時の基本
+3. コンセプトの妥当性を実装前に検証すべき
+4. LightGBMの特徴選択能力を信頼する
