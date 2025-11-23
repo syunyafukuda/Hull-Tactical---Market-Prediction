@@ -269,6 +269,14 @@ train.info(); train.head()
 
 - D 系特徴量（列プレフィクス `D`）は train/test ともに欠損が確認されておらず、追加の補完処理は不要です。パイプラインでは監視ログのみで十分です。
 
+#### SU5 (共欠損構造特徴) の注意点
+
+- 依存: SU1をベースとし、共欠損ペアの特徴量（co_miss_now, co_miss_rollrate, co_miss_deg）を追加します。
+- 成果物: `inference_bundle.pkl` (2.1GB)、`model_meta.json`、`feature_list.json`
+- Kaggle Dataset: sklearn 1.7.2 wheel を同梱し、`--no-index` で導入します。
+- 推論: Notebookは自動でartifactを検出します（`/kaggle/input/<dataset>/inference_bundle.pkl`）。
+- 互換性: numpy 1.26.4 で学習・推論を統一（MT19937 BitGenerator互換性）。
+
 #### simple_baseline の注意点
 
 - 依存: LightGBM を使用します。`uv sync` で自動導入されますが、環境によっては `uv add lightgbm` が必要な場合があります。
@@ -357,6 +365,38 @@ data:
 
 ---
 
+## 現在のベストスコア
+
+| 提出ライン | LB Score (Public) | 特徴量数 | OOF RMSE | 状態 |
+|-----------|-------------------|---------|----------|------|
+| **SU5 (Policy1)** | **0.681** | 567 (94+368+105) | 0.012139 | **✅ 採用** |
+| SU1 | 0.674 | 462 (94+368) | 0.01212 | 前ベースライン |
+| Preprocessing P (mice) | 0.625 | - | - | 採用 |
+| Preprocessing I (ridge_stack) | 0.623 | - | - | 採用 |
+| Preprocessing M | 0.629 | - | - | 採用 |
+| MSR-proxy | 0.610 | - | 0.01241 | 参考 |
+| SU2 | 0.597 | 1397 (94+368+935) | 0.01223 | ❌ 非採用 (過学習) |
+| simple_baseline | 0.554 | - | - | ベースライン |
+
+**現在のベストスコア**: SU5 Policy1 (LB 0.681) - SU1から+0.007改善
+
+詳細は `docs/submissions.md` を参照してください。
+
+---
+
+### SU5 Implementation (2025-11-23) ✅ 正式採用
+
+**採用構成**: Policy1 (top_k=10, windows=[5])
+
+- LB Score: **0.681** (従来最高: SU1の0.674から+0.007改善)
+- 特徴量: 共欠損構造特徴105列（co_miss_now, co_miss_rollrate, co_miss_deg）
+- OOF RMSE: 0.012139
+- Artifacts: `artifacts/SU5/policy1_top10_w5/`
+
+詳細: `docs/submissions.md`
+
+---
+
 ## テスト方針（Submitラインを増やす場合）
 
 結論: 各Submitラインで `scripts/<experiment>/` を増やしてOK。ただしテストは「共通インターフェース」を対象に統一します。
@@ -384,24 +424,6 @@ data:
 
 ---
 
-## 現在のベストスコア
-
-| 提出ライン | LB Score (Public) | 特徴量数 | OOF RMSE | 状態 |
-|-----------|-------------------|---------|----------|------|
-| **SU1** | **0.674** | 462 (94+368) | 0.01212 | **採用** |
-| SU2 | 0.597 | 1397 (94+368+935) | 0.01223 | **非採用** (過学習) |
-| Preprocessing M | 0.629 | - | - | 採用 |
-| Preprocessing I (ridge_stack) | 0.623 | - | - | 採用 |
-| Preprocessing P (mice) | 0.625 | - | - | 採用 |
-| MSR-proxy | 0.610 | - | 0.01241 | 参考 |
-| simple_baseline | 0.554 | - | - | ベースライン |
-
-**現在のベースライン**: SU1 (LB 0.674)
-
-詳細は `docs/submissions.md` を参照してください。
-
----
-
 ### Kaggle Notebook 依存固定（MSR-proxy 提出ラインの補足）
 
 MSR-proxy の成果物は、scikit-learn のバージョン依存で `joblib.load` 振る舞いが変わる場合があります。Notebook では Private Dataset に 1.7.2 の wheel を同梱し、冒頭で次のように導入してください。
@@ -410,3 +432,4 @@ MSR-proxy の成果物は、scikit-learn のバージョン依存で `joblib.loa
 - その後に `lightgbm==4.6.0`, `joblib`, `pyarrow`, `polars`, `pandas` をインストール
 
 詳細は `docs/submissions.md` の 2025-10-12 エントリに Notebook のサンプル断片を記載しています。
+
