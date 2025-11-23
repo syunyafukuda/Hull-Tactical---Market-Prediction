@@ -166,7 +166,6 @@ def run_cv(
 		X_train = X.iloc[train_idx]
 		y_train = y.iloc[train_idx]
 		X_valid = X.iloc[val_idx]
-		y_valid = y.iloc[val_idx]
 
 		pipe = cast(Pipeline, clone(base_pipeline))
 		
