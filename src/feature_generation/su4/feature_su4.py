@@ -191,7 +191,7 @@ class SU4FeatureGenerator(BaseEstimator, TransformerMixin):
 		features.update(imp_absdelta)
 
 		# D. 代入手法 One-hot
-		imp_method = self._compute_imp_method_onehot(raw_data)
+		imp_method = self._compute_imp_method_onehot(raw_data, imputed_data, imp_used)
 		features.update(imp_method)
 
 		# E. 交差特徴（holiday_bridge × m/<col>）
@@ -371,7 +371,9 @@ class SU4FeatureGenerator(BaseEstimator, TransformerMixin):
 
 		return features
 
-	def _compute_imp_method_onehot(self, raw_data: pd.DataFrame) -> Dict[str, np.ndarray]:
+	def _compute_imp_method_onehot(
+		self, raw_data: pd.DataFrame, imputed_data: pd.DataFrame, imp_used: Dict[str, np.ndarray]
+	) -> Dict[str, np.ndarray]:
 		"""代入手法のOne-hotエンコーディングを生成する。"""
 		features = {}
 		n_rows = len(raw_data)
@@ -384,7 +386,7 @@ class SU4FeatureGenerator(BaseEstimator, TransformerMixin):
 		if self.group_policies_ is None or self.target_columns_ is None:
 			return features
 
-		# 各行でどの手法が使われたかをカウント
+		# 各行でどの手法が使われたかをカウント（実際に補完された行のみ）
 		method_counts = {method: np.zeros(n_rows, dtype=int) for method in self.config.imp_methods}
 
 		for col in self.target_columns_:
@@ -396,8 +398,11 @@ class SU4FeatureGenerator(BaseEstimator, TransformerMixin):
 			if policy not in self.config.imp_methods:
 				policy = "other"
 
-			# この列があれば、そのポリシーを使用
-			method_counts[policy] += 1
+			# imp_usedフラグを確認し、実際に補完された行のみカウント
+			imp_used_key = f"imp_used/{col}"
+			if imp_used_key in imp_used:
+				# 補完された行（imp_used == 1）のみカウントを増やす
+				method_counts[policy] += imp_used[imp_used_key]
 
 		# 最も使われた手法を各行に割り当て
 		for i in range(n_rows):

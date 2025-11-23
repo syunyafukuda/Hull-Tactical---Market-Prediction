@@ -72,7 +72,7 @@ def main() -> int:
 	if bundle_path.exists():
 		print(f"\nLoading bundle from {bundle_path}...")
 		try:
-			_pipeline = joblib.load(bundle_path)
+			joblib.load(bundle_path)
 			print("Bundle loaded successfully!")
 		except Exception as e:
 			print(f"Error loading bundle: {e}", file=sys.stderr)
