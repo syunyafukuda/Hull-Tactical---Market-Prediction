@@ -113,7 +113,6 @@ def test_su5_all_nan_columns() -> None:
 
 def test_su5_single_co_miss_pair() -> None:
 	"""特定 2 列だけが同じ NaN パターンを持つ場合、そのペアが top-1 で選ばれること。"""
-	config = _build_config()
 	config = SU5Config(
 		id_column="date_id",
 		output_prefix="su5",
