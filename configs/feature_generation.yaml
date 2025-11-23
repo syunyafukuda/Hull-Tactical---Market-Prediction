@@ -175,19 +175,21 @@ su3:
     notes: "❌ 完全放棄。LB 0.461（初回・修正版ともに変化なし）、OOF MSR SU1の65%。欠損パターンの高次特徴化は本コンペでは無効と判断。Stage 2は開発しない。SU1をベースラインとして継続採用。"
 
 su5:
-  enabled: false
+  enabled: true
   base_features: su1
   id_column: date_id
   output_prefix: su5
 
-  # ペア選択
+  # ========================================
+  # 採用構成（Policy1）: top_k=10, windows=[5]
+  # LB score: 0.681 (SU1の0.674から+0.007、+1.04%改善)
+  # OOF RMSE: 0.012139
+  # OOF MSR: 0.024071
+  # Features: 567 (SU1:368 + SU5:105)
+  # ========================================
   top_k_pairs: 10
-  top_k_pairs_per_group: null  # 必要ならグループ単位 K も検討
-
-  # ローリング共欠損率
-  windows: [5, 20]
-
-  # fold 境界リセット
+  top_k_pairs_per_group: null
+  windows: [5]
   reset_each_fold: true
 
   dtype:
@@ -196,9 +198,27 @@ su5:
     float: float32
 
   metadata:
-    artifacts_dir: artifacts/SU5
+    artifacts_dir: artifacts/SU5/policy1_top10_w5
     depends_on: SU1
     expected_usage: "Co-missing structure features (top-K pairs, rolling co-miss rate, degree)"
     numpy_version: 1.26.4
-    status: development
-    updated_at: 2025-11-22
+    status: adopted
+    decision_date: 2025-11-23
+    kaggle_lb: 0.681
+    oof_rmse: 0.012139
+    oof_msr: 0.024071
+    feature_count: 567
+    baseline_su1_lb: 0.674
+    improvement: "+0.007 (+1.04%)"
+    policy_comparison:
+      policy1:
+        top_k: 10
+        windows: [5]
+        lb_score: 0.681
+        adopted: true
+      policy2:
+        top_k: 5
+        windows: [5, 20]
+        lb_score: 0.679
+        adopted: false
+    notes: "✅ ADOPTED: Policy1 achieves LB 0.681 (best score ever). Policy2 scored 0.679. Policy1 selected for simpler configuration and higher LB."
