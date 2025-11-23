@@ -315,19 +315,23 @@ for col in columns:
 ```
 生データ (raw_data)
     ↓
-[SU1FeatureGenerator]
+[SU1FeatureGenerator]  ← 欠損構造層（生データの欠損パターン）
     ↓ m/<col>, gap_ffill/<col>, ...
     ↓
-[MGroupImputer, EGroupImputer, ..., SGroupImputer]
+[SU5FeatureGenerator]  ← 共欠損構造層（m/<col>のみ使用、補完前）
+    ↓ co_miss_now/<a>__<b>, co_miss_rollrate_5/<a>__<b>, ...
+    ↓
+[MGroupImputer, EGroupImputer, ..., SGroupImputer]  ← 補完層
     ↓ imputed_data
     ↓
-[SU4FeatureGenerator]  ← raw_data と imputed_data を比較
-    ↓ imp_used/<col>, imp_delta/<col>, ...
+[SU4FeatureGenerator]  ← 補完副作用層（raw vs imputed の差分）
+    ↓ imp_used/<col>, imp_delta/<col>, imp_method/<method>, ...
     ↓
-[SU5FeatureGenerator]（既存）
-    ↓
-[ColumnTransformer + Ridge]
+[ColumnTransformer + Ridge]  ← 前処理+モデル層
 ```
+
+**重要**: SU5はSU1の`m/<col>`のみを使用し、GroupImputersやSU4の出力には依存しません。
+したがって、SU5はGroupImputersの前に配置するのが役割分離的に自然です。
 
 ### 4.2 sklearn Pipeline への統合
 
@@ -338,18 +342,28 @@ from src.feature_generation.su4.feature_su4 import SU4FeatureAugmenter
 from src.feature_generation.su5.feature_su5 import SU5FeatureAugmenter
 
 pipeline = Pipeline([
+    # 欠損パターン層（生データの欠損構造）
     ('su1', SU1FeatureAugmenter(su1_config)),
+    ('su5', SU5FeatureAugmenter(su5_config)),  # m/<col>のみ使用
+    
+    # 補完層（欠損を埋める）
     ('m_imputer', MGroupImputer(...)),
     ('e_imputer', EGroupImputer(...)),
     ('i_imputer', IGroupImputer(...)),
     ('p_imputer', PGroupImputer(...)),
     ('s_imputer', SGroupImputer(...)),
-    ('su4', SU4FeatureAugmenter(su4_config)),  # 補完後に実行
-    ('su5', SU5FeatureAugmenter(su5_config)),
-    ('scaler', RobustScaler()),
-    ('model', Ridge())
+    
+    # 補完副作用層（raw vs imputed）
+    ('su4', SU4FeatureAugmenter(su4_config, raw_data)),
+    
+    # 前処理+モデル層
+    ('preprocess', ColumnTransformer(...)),
+    ('model', LGBMRegressor(...))
 ])
 ```
+
+**注意**: SU5は補完前（GroupImputersの前）に配置します。SU5は`m/<col>`（SU1の欠損フラグ）
+のみを使用し、補完後のデータには依存しないため、役割分離的にこの位置が適切です。
 
 ### 4.3 SU4FeatureAugmenter の役割
 
