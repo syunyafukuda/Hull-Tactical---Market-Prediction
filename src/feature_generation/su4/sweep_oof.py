@@ -363,8 +363,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 	print("Top 5 Configurations by OOF RMSE")
 	print("="*80)
 	top_configs = results_df.head(5)
-	for idx, row in top_configs.iterrows():
-		print(f"Rank {idx+1}: config_id={row['config_id']}")
+	for rank, (_, row) in enumerate(top_configs.iterrows(), start=1):
+		print(f"Rank {rank}: config_id={row['config_id']}")
 		print(f"  top_k_imp_delta={row['top_k_imp_delta']}, top_k_holiday_cross={row['top_k_holiday_cross']}, winsor_p={row['winsor_p']}")
 		print(f"  oof_rmse={row['oof_rmse']:.6f}, oof_msr={row['oof_msr']:.6f}")
 		print()
