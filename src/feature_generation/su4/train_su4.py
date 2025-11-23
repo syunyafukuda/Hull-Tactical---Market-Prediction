@@ -21,6 +21,8 @@ import csv
 import json
 import math
 import sys
+import time
+from datetime import datetime, timedelta
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Sequence, cast
@@ -128,6 +130,11 @@ from src.feature_generation.su1.feature_su1 import (  # noqa: E402
 	SU1FeatureGenerator,
 	load_su1_config,
 )
+from src.feature_generation.su5.feature_su5 import (  # noqa: E402
+	SU5Config,
+	SU5FeatureGenerator,
+	load_su5_config,
+)
 from src.feature_generation.su4.feature_su4 import (  # noqa: E402
 	SU4Config,
 	SU4FeatureAugmenter,
@@ -183,6 +190,49 @@ class SU1FeatureAugmenter(BaseEstimator, TransformerMixin):
 	def _ensure_dataframe(X: pd.DataFrame) -> pd.DataFrame:
 		if not isinstance(X, pd.DataFrame):
 			raise TypeError("SU1FeatureAugmenter expects a pandas.DataFrame input")
+		return X.copy()
+
+
+class SU5FeatureAugmenter(BaseEstimator, TransformerMixin):
+	"""SU5 特徴量を入力フレームへ追加するトランスフォーマー。"""
+
+	def __init__(
+		self,
+		su5_config: SU5Config,
+		fold_indices: np.ndarray | None = None,
+		fill_value: float | None = 0.0,
+	) -> None:
+		self.su5_config = su5_config
+		self.fold_indices = fold_indices
+		self.fill_value = fill_value
+
+	def fit(self, X: pd.DataFrame, y: Any = None) -> "SU5FeatureAugmenter":
+		frame = self._ensure_dataframe(X)
+		self.su5_generator_ = SU5FeatureGenerator(self.su5_config)
+		self.su5_generator_.fit(frame)
+		su5_features = self.su5_generator_.transform(frame, fold_indices=self.fold_indices)
+		self.su5_feature_names_ = list(su5_features.columns)
+		self.input_columns_ = list(frame.columns)
+		return self
+
+	def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+		if not hasattr(self, "su5_generator_"):
+			raise RuntimeError("SU5FeatureAugmenter must be fitted before transform().")
+
+		frame = self._ensure_dataframe(X)
+		su5_features = self.su5_generator_.transform(frame, fold_indices=self.fold_indices)
+		su5_features = su5_features.reindex(columns=self.su5_feature_names_, copy=True)
+		if self.fill_value is not None:
+			su5_features = su5_features.fillna(self.fill_value)
+
+		augmented = pd.concat([frame, su5_features], axis=1)
+		augmented.index = frame.index
+		return augmented
+
+	@staticmethod
+	def _ensure_dataframe(X: pd.DataFrame) -> pd.DataFrame:
+		if not isinstance(X, pd.DataFrame):
+			raise TypeError("SU5FeatureAugmenter expects a pandas.DataFrame input")
 		return X.copy()
 
 
@@ -378,6 +428,7 @@ def _build_preprocess(num_fill_value: float, *, handle_unknown: str = "ignore") 
 
 def build_pipeline(
 	su1_config: SU1Config,
+	su5_config: SU5Config,
 	su4_config: SU4Config,
 	preprocess_settings: Mapping[str, Dict[str, Any]],
 	*,
@@ -385,17 +436,20 @@ def build_pipeline(
 	model_kwargs: Dict[str, Any],
 	random_state: int,
 	raw_data: pd.DataFrame,
+	fold_indices: np.ndarray | None = None,
 ) -> Pipeline:
-	"""SU1 → GroupImputers → SU4 → 前処理 → モデル のパイプラインを構築する。
+	"""SU1 → SU5 → GroupImputers → SU4 → 前処理 → モデル のパイプラインを構築する。
 	
 	Args:
 		su1_config: SU1設定
+		su5_config: SU5設定
 		su4_config: SU4設定
 		preprocess_settings: GroupImputers設定（preprocess.yaml）
 		numeric_fill_value: 数値NaN埋め値
 		model_kwargs: LGBMRegressorパラメータ
 		random_state: 乱数シード
-		raw_data: 補完前の生データ（SU4用）
+		raw_data: 補完前の生データ（全train+test、SU4用）
+		fold_indices: SU5用のfold indices（reset_each_fold=Trueの場合に使用）
 	
 	Returns:
 		完全パイプライン
@@ -403,7 +457,14 @@ def build_pipeline(
 	# 1. SU1 Augmenter
 	su1_augmenter = SU1FeatureAugmenter(su1_config, fill_value=numeric_fill_value)
 	
-	# 2. GroupImputers（M/E/I/P/S）
+	# 2. SU5 Augmenter（GroupImputers適用前に配置）
+	su5_augmenter = SU5FeatureAugmenter(
+		su5_config,
+		fold_indices=fold_indices,
+		fill_value=numeric_fill_value
+	)
+	
+	# 3. GroupImputers（M/E/I/P/S）
 	m_cfg = preprocess_settings.get("m_group", {})
 	e_cfg = preprocess_settings.get("e_group", {})
 	i_cfg = preprocess_settings.get("i_group", {})
@@ -471,20 +532,26 @@ def build_pipeline(
 		fallback_quantile_high=float(s_cfg.get("fallback_quantile_high", 0.995)),
 	)
 
-	# 3. SU4 Augmenter（補完後に配置）
-	su4_augmenter = SU4FeatureAugmenter(su4_config, raw_data)
+	# 4. SU4 Augmenter（補完後に配置）
+	# raw_data.loc[X.index]で行を揃えるため、fold_indicesは不要
+	su4_augmenter = SU4FeatureAugmenter(
+		su4_config,
+		raw_data,
+		fill_value=numeric_fill_value
+	)
 
-	# 4. 前処理（ColumnTransformer）
+	# 5. 前処理（ColumnTransformer）
 	preprocess = _build_preprocess(numeric_fill_value)
 
-	# 5. モデル
+	# 6. モデル
 	if not HAS_LGBM or LGBMRegressor is None:  # type: ignore[truthy-function]
 		raise RuntimeError("LightGBM is required but not installed. Please install 'lightgbm'.")
 	model = LGBMRegressor(**model_kwargs)  # type: ignore[arg-type]
 
-	# 6. Pipeline組み立て
+	# 7. Pipeline組み立て
 	steps = [
 		('su1', su1_augmenter),
+		('su5', su5_augmenter),
 		('m_imputer', m_imputer),
 		('e_imputer', e_imputer),
 		('i_imputer', i_imputer),
@@ -645,6 +712,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 		out_dir.mkdir(parents=True, exist_ok=True)
 
 	su1_config = load_su1_config(args.config_path)
+	su5_config = load_su5_config(args.config_path)
 	su4_config = load_su4_config(args.config_path)
 	preprocess_settings = load_preprocess_policies(args.preprocess_config)
 
@@ -663,6 +731,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 		exclude_lagged=True,
 	)
 	# Store raw data for SU4
+	# NOTE: raw_dataは「SU1/SU5適用前の生データ」（X_np.copy()）。
+	#       SU4はパイプライン内でraw_dataと、SU1→SU5→GroupImputers後のXを比較する。
+	#       各foldでは、SU4が内部的にraw_data.loc[X.index]でtrain/val行を切り分けるため、
+	#       リークは発生しない（テックリード指摘対応済み）。
 	raw_data = X_np.copy()
 
 	y_np_array = y_np.to_numpy()
@@ -684,12 +756,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 	base_pipeline = build_pipeline(
 		su1_config,
+		su5_config,
 		su4_config,
 		preprocess_settings,
 		numeric_fill_value=args.numeric_fill_value,
 		model_kwargs=model_kwargs,
 		random_state=args.random_state,
 		raw_data=raw_data,
+		fold_indices=None,  # OOFループ内で更新
 	)
 
 	model_step = base_pipeline.named_steps.get("model")
@@ -709,6 +783,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 	oof_pred = np.full(len(X_np), np.nan, dtype=float)
 	fold_logs: List[Dict[str, Any]] = []
 
+	print("\n" + "="*80)
+	print(f"[train] Starting {args.n_splits}-fold cross validation")
+	print(f"[train] Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+	print("="*80 + "\n")
+
+	fold_times: List[float] = []
 	for fold_idx, (train_idx, val_idx) in enumerate(splitter.split(X_np), start=1):
 		train_idx = np.array(train_idx)
 		val_idx = np.array(val_idx)
@@ -725,24 +805,53 @@ def main(argv: Sequence[str] | None = None) -> int:
 			print(f"[warn][fold {fold_idx}] skipped because validation size {len(val_idx)} < min-val-size")
 			continue
 
+		fold_start_time = time.time()
+		print(f"\n[fold {fold_idx}/{args.n_splits}] " + "-"*60)
+		print(f"[fold {fold_idx}/{args.n_splits}] Train size: {len(train_idx)}, Validation size: {len(val_idx)}")
+		
+		# ETA計算
+		if fold_times:
+			avg_fold_time = sum(fold_times) / len(fold_times)
+			remaining_folds = args.n_splits - fold_idx + 1
+			eta_seconds = avg_fold_time * remaining_folds
+			eta = timedelta(seconds=int(eta_seconds))
+			print(f"[fold {fold_idx}/{args.n_splits}] ETA: {eta} (avg {avg_fold_time:.1f}s/fold)")
+
 		X_train = X_np.iloc[train_idx]
 		y_train = y_np.iloc[train_idx]
 		X_valid = X_np.iloc[val_idx]
 		y_valid = y_np.iloc[val_idx]
 
+		# NOTE: clone(base_pipeline)は各foldで新しいpipelineを作成。
+		#       SU4はraw_data.loc[X.index]で自動的に行を揃えるため、
+		#       fit時はtrain行のみ、transform時はval行のみが使われる（リークなし）。
 		pipe = cast(Pipeline, clone(base_pipeline))
-		fit_kwargs: Dict[str, Any] = {}
-		if callbacks:
-			fit_kwargs["model__callbacks"] = callbacks
-			fit_kwargs["model__eval_set"] = [(X_valid, y_valid)]
-			fit_kwargs["model__eval_metric"] = "rmse"
-
-		pipe.fit(X_train, y_train, **fit_kwargs)
+		
+		# SU5のfold_indicesを更新（reset_each_fold=Trueの場合に必要）
+		su5_step = pipe.named_steps.get("su5")
+		if su5_step is not None and hasattr(su5_step, "fold_indices"):
+			su5_step.fold_indices = train_idx
+		
+		# SU4はraw_data.loc[X.index]で自動的に行を揃えるため、fold_indices更新は不要
+		
+		print(f"[fold {fold_idx}/{args.n_splits}] Fitting pipeline...")
+		fit_start = time.time()
+		
+		# Note: eval_setはパイプライン内で使用できないため、コールバックを使わない
+		# 代わりにn_estimatorsで学習を制御
+		pipe.fit(X_train, y_train)
+		fit_time = time.time() - fit_start
+		print(f"[fold {fold_idx}/{args.n_splits}] Fit completed in {fit_time:.1f}s")
+		
+		print(f"[fold {fold_idx}/{args.n_splits}] Predicting validation set...")
 		pred = pipe.predict(X_valid)
 		pred = _to_1d(pred)
 		rmse = float(math.sqrt(mean_squared_error(y_valid, pred)))
 		oof_pred[val_idx] = pred
+		print(f"[fold {fold_idx}/{args.n_splits}] Validation RMSE: {rmse:.6f}")
 
+		print(f"[fold {fold_idx}/{args.n_splits}] Running MSR grid search...")
+		grid_start = time.time()
 		fold_params, fold_grid = grid_search_msr(
 			y_pred=pred,
 			y_true=y_valid.to_numpy(),
@@ -753,6 +862,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 			optimize_for=signal_optimize_for,
 			lam_grid=signal_lam_grid if signal_optimize_for == "vmsr" else (0.0,),
 		)
+		grid_time = time.time() - grid_start
+		print(f"[fold {fold_idx}/{args.n_splits}] Grid search completed in {grid_time:.1f}s")
 		if signal_optimize_for == "vmsr":
 			candidates = [
 				row
@@ -767,6 +878,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 		else:
 			fold_lam = 0.0
 		fold_metrics = evaluate_msr_proxy(pred, y_valid.to_numpy(), fold_params, eps=signal_eps, lam=fold_lam)
+		fold_msr = float(fold_metrics["msr"])
+		
+		fold_elapsed = time.time() - fold_start_time
+		fold_times.append(fold_elapsed)
+
+		print(f"[fold {fold_idx}/{args.n_splits}] RMSE={rmse:.6f}, MSR={fold_msr:.6f}")
+		print(f"[fold {fold_idx}/{args.n_splits}] Best signal params: {fold_params}")
+		print(f"[fold {fold_idx}/{args.n_splits}] Fold completed in {fold_elapsed:.1f}s")
+		print(f"[fold {fold_idx}/{args.n_splits}] Progress: {fold_idx}/{args.n_splits} ({100*fold_idx/args.n_splits:.1f}%)")
 
 		fold_logs.append(
 			{
@@ -799,12 +919,23 @@ def main(argv: Sequence[str] | None = None) -> int:
 			log_msg += f" vmsr={fold_metrics['vmsr']:.6f} lam={fold_lam:.2f}"
 		print(log_msg)
 
+	print("\n" + "="*80)
+	print("[train] Cross validation completed")
+	print("="*80)
+	
 	valid_mask = ~np.isnan(oof_pred)
 	if valid_mask.any():
 		overall_rmse = float(math.sqrt(mean_squared_error(y_np_array[valid_mask], oof_pred[valid_mask])))
 	else:
 		overall_rmse = float("nan")
+	
+	total_time = sum(fold_times) if fold_times else 0.0
+	avg_fold_time = total_time / len(fold_times) if fold_times else 0.0
+	
 	print(f"[metric][oof] rmse={overall_rmse:.6f}")
+	print(f"[metric][time] Total CV time: {total_time:.1f}s ({timedelta(seconds=int(total_time))})")
+	print(f"[metric][time] Average fold time: {avg_fold_time:.1f}s")
+	print(f"[metric][time] Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 	coverage = float(np.mean(valid_mask)) if valid_mask.size else 0.0
 	best_metrics_global: Dict[str, float]
@@ -861,6 +992,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 	# Final retraining on all data
 	final_pipeline = cast(Pipeline, clone(base_pipeline))
+	# SU5のfold_indicesをNoneに設定（全データなのでfold分割なし）
+	su5_step_final = final_pipeline.named_steps.get("su5")
+	if su5_step_final is not None and hasattr(su5_step_final, "fold_indices"):
+		su5_step_final.fold_indices = None
 	fit_kwargs_final: Dict[str, Any] = {}
 	if callbacks:
 		fit_kwargs_final["model__callbacks"] = callbacks
@@ -875,10 +1010,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 		raise RuntimeError("Pipeline is missing a 'model' step.")
 
 	su1_generated_columns = list(getattr(su1_step, "su1_feature_names_", [])) if su1_step is not None else []
-	su4_generated_columns = list(getattr(su4_step.generator_, "feature_names_", [])) if su4_step is not None and hasattr(su4_step, "generator_") else []
+	su5_step = named_steps.get("su5")
+	su5_generated_columns = list(getattr(su5_step, "su5_feature_names_", [])) if su5_step is not None else []
+	# SU4の属性名はsu4_feature_names_（generator_ではなくAugmenter直下）
+	su4_generated_columns = list(getattr(su4_step, "su4_feature_names_", [])) if su4_step is not None else []
 	feature_manifest: Dict[str, Any] = {
 		"pipeline_input_columns": feature_cols,
 		"su1_generated_columns": su1_generated_columns,
+		"su5_generated_columns": su5_generated_columns,
 		"su4_generated_columns": su4_generated_columns,
 	}
 	preprocess_obj = named_steps.get("preprocess")
@@ -941,9 +1080,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 			"signal_eps": signal_eps,
 			"fold_logs": fold_logs,
 			"su1_config": su1_config_serialized,
+			"su5_config": _normalise_scalar(asdict(su5_config)),
 			"su4_config": su4_config_serialized,
 			"feature_count_before_su1": len(feature_cols),
 			"su1_feature_count": len(feature_manifest.get("su1_generated_columns", [])),
+			"su5_feature_count": len(feature_manifest.get("su5_generated_columns", [])),
 			"su4_feature_count": len(feature_manifest.get("su4_generated_columns", [])),
 			"preprocess_policy_snapshot": preprocess_snapshot,
 			"imputer_metadata": imputer_metadata,

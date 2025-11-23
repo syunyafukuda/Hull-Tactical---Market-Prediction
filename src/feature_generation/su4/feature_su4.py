@@ -462,46 +462,77 @@ class SU4FeatureAugmenter(BaseEstimator, TransformerMixin):
 	"""SU4特徴をパイプラインに統合するためのTransformer。
 
 	補完前の生データを内部保持し、補完後のデータと比較してSU4特徴を生成する。
+	raw_data.loc[X.index]で行を揃えるため、fold_indicesは不要。
 	"""
 
-	def __init__(self, config: SU4Config, raw_data: pd.DataFrame):
-		self.config = config
-		self.raw_data_ = raw_data
-		self.generator_: Optional[SU4FeatureGenerator] = None
+	def __init__(self, su4_config: SU4Config, raw_data: pd.DataFrame, fill_value: float = 0.0):
+		"""
+		Args:
+			su4_config: SU4設定
+			raw_data: 補完前の生データ（全train+test）
+			fill_value: NaN埋め値
+		"""
+		self.su4_config = su4_config
+		self.raw_data = raw_data
+		self.fill_value = fill_value
 
 	def fit(self, X: pd.DataFrame, y: Any = None) -> "SU4FeatureAugmenter":
-		"""SU4FeatureGeneratorを初期化・fit。
+		"""SU4FeatureGeneratorをfitする。
 
 		Args:
-			X: 補完済みデータ
+			X: 補完済みデータ（train fold）
 			y: unused
 
 		Returns:
 			self
 		"""
-		self.generator_ = SU4FeatureGenerator(self.config)
-		self.generator_.fit(self.raw_data_, X, y)
+		frame = self._ensure_dataframe(X)
+		# Xのindexに対応するraw_dataだけを使う
+		subset_raw = self.raw_data.loc[frame.index]
+		
+		self.su4_generator_ = SU4FeatureGenerator(self.su4_config)
+		self.su4_generator_.fit(raw_data=subset_raw, imputed_data=frame)
+		# fitフェーズでは特徴名のみ決定（transformフェーズで特徴生成）
+		self.su4_feature_names_ = self.su4_generator_.feature_names_
+		self.input_columns_ = list(frame.columns)
 		return self
 
 	def transform(self, X: pd.DataFrame) -> pd.DataFrame:
 		"""SU4特徴を生成してXに結合。
 
 		Args:
-			X: 補完済みデータ（SU1特徴を含む可能性あり）
+			X: 補完済みデータ（train/val/test）
 
 		Returns:
 			X + SU4特徴
 		"""
-		if self.generator_ is None:
-			raise RuntimeError("The transformer must be fitted before calling transform().")
+		if not hasattr(self, "su4_generator_"):
+			raise RuntimeError("SU4FeatureAugmenter must be fitted before calling transform().")
 
-		# SU1特徴があれば抽出（holiday_cross用）
-		su1_features: Optional[pd.DataFrame] = None
-		m_cols = [c for c in X.columns if c.startswith("m/")]
+		frame = self._ensure_dataframe(X)
+		# Xのindexに対応するraw_dataだけを使う
+		subset_raw = self.raw_data.loc[frame.index]
+		
+		# SU1のm/<col>だけ抜き出す（holiday_cross用）
+		m_cols = [c for c in frame.columns if c.startswith("m/")]
+		su1_features: pd.DataFrame | None = None
 		if m_cols:
-			su1_df = X[m_cols]
-			if isinstance(su1_df, pd.DataFrame):
-				su1_features = su1_df
+			su1_df = frame[m_cols]
+			# DataFrameであることを保証（1列でもDataFrameになる）
+			su1_features = su1_df if isinstance(su1_df, pd.DataFrame) else su1_df.to_frame()
+		
+		su4_features = self.su4_generator_.transform(subset_raw, frame, su1_features)
+		su4_features = su4_features.reindex(columns=self.su4_feature_names_, copy=True)
+		if self.fill_value is not None:
+			su4_features = su4_features.fillna(self.fill_value)
 
-		su4_features = self.generator_.transform(self.raw_data_, X, su1_features)
-		return pd.concat([X, su4_features], axis=1)
+		augmented = pd.concat([frame, su4_features], axis=1)
+		augmented.index = frame.index
+		return augmented
+
+	@staticmethod
+	def _ensure_dataframe(X: pd.DataFrame) -> pd.DataFrame:
+		if not isinstance(X, pd.DataFrame):
+			raise TypeError("SU4FeatureAugmenter expects a pandas.DataFrame input")
+		return X.copy()
+

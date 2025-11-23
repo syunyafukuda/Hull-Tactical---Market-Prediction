@@ -100,8 +100,8 @@ from preprocess.E_group.e_group import EGroupImputer  # noqa: E402,F401
 from preprocess.I_group.i_group import IGroupImputer  # noqa: E402,F401
 from preprocess.P_group.p_group import PGroupImputer  # noqa: E402,F401
 from preprocess.S_group.s_group import SGroupImputer  # noqa: E402,F401
-from src.feature_generation.su4.train_su4 import SU1FeatureAugmenter  # noqa: E402,F401
-from src.feature_generation.su4.feature_su4 import SU4Config, SU4FeatureAugmenter  # noqa: E402,F401
+from src.feature_generation.su4.train_su4 import SU1FeatureAugmenter, SU5FeatureAugmenter  # noqa: E402,F401
+from src.feature_generation.su4.feature_su4 import SU4FeatureAugmenter  # noqa: E402,F401
 
 
 def infer_test_file(data_dir: Path, explicit: str | None) -> Path:
@@ -368,6 +368,16 @@ def main(argv: Sequence[str] | None = None) -> int:
 		X_test = test_df[use_cols].copy()
 
 	print(f"[info] predicting on {len(X_test)} test samples...")
+	
+	# SU4のraw_dataをtest環境のものに差し替え
+	# テックリード指摘: 学習時のstate（winsor閾値等）はそのまま、raw_dataだけ差し替え
+	su4_step = pipeline.named_steps.get("su4")
+	if su4_step is not None and hasattr(su4_step, "raw_data"):
+		print("[info] Updating SU4 raw_data for test inference...")
+		# test環境のraw_dataを使用（X_testがそのままraw_dataとして使える）
+		su4_step.raw_data = X_test.copy()
+		print(f"[info] SU4 raw_data updated: {len(su4_step.raw_data)} rows")
+	
 	raw_predictions = pipeline.predict(X_test)
 
 	postprocess_params = _resolve_postprocess_params(meta)

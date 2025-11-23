@@ -12,6 +12,8 @@ from __future__ import annotations
 import argparse
 import math
 import sys
+import time
+from datetime import datetime, timedelta
 from itertools import product
 from pathlib import Path
 from typing import Any, Dict, List, Sequence, cast
@@ -54,6 +56,9 @@ from src.feature_generation.su4.train_su4 import (  # noqa: E402
 )
 from src.feature_generation.su1.feature_su1 import (  # noqa: E402
 	load_su1_config,
+)
+from src.feature_generation.su5.feature_su5 import (  # noqa: E402
+	load_su5_config,
 )
 from src.feature_generation.su4.feature_su4 import (  # noqa: E402
 	SU4Config,
@@ -164,13 +169,17 @@ def run_cv(
 		y_valid = y.iloc[val_idx]
 
 		pipe = cast(Pipeline, clone(base_pipeline))
-		fit_kwargs: Dict[str, Any] = {}
-		if callbacks:
-			fit_kwargs["model__callbacks"] = callbacks
-			fit_kwargs["model__eval_set"] = [(X_valid, y_valid)]
-			fit_kwargs["model__eval_metric"] = "rmse"
-
-		pipe.fit(X_train, y_train, **fit_kwargs)
+		
+		# SU5のfold_indicesを更新（reset_each_fold=Trueの場合に必要）
+		su5_step = pipe.named_steps.get("su5")
+		if su5_step is not None and hasattr(su5_step, "fold_indices"):
+			su5_step.fold_indices = train_idx
+		
+		# SU4はraw_data.loc[X.index]で自動的に行を揃えるため、fold_indices更新は不要
+		
+		# Note: eval_setはパイプライン内で使用できないため、コールバックを使わない
+		# 代わりにn_estimatorsで学習を制御
+		pipe.fit(X_train, y_train)
 		pred = pipe.predict(X_valid)
 		pred = _to_1d(pred)
 		oof_pred[val_idx] = pred
@@ -212,6 +221,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 	# Load configs
 	su1_config = load_su1_config(args.config_path)
+	su5_config = load_su5_config(args.config_path)
 	base_su4_config = load_su4_config(args.config_path)
 	preprocess_settings = load_preprocess_policies(args.preprocess_config)
 
@@ -272,12 +282,25 @@ def main(argv: Sequence[str] | None = None) -> int:
 	))
 
 	print(f"\n[info] Generated {len(param_combinations)} parameter combinations")
+	print(f"[info] Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 	print("="*80)
 
 	results: List[Dict[str, Any]] = []
+	config_times: List[float] = []
 	
 	for config_idx, (top_k_delta, top_k_cross, winsor) in enumerate(param_combinations, 1):
-		print(f"\n[sweep][{config_idx}/{len(param_combinations)}] top_k_imp_delta={top_k_delta}, top_k_holiday_cross={top_k_cross}, winsor_p={winsor}")
+		config_start_time = time.time()
+		print(f"\n[sweep][{config_idx}/{len(param_combinations)}] " + "="*60)
+		print(f"[sweep][{config_idx}/{len(param_combinations)}] Parameters: top_k_imp_delta={top_k_delta}, top_k_holiday_cross={top_k_cross}, winsor_p={winsor}")
+		
+		# ETA計算
+		if config_times:
+			avg_config_time = sum(config_times) / len(config_times)
+			remaining_configs = len(param_combinations) - config_idx + 1
+			eta_seconds = avg_config_time * remaining_configs
+			eta = timedelta(seconds=int(eta_seconds))
+			print(f"[sweep][{config_idx}/{len(param_combinations)}] ETA: {eta} (avg {avg_config_time:.1f}s/config)")
+		print(f"[sweep][{config_idx}/{len(param_combinations)}] Progress: {100*config_idx/len(param_combinations):.1f}%")
 		
 		# Create SU4Config with custom parameters
 		su4_config = SU4Config(
@@ -297,12 +320,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 		try:
 			pipeline = build_pipeline(
 				su1_config,
+				su5_config,
 				su4_config,
 				preprocess_settings,
 				numeric_fill_value=args.numeric_fill_value,
 				model_kwargs=model_kwargs,
 				random_state=args.random_state,
 				raw_data=raw_data,
+				fold_indices=None,  # run_cv内で更新
 			)
 			
 			callbacks = _initialise_callbacks(pipeline.named_steps["model"])
@@ -322,7 +347,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 				callbacks,
 			)
 			
-			print(f"[result] oof_rmse={oof_rmse:.6f}, oof_msr={oof_msr:.6f}")
+			config_elapsed = time.time() - config_start_time
+			config_times.append(config_elapsed)
+			
+			print(f"[sweep][{config_idx}/{len(param_combinations)}] Result: oof_rmse={oof_rmse:.6f}, oof_msr={oof_msr:.6f}")
+			print(f"[sweep][{config_idx}/{len(param_combinations)}] Config completed in {config_elapsed:.1f}s")
 			
 			results.append({
 				"config_id": config_idx,
@@ -331,12 +360,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 				"winsor_p": winsor,
 				"oof_rmse": oof_rmse,
 				"oof_msr": oof_msr,
+				"elapsed_time": config_elapsed,
 				"oof_msr_down": best_metrics.get("msr_down", float("nan")),
 				"oof_vmsr": best_metrics.get("vmsr", float("nan")),
 				"status": "ok",
 			})
 		except Exception as e:
-			print(f"[error] Configuration failed: {e}")
+			config_elapsed = time.time() - config_start_time
+			config_times.append(config_elapsed)
+			print(f"[error][{config_idx}/{len(param_combinations)}] Config {config_idx} failed: {e}")
 			results.append({
 				"config_id": config_idx,
 				"top_k_imp_delta": top_k_delta,
@@ -344,6 +376,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 				"winsor_p": winsor,
 				"oof_rmse": float("nan"),
 				"oof_msr": float("nan"),
+				"elapsed_time": config_elapsed,
 				"oof_msr_down": float("nan"),
 				"oof_vmsr": float("nan"),
 				"status": "error",
@@ -356,7 +389,21 @@ def main(argv: Sequence[str] | None = None) -> int:
 	
 	csv_path = output_dir / "sweep_summary.csv"
 	results_df.to_csv(csv_path, index=False)
-	print(f"\n[ok] Saved results to {csv_path}")
+	
+	# Calculate total time
+	total_sweep_time = sum(config_times) if config_times else 0.0
+	avg_config_time = total_sweep_time / len(config_times) if config_times else 0.0
+	
+	print("\n" + "="*80)
+	print("[sweep] Hyperparameter sweep completed")
+	print("="*80)
+	print(f"[sweep] Total configurations: {len(param_combinations)}")
+	print(f"[sweep] Successful: {sum(1 for r in results if r.get('status') == 'ok')}")
+	print(f"[sweep] Failed: {sum(1 for r in results if r.get('status') != 'ok')}")
+	print(f"[sweep] Total time: {total_sweep_time:.1f}s ({timedelta(seconds=int(total_sweep_time))})")
+	print(f"[sweep] Average time per config: {avg_config_time:.1f}s")
+	print(f"[sweep] Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+	print(f"[ok] Saved results to {csv_path}")
 
 	# Display best configurations
 	print("\n" + "="*80)
