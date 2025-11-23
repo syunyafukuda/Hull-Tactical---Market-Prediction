@@ -11,7 +11,7 @@ from src.feature_generation.su5.feature_su5 import SU5Config, SU5FeatureGenerato
 
 
 def _build_config() -> SU5Config:
-	"""テスト用のSU5Config を生成する。"""
+    """テスト用のSU5Config を生成する。"""
 	mapping = {
 		"id_column": "date_id",
 		"output_prefix": "su5",
