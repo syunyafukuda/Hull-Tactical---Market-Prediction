@@ -223,6 +223,28 @@ su5:
         adopted: false
     notes: "✅ ADOPTED: Policy1 achieves LB 0.681 (best score ever). Policy2 scored 0.679. Policy1 selected for simpler configuration and higher LB."
 
+su6:
+  # ⏸ SU6は「欠損軸の圧縮」候補だが、現時点では優先度低として実装をスキップする。
+  # 理由:
+  #   - SU1+SU5 までで欠損構造の一次・共欠損情報は十分にカバーできている。
+  #   - 先に欠損以外の軸（SU7=モメンタム, SU8=ボラ・レジーム, SU9=カレンダー）を実装・評価したい。
+  #   - PCAなどの圧縮は列爆発が起きたときの「最後の手段」として温存する方針。
+  # 結論:
+  #   - 当面は SU6 を **enabled: false** のままにし、Issue/仕様は残しつつ実装は後回しにする。
+  enabled: false
+  base_features: su1
+  id_column: date_id
+  output_prefix: su6
+
+  metadata:
+    artifacts_dir: artifacts/SU6
+    depends_on: SU1
+    expected_usage: "[ON HOLD] PCA-based compression of missingness features"
+    numpy_version: 1.26.4
+    status: on_hold
+    decision: skipped_for_now
+    notes: "⏸ Priority set low. We first implement and evaluate SU7–SU9 (non-missingness axes). SU6 will be reconsidered only if total feature count becomes problematic."
+
 su4:
   # ❌ SU4削除決定 (2025-11-23)
   # 理由: 特徴重要度分析・Ablation Studyにより予測性能への寄与がほぼゼロと判明
