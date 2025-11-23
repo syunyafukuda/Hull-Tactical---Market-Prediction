@@ -222,3 +222,43 @@ su5:
         lb_score: 0.679
         adopted: false
     notes: "✅ ADOPTED: Policy1 achieves LB 0.681 (best score ever). Policy2 scored 0.679. Policy1 selected for simpler configuration and higher LB."
+
+su4:
+  enabled: true
+  base_features: su1
+  id_column: date_id
+  output_prefix: su4
+
+  # 列数制御パラメータ
+  top_k_imp_delta: 25
+  top_k_holiday_cross: 10
+
+  # Winsorization
+  winsor_p: 0.99
+
+  # 代入手法リスト（主要ポリシーのみ）
+  imp_methods:
+    - ffill
+    - mice
+    - missforest
+    - ridge_stack
+    - holiday_bridge
+    - other
+
+  # fold リセット
+  reset_each_fold: true
+
+  # データ型
+  dtype:
+    flag: uint8
+    int: int16
+    float: float32
+
+  # メタデータ
+  metadata:
+    artifacts_dir: artifacts/SU4
+    depends_on: [SU1, M/E/I/P/S GroupImputers]
+    expected_usage: "Imputation trace features"
+    numpy_version: 1.26.4
+    status: development
+    target_feature_count: ~151
