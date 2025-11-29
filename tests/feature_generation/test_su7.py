@@ -185,8 +185,10 @@ class TestSU7FeatureGenerator:
         transformer.fit(df)
         features = transformer.transform(df)
 
-        # 有効領域: index >= max(lags) = 20
-        valid_start = max(config.lags)
+        # 有効領域: max(max(lags), max(windows) - 1) 以降
+        # lag=20 は index >= 20 から有効
+        # rolling window=20 は min_periods=20 なので index >= 19 から有効
+        valid_start = max(max(config.lags), max(config.windows) - 1)
         for col in features.columns:
             valid_values = features[col].iloc[valid_start:]
             # NaN がない

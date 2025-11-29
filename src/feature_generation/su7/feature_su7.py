@@ -238,7 +238,12 @@ class SU7FeatureGenerator(BaseEstimator, TransformerMixin):
     def _compute_rsi(self, r_t: pd.Series, col: str) -> Dict[str, np.ndarray]:
         """RSI ライク指標を計算する。
 
-        手順:
+        Note: This is an RSI-like indicator that operates directly on the return
+        series (r_t), not on price differences. This is intentional as specified
+        in SU7.md - the input is already a 1-day return series, so we use the
+        returns directly rather than computing differences of differences.
+
+        手順 (as per SU7.md specification):
         1. gains = max(r_t, 0)
         2. losses = max(-r_t, 0)
         3. ema_gain = ema(gains, halflife)
