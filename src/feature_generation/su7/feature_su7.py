@@ -46,6 +46,10 @@ class SU7Config:
     dtype_float: np.dtype = np.dtype("float32")
     dtype_int: np.dtype = np.dtype("int8")
 
+    # 変換セット ON/OFF フラグ（スイープ用）
+    use_rsi: bool = True
+    use_sign: bool = True
+
     @classmethod
     def from_mapping(cls, mapping: Mapping[str, Any]) -> "SU7Config":
         """YAML設定から SU7Config を生成する。"""
@@ -77,6 +81,10 @@ class SU7Config:
         dtype_float = np.dtype(dtype_section.get("float", "float32"))
         dtype_int = np.dtype(dtype_section.get("int", "int8"))
 
+        # 変換セット ON/OFF フラグ
+        use_rsi = bool(mapping.get("use_rsi", True))
+        use_sign = bool(mapping.get("use_sign", True))
+
         return cls(
             su7_base_cols=su7_base_cols,
             lags=lags,
@@ -86,6 +94,8 @@ class SU7Config:
             rs_max=rs_max,
             dtype_float=dtype_float,
             dtype_int=dtype_int,
+            use_rsi=use_rsi,
+            use_sign=use_sign,
         )
 
 
@@ -184,13 +194,15 @@ class SU7FeatureGenerator(BaseEstimator, TransformerMixin):
             rolling_features = self._compute_rolling(r_t, col)
             features.update(rolling_features)
 
-            # 3. RSI ライク指標
-            rsi_features = self._compute_rsi(r_t, col)
-            features.update(rsi_features)
+            # 3. RSI ライク指標 (use_rsi フラグで制御)
+            if self.config.use_rsi:
+                rsi_features = self._compute_rsi(r_t, col)
+                features.update(rsi_features)
 
-            # 4. 方向フラグ
-            sign_features = self._compute_sign(r_t, col)
-            features.update(sign_features)
+            # 4. 方向フラグ (use_sign フラグで制御)
+            if self.config.use_sign:
+                sign_features = self._compute_sign(r_t, col)
+                features.update(sign_features)
 
         return pd.DataFrame(features, index=X.index)
 
@@ -298,11 +310,13 @@ class SU7FeatureGenerator(BaseEstimator, TransformerMixin):
                 names.append(f"roll_ret_{w}/{col}")
                 names.append(f"roll_mean_diff_{w}/{col}")
 
-            # RSI
-            names.append(f"rsi_{self.config.halflife_rsi}/{col}")
+            # RSI (use_rsi フラグで制御)
+            if self.config.use_rsi:
+                names.append(f"rsi_{self.config.halflife_rsi}/{col}")
 
-            # sign
-            names.append(f"sign_r_t/{col}")
+            # sign (use_sign フラグで制御)
+            if self.config.use_sign:
+                names.append(f"sign_r_t/{col}")
 
         return names
 
@@ -318,9 +332,9 @@ class SU7FeatureGenerator(BaseEstimator, TransformerMixin):
         計算式:
         - diff/lag: 2 * len(lags) * B = 6B (lags=[1,5,20]の場合)
         - rolling: 2 * len(windows) * B = 4B (windows=[5,20]の場合)
-        - rsi: 1 * B = B
-        - sign: 1 * B = B
-        - 合計: (6 + 4 + 1 + 1) * B = 12B
+        - rsi: 1 * B = B (use_rsi=True の場合のみ)
+        - sign: 1 * B = B (use_sign=True の場合のみ)
+        - 合計: (6 + 4 + 1 + 1) * B = 12B (全フラグがTrueの場合)
         """
         if n_base_cols is None:
             n_base_cols = len(self.config.su7_base_cols)
@@ -334,11 +348,11 @@ class SU7FeatureGenerator(BaseEstimator, TransformerMixin):
         # rolling: 2 features per window
         rolling_count = 2 * n_windows * n_base_cols
 
-        # rsi: 1 feature per base col
-        rsi_count = n_base_cols
+        # rsi: 1 feature per base col (if enabled)
+        rsi_count = n_base_cols if self.config.use_rsi else 0
 
-        # sign: 1 feature per base col
-        sign_count = n_base_cols
+        # sign: 1 feature per base col (if enabled)
+        sign_count = n_base_cols if self.config.use_sign else 0
 
         return diff_lag_count + rolling_count + rsi_count + sign_count
 

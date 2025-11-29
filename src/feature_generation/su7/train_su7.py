@@ -146,6 +146,68 @@ from src.feature_generation.su7.feature_su7 import (  # noqa: E402
 )
 
 
+def load_su7_config_from_sweep(
+    sweep_config_path: str | Path,
+    base_config_path: str | Path,
+    variant_name: str,
+) -> SU7Config:
+    """スイープ設定からSU7バリアント設定を読み込む。
+
+    Args:
+        sweep_config_path: su7_sweep.yaml のパス
+        base_config_path: feature_generation.yaml のパス
+        variant_name: バリアント名（例: 'case_a'）
+
+    Returns:
+        マージされた SU7Config
+
+    Raises:
+        KeyError: 指定されたバリアントが見つからない場合
+        FileNotFoundError: 設定ファイルが見つからない場合
+    """
+    sweep_path = Path(sweep_config_path).resolve()
+    base_path = Path(base_config_path).resolve()
+
+    if not sweep_path.exists():
+        raise FileNotFoundError(f"Sweep config not found: {sweep_path}")
+    if not base_path.exists():
+        raise FileNotFoundError(f"Base config not found: {base_path}")
+
+    with sweep_path.open("r", encoding="utf-8") as fh:
+        sweep_cfg: Mapping[str, Any] = yaml.safe_load(fh) or {}
+
+    with base_path.open("r", encoding="utf-8") as fh:
+        base_cfg: Mapping[str, Any] = yaml.safe_load(fh) or {}
+
+    variants = sweep_cfg.get("variants", {})
+    if variant_name not in variants:
+        raise KeyError(
+            f"Variant '{variant_name}' not found in {sweep_path}. "
+            f"Available variants: {list(variants.keys())}"
+        )
+
+    variant_def = variants[variant_name]
+    base_su7 = base_cfg.get("su7", {})
+
+    # ベース設定とバリアント定義をマージ
+    merged: Dict[str, Any] = dict(base_su7)
+    override_keys = [
+        "su7_base_cols",
+        "lags",
+        "windows",
+        "halflife_rsi",
+        "eps",
+        "rs_max",
+        "use_rsi",
+        "use_sign",
+    ]
+    for key in override_keys:
+        if key in variant_def:
+            merged[key] = variant_def[key]
+
+    return SU7Config.from_mapping(merged)
+
+
 class SU7FullFeatureAugmenter(BaseEstimator, TransformerMixin):
     """SU1 + SU5 + SU7 特徴量を入力フレームへ追加するトランスフォーマー。
 
@@ -569,6 +631,19 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default="configs/preprocess.yaml",
         help="Path to preprocess.yaml",
     )
+    # SU7 スイープ用オプション
+    ap.add_argument(
+        "--su7-variant-name",
+        type=str,
+        default=None,
+        help="Variant name from su7_sweep.yaml (for sweep execution)",
+    )
+    ap.add_argument(
+        "--su7-sweep-config",
+        type=str,
+        default=None,
+        help="Path to su7_sweep.yaml (used with --su7-variant-name)",
+    )
     ap.add_argument("--target-col", type=str, default="market_forward_excess_returns")
     ap.add_argument("--id-col", type=str, default="date_id")
     ap.add_argument("--out-dir", type=str, default="artifacts/SU7")
@@ -734,7 +809,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     su1_config = load_su1_config(args.config_path)
     su5_config = load_su5_config(args.config_path)
-    su7_config = load_su7_config(args.config_path)
+
+    # SU7 設定: スイープバリアント指定がある場合はそちらを使用
+    if args.su7_variant_name and args.su7_sweep_config:
+        print(f"[info] Loading SU7 variant: {args.su7_variant_name}")
+        su7_config = load_su7_config_from_sweep(
+            args.su7_sweep_config,
+            args.config_path,
+            args.su7_variant_name,
+        )
+    else:
+        su7_config = load_su7_config(args.config_path)
+
     preprocess_settings = load_preprocess_policies(args.preprocess_config)
 
     train_path = infer_train_file(data_dir, args.train_file)
