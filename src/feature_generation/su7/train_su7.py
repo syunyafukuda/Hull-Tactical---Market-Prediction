@@ -928,8 +928,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         pipe = cast(Pipeline, clone(core_pipeline_template))
         fit_kwargs: Dict[str, Any] = {}
         if callbacks:
+            # SU7 ラインでは LightGBM と前処理パイプラインの次元・feature_name の不整合を避けるため、
+            # eval_set は渡さずにコールバックのみを有効にする。
             fit_kwargs["model__callbacks"] = callbacks
-            fit_kwargs["model__eval_set"] = [(X_valid, y_valid)]
             fit_kwargs["model__eval_metric"] = "rmse"
 
         pipe.fit(X_train, y_train, **fit_kwargs)
