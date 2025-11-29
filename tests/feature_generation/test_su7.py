@@ -565,11 +565,11 @@ class TestSU7SweepFeatures:
     def test_column_count_no_rsi(self) -> None:
         """use_rsi=False の場合の列数が正しいこと。
 
-        B=2, lags=[1,5,20], windows=[5,20] の場合:
-        - diff/lag: 2 * 3 * 2 = 12
-        - rolling: 2 * 2 * 2 = 8
+        B=2 (base cols), lags=[1,5,20] (3 lags), windows=[5,20] (2 windows) の場合:
+        - diff/lag: (diff + lag) * n_lags * B = 2 * 3 * 2 = 12
+        - rolling: (roll_ret + roll_mean_diff) * n_windows * B = 2 * 2 * 2 = 8
         - rsi: 0 (OFF)
-        - sign: 2
+        - sign: B = 2
         - 合計: 22
         """
         config = self._build_config_with_flags(["ret_1", "ret_2"], use_rsi=False)
@@ -582,6 +582,7 @@ class TestSU7SweepFeatures:
         transformer.fit(df)
         features = transformer.transform(df)
 
+        # diff_lag=12, rolling=8, rsi=0, sign=2
         expected_count = 12 + 8 + 0 + 2  # 22
         assert len(features.columns) == expected_count
         assert transformer.get_expected_column_count() == expected_count
@@ -589,10 +590,10 @@ class TestSU7SweepFeatures:
     def test_column_count_no_sign(self) -> None:
         """use_sign=False の場合の列数が正しいこと。
 
-        B=2, lags=[1,5,20], windows=[5,20] の場合:
-        - diff/lag: 2 * 3 * 2 = 12
-        - rolling: 2 * 2 * 2 = 8
-        - rsi: 2
+        B=2 (base cols), lags=[1,5,20] (3 lags), windows=[5,20] (2 windows) の場合:
+        - diff/lag: (diff + lag) * n_lags * B = 2 * 3 * 2 = 12
+        - rolling: (roll_ret + roll_mean_diff) * n_windows * B = 2 * 2 * 2 = 8
+        - rsi: B = 2
         - sign: 0 (OFF)
         - 合計: 22
         """
@@ -606,6 +607,7 @@ class TestSU7SweepFeatures:
         transformer.fit(df)
         features = transformer.transform(df)
 
+        # diff_lag=12, rolling=8, rsi=2, sign=0
         expected_count = 12 + 8 + 2 + 0  # 22
         assert len(features.columns) == expected_count
         assert transformer.get_expected_column_count() == expected_count
@@ -613,9 +615,9 @@ class TestSU7SweepFeatures:
     def test_column_count_no_rsi_no_sign(self) -> None:
         """use_rsi=False, use_sign=False の場合の列数が正しいこと。
 
-        B=2, lags=[1,5,20], windows=[5,20] の場合:
-        - diff/lag: 2 * 3 * 2 = 12
-        - rolling: 2 * 2 * 2 = 8
+        B=2 (base cols), lags=[1,5,20] (3 lags), windows=[5,20] (2 windows) の場合:
+        - diff/lag: (diff + lag) * n_lags * B = 2 * 3 * 2 = 12
+        - rolling: (roll_ret + roll_mean_diff) * n_windows * B = 2 * 2 * 2 = 8
         - rsi: 0 (OFF)
         - sign: 0 (OFF)
         - 合計: 20
@@ -632,6 +634,7 @@ class TestSU7SweepFeatures:
         transformer.fit(df)
         features = transformer.transform(df)
 
+        # diff_lag=12, rolling=8, rsi=0, sign=0
         expected_count = 12 + 8 + 0 + 0  # 20
         assert len(features.columns) == expected_count
         assert transformer.get_expected_column_count() == expected_count

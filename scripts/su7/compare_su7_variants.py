@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
@@ -210,8 +211,6 @@ def format_table(metrics_list: List[Dict[str, Any]], show_deltas: bool = True) -
 def _is_nan(value: Any) -> bool:
     """NaN かどうかを判定する。"""
     try:
-        import math
-
         return math.isnan(float(value))
     except (TypeError, ValueError):
         return True

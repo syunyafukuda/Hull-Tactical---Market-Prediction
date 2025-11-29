@@ -26,6 +26,13 @@ PROJECT_ROOT = THIS_DIR.parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# Status and placeholder constants
+STATUS_UNKNOWN = "unknown"
+STATUS_DRY_RUN = "dry-run"
+STATUS_FAILED = "failed"
+STATUS_COMPLETED_NO_META = "completed_no_meta"
+VALUE_NOT_AVAILABLE = "N/A"
+
 
 def load_sweep_config(config_path: Path) -> Dict[str, Any]:
     """スイープ設定を読み込む。"""
@@ -232,7 +239,7 @@ def run_variant(
 
         if args.dry_run:
             print(f"[dry-run] Would execute: {' '.join(cmd)}")
-            return {"variant_name": variant_name, "status": "dry-run"}
+            return {"variant_name": variant_name, "status": STATUS_DRY_RUN}
 
         result = subprocess.run(cmd, capture_output=True, text=True)
 
@@ -241,7 +248,7 @@ def run_variant(
             print(result.stderr)
             return {
                 "variant_name": variant_name,
-                "status": "failed",
+                "status": STATUS_FAILED,
                 "error": result.stderr,
             }
 
@@ -251,7 +258,7 @@ def run_variant(
             with meta_path.open("r", encoding="utf-8") as fh:
                 return json.load(fh)
         else:
-            return {"variant_name": variant_name, "status": "completed_no_meta"}
+            return {"variant_name": variant_name, "status": STATUS_COMPLETED_NO_META}
 
     finally:
         # 一時ファイルを削除
@@ -333,10 +340,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"{'='*60}")
 
     for result in results:
-        variant_name = result.get("variant_name", "unknown")
-        status = result.get("status", "unknown")
-        oof_rmse = result.get("oof_rmse", "N/A")
-        oof_msr = result.get("oof_best_metrics", {}).get("msr", "N/A")
+        variant_name = result.get("variant_name", STATUS_UNKNOWN)
+        status = result.get("status", STATUS_UNKNOWN)
+        oof_rmse = result.get("oof_rmse", VALUE_NOT_AVAILABLE)
+        oof_msr = result.get("oof_best_metrics", {}).get("msr", VALUE_NOT_AVAILABLE)
 
         if isinstance(oof_rmse, float):
             oof_rmse = f"{oof_rmse:.6f}"
