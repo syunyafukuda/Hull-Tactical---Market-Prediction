@@ -492,3 +492,191 @@ class TestRollingSum:
         roll_mean_diff = features["roll_mean_diff_5/ret_1"]
         # index=5: mean of diff_1[1:6] = mean([1, 1, 1, 1, 1]) = 1.0
         np.testing.assert_allclose(roll_mean_diff.iloc[5], 1.0, rtol=1e-5)
+
+
+class TestSU7SweepFeatures:
+    """SU7 スイープ機能（use_rsi, use_sign フラグ）のテスト。"""
+
+    def _build_config_with_flags(
+        self,
+        base_cols: list[str],
+        use_rsi: bool = True,
+        use_sign: bool = True,
+        windows: list[int] | None = None,
+    ) -> SU7Config:
+        """フラグ付きの SU7Config を生成する。"""
+        mapping = {
+            "su7_base_cols": base_cols,
+            "lags": [1, 5, 20],
+            "windows": windows if windows is not None else [5, 20],
+            "halflife_rsi": 5,
+            "eps": 1e-8,
+            "rs_max": 100.0,
+            "use_rsi": use_rsi,
+            "use_sign": use_sign,
+            "dtype": {"float": "float32", "int": "int8"},
+        }
+        return SU7Config.from_mapping(mapping)
+
+    def test_use_rsi_flag_true(self) -> None:
+        """use_rsi=True の場合、RSI 列が生成されること。"""
+        config = self._build_config_with_flags(["ret_1"], use_rsi=True)
+        df = pd.DataFrame({"ret_1": np.random.randn(30)})
+
+        transformer = SU7FeatureGenerator(config)
+        transformer.fit(df)
+        features = transformer.transform(df)
+
+        assert "rsi_5/ret_1" in features.columns
+
+    def test_use_rsi_flag_false(self) -> None:
+        """use_rsi=False の場合、RSI 列が生成されないこと。"""
+        config = self._build_config_with_flags(["ret_1"], use_rsi=False)
+        df = pd.DataFrame({"ret_1": np.random.randn(30)})
+
+        transformer = SU7FeatureGenerator(config)
+        transformer.fit(df)
+        features = transformer.transform(df)
+
+        assert "rsi_5/ret_1" not in features.columns
+
+    def test_use_sign_flag_true(self) -> None:
+        """use_sign=True の場合、sign 列が生成されること。"""
+        config = self._build_config_with_flags(["ret_1"], use_sign=True)
+        df = pd.DataFrame({"ret_1": np.random.randn(30)})
+
+        transformer = SU7FeatureGenerator(config)
+        transformer.fit(df)
+        features = transformer.transform(df)
+
+        assert "sign_r_t/ret_1" in features.columns
+
+    def test_use_sign_flag_false(self) -> None:
+        """use_sign=False の場合、sign 列が生成されないこと。"""
+        config = self._build_config_with_flags(["ret_1"], use_sign=False)
+        df = pd.DataFrame({"ret_1": np.random.randn(30)})
+
+        transformer = SU7FeatureGenerator(config)
+        transformer.fit(df)
+        features = transformer.transform(df)
+
+        assert "sign_r_t/ret_1" not in features.columns
+
+    def test_column_count_no_rsi(self) -> None:
+        """use_rsi=False の場合の列数が正しいこと。
+
+        B=2, lags=[1,5,20], windows=[5,20] の場合:
+        - diff/lag: 2 * 3 * 2 = 12
+        - rolling: 2 * 2 * 2 = 8
+        - rsi: 0 (OFF)
+        - sign: 2
+        - 合計: 22
+        """
+        config = self._build_config_with_flags(["ret_1", "ret_2"], use_rsi=False)
+        df = pd.DataFrame({
+            "ret_1": np.random.randn(30),
+            "ret_2": np.random.randn(30),
+        })
+
+        transformer = SU7FeatureGenerator(config)
+        transformer.fit(df)
+        features = transformer.transform(df)
+
+        expected_count = 12 + 8 + 0 + 2  # 22
+        assert len(features.columns) == expected_count
+        assert transformer.get_expected_column_count() == expected_count
+
+    def test_column_count_no_sign(self) -> None:
+        """use_sign=False の場合の列数が正しいこと。
+
+        B=2, lags=[1,5,20], windows=[5,20] の場合:
+        - diff/lag: 2 * 3 * 2 = 12
+        - rolling: 2 * 2 * 2 = 8
+        - rsi: 2
+        - sign: 0 (OFF)
+        - 合計: 22
+        """
+        config = self._build_config_with_flags(["ret_1", "ret_2"], use_sign=False)
+        df = pd.DataFrame({
+            "ret_1": np.random.randn(30),
+            "ret_2": np.random.randn(30),
+        })
+
+        transformer = SU7FeatureGenerator(config)
+        transformer.fit(df)
+        features = transformer.transform(df)
+
+        expected_count = 12 + 8 + 2 + 0  # 22
+        assert len(features.columns) == expected_count
+        assert transformer.get_expected_column_count() == expected_count
+
+    def test_column_count_no_rsi_no_sign(self) -> None:
+        """use_rsi=False, use_sign=False の場合の列数が正しいこと。
+
+        B=2, lags=[1,5,20], windows=[5,20] の場合:
+        - diff/lag: 2 * 3 * 2 = 12
+        - rolling: 2 * 2 * 2 = 8
+        - rsi: 0 (OFF)
+        - sign: 0 (OFF)
+        - 合計: 20
+        """
+        config = self._build_config_with_flags(
+            ["ret_1", "ret_2"], use_rsi=False, use_sign=False
+        )
+        df = pd.DataFrame({
+            "ret_1": np.random.randn(30),
+            "ret_2": np.random.randn(30),
+        })
+
+        transformer = SU7FeatureGenerator(config)
+        transformer.fit(df)
+        features = transformer.transform(df)
+
+        expected_count = 12 + 8 + 0 + 0  # 20
+        assert len(features.columns) == expected_count
+        assert transformer.get_expected_column_count() == expected_count
+
+    def test_extended_windows(self) -> None:
+        """windows を拡張した場合の列数が正しいこと。
+
+        B=1, lags=[1,5,20], windows=[5,10,20,60] の場合:
+        - diff/lag: 2 * 3 * 1 = 6
+        - rolling: 2 * 4 * 1 = 8
+        - rsi: 1
+        - sign: 1
+        - 合計: 16
+        """
+        config = self._build_config_with_flags(
+            ["ret_1"], windows=[5, 10, 20, 60]
+        )
+        df = pd.DataFrame({"ret_1": np.random.randn(100)})
+
+        transformer = SU7FeatureGenerator(config)
+        transformer.fit(df)
+        features = transformer.transform(df)
+
+        expected_count = 6 + 8 + 1 + 1  # 16
+        assert len(features.columns) == expected_count
+        assert transformer.get_expected_column_count() == expected_count
+
+        # 拡張された window の列が存在すること
+        assert "roll_ret_10/ret_1" in features.columns
+        assert "roll_ret_60/ret_1" in features.columns
+        assert "roll_mean_diff_10/ret_1" in features.columns
+        assert "roll_mean_diff_60/ret_1" in features.columns
+
+    def test_config_flags_default_values(self) -> None:
+        """use_rsi, use_sign のデフォルト値が True であること。"""
+        config = SU7Config.from_mapping({"su7_base_cols": ["col1"]})
+        assert config.use_rsi is True
+        assert config.use_sign is True
+
+    def test_config_flags_explicit_false(self) -> None:
+        """use_rsi=False, use_sign=False を明示的に指定できること。"""
+        config = SU7Config.from_mapping({
+            "su7_base_cols": ["col1"],
+            "use_rsi": False,
+            "use_sign": False,
+        })
+        assert config.use_rsi is False
+        assert config.use_sign is False

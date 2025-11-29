@@ -136,3 +136,84 @@
 - ロールバック条件:
   - OOF 改善が **fold 間分散を考慮して +0.3〜0.5σ 未満** の場合は SU7 をオフに戻す。
   - LB 提出は SU7 について最大 1 回までとし、OOF で明確に悪い設定は提出しない。
+
+---
+
+## 7. SU7 スイープ機能
+
+### 7.1 スイープの目的
+
+SU7 の列数・変換セットのバリエーションを複数パターン試し、
+SU1+SU5 ベースラインと比較することで、最適な SU7 構成を探る。
+
+評価指標:
+- **RMSE を第一優先**
+- 補助指標: MSR / vMSR / MSR_down
+
+### 7.2 スイープ設定ファイル
+
+スイープバリアントは `configs/su7_sweep.yaml` で定義する。
+
+```yaml
+variants:
+  case_a:
+    name: "top4_default_transforms"
+    description: "Top 4 FI columns with default transform set"
+    su7_base_cols:
+      - M3
+      - M4
+      - S2
+      - P5
+    lags: [1, 5, 20]
+    windows: [5, 20]
+    halflife_rsi: 5
+    use_rsi: true      # RSI 生成の ON/OFF
+    use_sign: true     # sign フラグ生成の ON/OFF
+    expected_feature_count: 48
+```
+
+### 7.3 変換フラグ
+
+| フラグ | デフォルト | 説明 |
+|--------|----------|------|
+| `use_rsi` | `true` | RSI ライク指標を生成するか |
+| `use_sign` | `true` | 方向フラグ sign(r_t) を生成するか |
+
+これらのフラグを `false` に設定することで、特定の変換を無効化できる。
+
+### 7.4 スイープ実行スクリプト
+
+```bash
+# 全バリアントを実行
+python scripts/su7/run_su7_sweep.py
+
+# 特定のバリアントのみ実行
+python scripts/su7/run_su7_sweep.py --variants case_a case_b
+
+# ドライラン（実行せずに設定を確認）
+python scripts/su7/run_su7_sweep.py --dry-run
+```
+
+### 7.5 比較レポート
+
+```bash
+# テーブル形式で比較表示
+python scripts/su7/compare_su7_variants.py
+
+# CSV 出力
+python scripts/su7/compare_su7_variants.py --output-format csv
+
+# ベースラインを指定して差分計算
+python scripts/su7/compare_su7_variants.py --baseline baseline
+```
+
+### 7.6 train_su7.py との統合
+
+`train_su7.py` は以下のオプションでバリアントを指定可能:
+
+```bash
+python src/feature_generation/su7/train_su7.py \
+  --su7-variant-name case_a \
+  --su7-sweep-config configs/su7_sweep.yaml \
+  --out-dir artifacts/SU7/case_a
+```

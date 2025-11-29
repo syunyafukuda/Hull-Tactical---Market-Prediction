@@ -1,0 +1,236 @@
+# SU7 Sweep Configuration
+# ========================
+# This file defines variant patterns for the SU7 column count and transform set sweep.
+# Each variant is designed to evaluate the impact of different configurations on model performance.
+#
+# Reference: https://github.com/syunyafukuda/Hull-Tactical---Market-Prediction/issues/XX
+# Related to: docs/feature_generation/SU7.md
+#
+# Sweep Strategy:
+# - Case A-B: Reduce column count (4, 6 columns)
+# - Case C-D: Increase column count (10, 12 columns)
+# - Case E-F: Modify transform sets (RSI OFF, extended rolling windows)
+#
+# Expected column formula: 12 * B
+# where B = number of base columns (su7_base_cols)
+#
+# Transform breakdown per base column:
+# - diff_k: 3 columns (k ∈ {1, 5, 20})
+# - lag_k: 3 columns (k ∈ {1, 5, 20})
+# - roll_ret_W: 2 columns (W ∈ {5, 20})
+# - roll_mean_diff_W: 2 columns (W ∈ {5, 20})
+# - rsi_5: 1 column
+# - sign_r_t: 1 column
+# Total: 12 columns per base column
+
+# ========================================
+# Base configuration reference
+# ========================================
+# The base SU7 configuration is defined in configs/feature_generation.yaml
+# and uses the following settings:
+#   su7_base_cols: [M1, M2, M3, M4, M5, M6] (6 columns)
+#   lags: [1, 5, 20]
+#   windows: [5, 20]
+#   halflife_rsi: 5
+#   use_rsi: true
+#   use_sign: true
+
+# ========================================
+# Sweep Variants
+# ========================================
+variants:
+
+  # ------------------------------------------
+  # Case A: Top 4 columns (reduced set)
+  # ------------------------------------------
+  # Expected feature count: 12 * 4 = 48
+  case_a:
+    name: "top4_default_transforms"
+    description: "Top 4 FI columns with default transform set"
+    su7_base_cols:
+      - M3
+      - M4
+      - S2
+      - P5
+    lags: [1, 5, 20]
+    windows: [5, 20]
+    halflife_rsi: 5
+    use_rsi: true
+    use_sign: true
+    expected_feature_count: 48
+
+  # ------------------------------------------
+  # Case B: Top 6 columns (moderate set)
+  # ------------------------------------------
+  # Expected feature count: 12 * 6 = 72
+  case_b:
+    name: "top6_default_transforms"
+    description: "Top 6 FI columns with default transform set"
+    su7_base_cols:
+      - M3
+      - M4
+      - M11
+      - S2
+      - S5
+      - P5
+    lags: [1, 5, 20]
+    windows: [5, 20]
+    halflife_rsi: 5
+    use_rsi: true
+    use_sign: true
+    expected_feature_count: 72
+
+  # ------------------------------------------
+  # Case C: Top 10 columns (expanded set)
+  # ------------------------------------------
+  # Expected feature count: 12 * 10 = 120
+  case_c:
+    name: "top10_default_transforms"
+    description: "Top 10 FI columns with default transform set"
+    su7_base_cols:
+      - M3
+      - M4
+      - M11
+      - S2
+      - S5
+      - P5
+      - P8
+      - V9
+      - M1
+      - M2
+    lags: [1, 5, 20]
+    windows: [5, 20]
+    halflife_rsi: 5
+    use_rsi: true
+    use_sign: true
+    expected_feature_count: 120
+
+  # ------------------------------------------
+  # Case D: Top 12 columns (further expanded)
+  # ------------------------------------------
+  # Expected feature count: 12 * 12 = 144
+  case_d:
+    name: "top12_default_transforms"
+    description: "Top 12 FI columns with default transform set"
+    su7_base_cols:
+      - M3
+      - M4
+      - M11
+      - S2
+      - S5
+      - P5
+      - P8
+      - V9
+      - M1
+      - M2
+      - M5
+      - M6
+    lags: [1, 5, 20]
+    windows: [5, 20]
+    halflife_rsi: 5
+    use_rsi: true
+    use_sign: true
+    expected_feature_count: 144
+
+  # ------------------------------------------
+  # Case E: Current 8 columns, RSI OFF
+  # ------------------------------------------
+  # Without RSI, transform count per column: 11
+  # Expected feature count: 11 * 8 = 88
+  case_e:
+    name: "top8_no_rsi"
+    description: "Top 8 FI columns without RSI transform"
+    su7_base_cols:
+      - M3
+      - M4
+      - M11
+      - S2
+      - S5
+      - P5
+      - P8
+      - V9
+    lags: [1, 5, 20]
+    windows: [5, 20]
+    halflife_rsi: 5
+    use_rsi: false
+    use_sign: true
+    expected_feature_count: 88
+
+  # ------------------------------------------
+  # Case F: Current 8 columns, extended rolling windows
+  # ------------------------------------------
+  # With extra windows [5, 10, 20, 60], rolling features double:
+  # - diff_k: 3
+  # - lag_k: 3
+  # - roll_ret_W: 4 (W ∈ {5, 10, 20, 60})
+  # - roll_mean_diff_W: 4
+  # - rsi_5: 1
+  # - sign_r_t: 1
+  # Total: 16 columns per base column
+  # Expected feature count: 16 * 8 = 128
+  case_f:
+    name: "top8_extended_windows"
+    description: "Top 8 FI columns with extended rolling windows"
+    su7_base_cols:
+      - M3
+      - M4
+      - M11
+      - S2
+      - S5
+      - P5
+      - P8
+      - V9
+    lags: [1, 5, 20]
+    windows: [5, 10, 20, 60]
+    halflife_rsi: 5
+    use_rsi: true
+    use_sign: true
+    expected_feature_count: 128
+
+  # ------------------------------------------
+  # Case G: Current 8 columns (baseline for comparison)
+  # ------------------------------------------
+  # Expected feature count: 12 * 8 = 96
+  baseline:
+    name: "baseline_8cols"
+    description: "Current SU7 configuration (8 columns, full transforms)"
+    su7_base_cols:
+      - M3
+      - M4
+      - M11
+      - S2
+      - S5
+      - P5
+      - P8
+      - V9
+    lags: [1, 5, 20]
+    windows: [5, 20]
+    halflife_rsi: 5
+    use_rsi: true
+    use_sign: true
+    expected_feature_count: 96
+
+# ========================================
+# Sweep Execution Settings
+# ========================================
+sweep_settings:
+  # Output directory pattern
+  output_base_dir: "artifacts/SU7"
+  
+  # Default CV settings (can be overridden per variant)
+  n_splits: 5
+  gap: 0
+  
+  # Model parameters (can be reduced for faster sweep)
+  n_estimators: 600
+  learning_rate: 0.05
+  
+  # Enable/disable specific variants
+  enabled_variants:
+    - case_a
+    - case_b
+    - case_c
+    - case_d
+    - case_e
+    - case_f
+    - baseline
