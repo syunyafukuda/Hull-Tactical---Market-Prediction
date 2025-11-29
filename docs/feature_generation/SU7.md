@@ -29,8 +29,11 @@
 
 ### 2.3 ベース系列の定義
 
-- SU7 では `su7_base_cols` は **「リターン（または差分）系列 r_t」** として扱う。
-- diff / roll_ret / RSI / sign など **すべて同じ r_t を前提に計算**し、一部だけ価格ベースになることを避ける。
+- SU7 では `su7_base_cols` は **「1 日リターン系列 r_t」** を前提とする。
+  - 例: `ret_1d_spx`, `ret_1d_sector1` など、既存ベースラインで FI が高い日次リターン列。
+- SU7 内で新たに価格からリターンを計算し直すことはせず、
+  `su7_base_cols` をそのまま r_t とみなして diff / roll_ret / RSI / sign を計算する。
+  - これにより、「一度だけ return 化してそこからすべて派生」というコンセプトを明示する。
 
 ---
 
@@ -71,6 +74,9 @@
   4. `ema_loss = ema(losses, halflife=5)`
   5. `rs = ema_gain / (ema_loss + eps)`
   6. `rsi_5 = rs / (1 + rs)`
+- 数値安定性:
+  - `eps` は `1e-8` 程度の小さな正数を推奨し、`ema_loss ≈ 0` のときの発散を抑える。
+  - 必要に応じて `rs = clip(rs, 0, rs_max)`（例: `rs_max = 100`）などのクリップを入れ、NaN / Inf の発生を防ぐ。
 - 列数:
   - 各ベース列に 1 本 → **B 列**。
 
@@ -81,6 +87,8 @@
   - `sign_r_t/<col>` = sign(`r_t`) ∈ {−1, 0, 1}（int8）
 - 列数:
   - **B 列**。
+ - 前処理との整合:
+   - `sign_r_t` は **順序を持つ 3 値の数値特徴**とみなし、他の数値特徴と同様にスケーリング対象に含める（OneHot には載せない）。
 
 ### 3.5 列数レンジの試算（例: B=6）
 
@@ -94,8 +102,13 @@
 
 ## 4. 共通ルールとリーク防止
 
-- 統計量・EMA 等の fit は **各 CV fold の train 区間のみ** で行い、val/test には持ち越す。
-- rolling / EMA は「時刻 t までの過去のみ」を参照し、未来情報は一切使わない。
+- 想定ターゲット:
+  - 本コンペのターゲットは「翌営業日の excess return（t+1）」を想定する。
+  - よって **t 行の SU7 特徴はすべて時刻 t までの r_t のみから構成し、t+1 以降は一切参照しない。**
+- 実装上の扱い:
+  - SU7 の lag/diff/rolling/RSI はすべて **決まった数式をそのまま適用する deterministic transform** であり、学習データからパラメータを推定しない。
+  - そのため、`SU7FeatureGenerator.fit` は `su7_base_cols` の存在確認と列順固定（`self.base_cols_`）のみを行い、fold ごとの統計量 fit は不要とする。
+  - `transform` は date_id で sort 済みの全期間 DataFrame に対して `shift` / `rolling` / `ewm` を適用し、pandas の過去方向のみ参照する性質を前提にリークを防ぐ。
 - 型は `float32`（連続値）/`int8`（sign フラグ）を基本とし、列数とメモリを抑える。
 
 ---
@@ -117,7 +130,8 @@
 
 ## 6. PoC とロールバック方針
 
-- 導入順: SU9 → **SU7（本仕様のコア部分）** → SU8。
+- SU7/SU8/SU9 の最終的な実行順序は `docs/feature_generation/README.md` 側に定義し、
+  SU7.md からはそちらを参照する（本仕様では順序を固定しない）。
 - 評価: SU1+SU5 ベースラインと比較し、OOF MSR/RMSE を指標とする。
 - ロールバック条件:
   - OOF 改善が **fold 間分散を考慮して +0.3〜0.5σ 未満** の場合は SU7 をオフに戻す。
