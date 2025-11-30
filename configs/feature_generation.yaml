@@ -245,6 +245,106 @@ su6:
     decision: skipped_for_now
     notes: "⏸ Priority set low. We first implement and evaluate SU7–SU9 (non-missingness axes). SU6 will be reconsidered only if total feature count becomes problematic."
 
+su7:
+  # ========================================
+  # SU7: モメンタム・リバーサル特徴量
+  # ========================================
+  # 目的: 価格・リターン系列のモメンタム/リバーサル構造を特徴量化
+  # 軸: 欠損構造（SU1〜SU5）とは独立した「価格変化軸」の SU
+  # パイプライン位置: SU1 → SU5 → GroupImputers → **SU7** → 前処理 → LGBM
+  #
+  # ⚠️ 2025-11-30 時点で **非採用決定**。
+  #   - OOF では SU1+SU5 ベースライン比で RMSE 改善（≈0.01205）
+  #   - しかし Public LB では大幅悪化（case_c: 0.476, case_d: 0.469 vs SU5: 0.681）
+  #   - 実装・環境・post-process の技術的な問題を除外したうえで、
+  #     「train 期間では有効だが Public 評価期間のレジームとは相性が悪い」
+  #     広義の過学習（レジームミスマッチ）が主因と判断
+  # 結論: SU7 は当面オフとし、SU1+SU5 ラインを継続採用する。
+  enabled: false
+  base_features: [su1, su5]
+  id_column: date_id
+  output_prefix: su7
+
+  # ========================================
+  # 対象カラム (su7_base_cols)
+  # ========================================
+  # - 1日リターン系列 r_t を前提
+  # - 全グループ（M/E/I/P/S/V など）の 1日リターン列を候補とし、
+  #   SU1+SU5 ベースラインの feature_importance をもとに **FI 上位の 6〜8 列を横断的に選ぶ**。
+  #   （M系に限定しない / インデックス・セクター系も含めてよい）
+  # - 2025-11 時点では、MSR-proxy の per-feature FI
+  #   (`artifacts/MSR-proxy/feature_importances_per_feature.csv`, gainベース) を用いて
+  #   全 numeric_cols から FI 上位 8 本を選定し、さらに SU7 スイープ結果
+  #   （configs/su7_sweep.yaml, artifacts/SU7/case_*/model_meta.json）に基づき、
+  #   RMSE を第一優先・MSR を補助指標として評価した。
+  #   その結果、以下の **12 列構成（case_d バリアント）** を本命として採用:
+  #     M3, M4, M11, S2, S5, P5, P8, V9, M1, M2, M5, M6
+  #   サブ候補としては、10 列構成の case_c
+  #     (M3, M4, M11, S2, S5, P5, P8, V9, M1, M2)
+  #   が RMSE ほぼ同等・MSR やや高めという結果となっている。
+  su7_base_cols:
+    - M3
+    - M4
+    - M11
+    - S2
+    - S5
+    - P5
+    - P8
+    - V9
+    - M1
+    - M2
+    - M5
+    - M6
+
+  # ========================================
+  # パラメータ設定
+  # ========================================
+  # diff/lag の k 値
+  lags: [1, 5, 20]
+
+  # ローリング窓サイズ
+  windows: [5, 20]
+
+  # RSI の halflife（W=5 固定）
+  halflife_rsi: 5
+
+  # 数値安定性
+  eps: 1.0e-8
+  rs_max: 100.0
+
+  # データ型
+  dtype:
+    float: float32
+    int: int8
+
+  # ========================================
+  # 生成される特徴量
+  # ========================================
+  # B = len(su7_base_cols) の場合 (例: B=8):
+  # - diff_k/<col>: 3 * B = 18 列
+  # - lag_k/<col>: 3 * B = 18 列
+  # - roll_ret_W/<col>: 2 * B = 12 列
+  # - roll_mean_diff_W/<col>: 2 * B = 12 列
+  # - rsi_5/<col>: B = 6 列
+  # - sign_r_t/<col>: B = 6 列
+  # 合計: 12 * B 列（例: B=8 → 96 列、目標 40〜100 列レンジ内）
+
+  metadata:
+    artifacts_dir: artifacts/SU7
+    depends_on: [SU1, SU5, GroupImputers]
+    expected_usage: "Momentum/reversal features (diff, lag, rolling, RSI, sign)"
+    numpy_version: 1.26.4
+    status: not_adopted
+    decision: not_used
+    decision_date: 2025-11-30
+    expected_feature_count: 144
+    kaggle_lb_su5_baseline: 0.681
+    kaggle_lb_su7_case_c: 0.476
+    kaggle_lb_su7_case_d: 0.469
+    oof_rmse_case_c: 0.012047
+    oof_rmse_case_d: 0.012045
+    notes: "SU7 sweep (case_c/case_d) improved OOF RMSE vs SU1+SU5 baseline but caused severe Public LB degradation (0.476/0.469 vs 0.681). After re-training under numpy==1.26.4, regenerating artifacts, and disabling aggressive post-process, the LB remained poor. Concluded as structural overfitting / regime mismatch; SU7 is kept disabled and SU1+SU5 remains the production line."
+
 su4:
   # ❌ SU4削除決定 (2025-11-23)
   # 理由: 特徴重要度分析・Ablation Studyにより予測性能への寄与がほぼゼロと判明
