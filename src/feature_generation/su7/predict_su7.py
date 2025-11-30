@@ -244,30 +244,19 @@ def _coerce_postprocess_params(mapping: Mapping[str, Any] | None) -> PostProcess
 
 
 def _resolve_postprocess_params(meta: Mapping[str, Any]) -> PostProcessParams:
-    candidate_keys = (
-        "post_process",
-        "postprocess",
-        "post_process_params",
-        "postprocess_params",
-        "signal_params",
-        "oof_best_params",
-    )
-    for key in candidate_keys:
-        params = _coerce_postprocess_params(meta.get(key))
-        if params is not None:
-            return params
-    defaults = meta.get("postprocess_defaults")
-    if isinstance(defaults, Mapping):
-        candidate = _coerce_postprocess_params(
-            {
-                "mult": defaults.get("mult", DEFAULT_POSTPROCESS_PARAMS.mult),
-                "lo": defaults.get("lo", defaults.get("clip_min", DEFAULT_POSTPROCESS_PARAMS.lo)),
-                "hi": defaults.get("hi", defaults.get("clip_max", DEFAULT_POSTPROCESS_PARAMS.hi)),
-            }
-        )
-        if candidate is not None:
-            return candidate
-    return DEFAULT_POSTPROCESS_PARAMS
+    """Resolve post-process params in a conservative way for SU7.
+
+    SU7 ラインでは OOF 上の最適パラメータが Public LB で
+    過度にリスクを取り過ぎる挙動を見せたため、推論時は
+    **常に保守的なパラメータに固定** する。
+
+    具体的には、学習メタデータに保存された `oof_best_params` などは
+    参照せず、デフォルト値 (mult=1.0, lo=0.9, hi=1.1) を
+    直接返すようにする。
+    """
+
+    # 最も保守的な設定に固定
+    return PostProcessParams(mult=1.0, lo=0.9, hi=1.1)
 
 
 def to_signal(pred: np.ndarray, params: PostProcessParams) -> np.ndarray:
