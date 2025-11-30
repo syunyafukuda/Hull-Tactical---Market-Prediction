@@ -236,7 +236,7 @@ class SU7FeatureGenerator(BaseEstimator, TransformerMixin):
             # roll_ret_W = 過去W日リターン和
             roll_ret = r_t.rolling(window=w, min_periods=w).sum()
             features[f"roll_ret_{w}/{col}"] = np.asarray(
-                roll_ret.astype(self.config.dtype_float).values
+                roll_ret.astype(self.config.dtype_float).values  # type: ignore[attr-defined]
             )
 
             # roll_mean_diff_W = 過去W日 diff_1 の平均

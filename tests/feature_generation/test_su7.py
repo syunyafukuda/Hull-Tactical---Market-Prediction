@@ -208,10 +208,10 @@ class TestSU7FeatureGenerator:
 
         rsi = features["rsi_5/ret_1"]
         # NaN/Inf がない
-        assert not rsi.isna().any(), "RSI should not have NaN"
+        assert not rsi.isna().any(), "RSI should not have NaN"  # type: ignore[union-attr]
         assert not np.isinf(rsi.values).any(), "RSI should not have Inf"
         # RSI は 0〜1 の範囲
-        assert (rsi >= 0).all() and (rsi <= 1).all(), "RSI should be in [0, 1]"
+        assert bool((rsi >= 0).all()) and bool((rsi <= 1).all()), "RSI should be in [0, 1]"  # type: ignore[union-attr]
 
     def test_rsi_numerical_stability_all_negative(self) -> None:
         """r_t がほぼ常に負の場合でも rsi_5 に NaN/Inf が発生しないこと。"""
@@ -225,10 +225,10 @@ class TestSU7FeatureGenerator:
 
         rsi = features["rsi_5/ret_1"]
         # NaN/Inf がない
-        assert not rsi.isna().any(), "RSI should not have NaN"
+        assert not rsi.isna().any(), "RSI should not have NaN"  # type: ignore[union-attr]
         assert not np.isinf(rsi.values).any(), "RSI should not have Inf"
         # RSI は 0〜1 の範囲
-        assert (rsi >= 0).all() and (rsi <= 1).all(), "RSI should be in [0, 1]"
+        assert bool((rsi >= 0).all()) and bool((rsi <= 1).all()), "RSI should be in [0, 1]"  # type: ignore[union-attr]
 
     def test_rsi_numerical_stability_extreme_values(self) -> None:
         """極端な値でも rsi_5 に NaN/Inf が発生しないこと。"""
@@ -251,8 +251,8 @@ class TestSU7FeatureGenerator:
 
         rsi = features["rsi_5/ret_1"]
         # NaN/Inf がない
-        assert not rsi.isna().any(), "RSI should not have NaN"
-        assert not np.isinf(rsi.values).any(), "RSI should not have Inf"
+        assert not rsi.isna().any(), "RSI should not have NaN"  # type: ignore[union-attr]
+        assert not np.isinf(rsi.values).any()  # type: ignore[union-attr]
 
     def test_leak_prevention_shift(self) -> None:
         """shift が過去方向のみ参照することを確認（リーク防止）。"""
@@ -430,7 +430,7 @@ class TestSU7FeatureAugmenter:
         # SU7 特徴に NaN がない
         su7_cols = [c for c in augmented.columns if "/" in c]
         for col in su7_cols:
-            assert not augmented[col].isna().any(), f"{col} should have no NaN"
+            assert not augmented[col].isna().any(), f"{col} should have no NaN"  # type: ignore[union-attr]
 
     def test_no_fill_value(self) -> None:
         """fill_value が None の場合、NaN がそのまま残ること。"""
