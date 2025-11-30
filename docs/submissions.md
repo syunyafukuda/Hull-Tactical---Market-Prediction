@@ -313,3 +313,118 @@ LightGBMRegressor
 2. Ablation Studyは新特徴追加時の基本
 3. コンセプトの妥当性を実装前に検証すべき
 4. LightGBMの特徴選択能力を信頼する
+
+## 2025-11-30 su7 (Submission Unit 7) - **非採用（過学習/レジームミスマッチ）**
+
+- Branch: `feat/su7`
+- Kaggle Notebook: Private（Dataset: su7-momentum-reversal-core, notebooks/submit/su7.ipynb）
+- Lines:
+  - SU7 case_c ライン（10 base cols, OOF best RMSE ≈ 0.012047）
+  - SU7 case_d ライン（12 base cols, OOF best RMSE ≈ 0.012045）
+- LB scores (Public):
+  - **SU1+SU5 baseline (no SU7)**: 0.681
+  - **su7_case_c**: 0.476
+  - **su7_case_d**: 0.469
+- Decision: **非採用 / not_adopted**（SU1+SU5 ラインを継続採用）
+
+### 概要
+
+SU7 は「モメンタム・リバーサル特徴（diff/lag/rolling/RSI/sign）」を、
+SU1+SU5+GroupImputers 後の特徴行列に対して付加する Submission Unit として設計した。
+
+- スイープ設定: `configs/su7_sweep.yaml`（variants: case_a〜case_f, baseline）
+- 評価指標: OOF RMSE を第一指標、MSR/vMSR を補助指標として grid search
+- OOF 結果（抜粋）:
+  - Baseline (SU1+SU5): RMSE ≈ 0.012097, MSR ≈ 0.013805
+  - case_c (10 cols, RSI+sign): RMSE=0.012047, **MSR=0.019161**
+  - case_d (12 cols, RSI+sign): **RMSE=0.012045**, MSR=0.015722
+
+OOF 上は case_c/case_d ともにベースラインより良好であり、特に RMSE は明確に改善していた。
+このため当初は case_d を本命、case_c をサブ候補とみなし、Kaggle での実運用検証に進んだ。
+
+### 技術的検証と再学習
+
+1. **環境統一とアーティファクト再生成**
+   - 学習・推論ともに `numpy==1.26.4`, `scikit-learn==1.7.2` に固定（uv 経由）。
+   - `artifacts/SU7/case_c` / `case_d` に対し、以下を再生成:
+     - `inference_bundle.pkl`
+     - `model_meta.json`
+     - `feature_list.json`
+     - `cv_fold_logs.csv`
+     - `oof_predictions.csv`
+
+2. **Notebook 互換性の確保**
+   - `notebooks/submit/su5.ipynb` をベースに `su7.ipynb` を作成。
+   - Notebook 内に `SU7Config`, `SU7FeatureGenerator`, `SU7FeatureAugmenter`, `SU7FullFeatureAugmenter` を埋め込み、
+     `src.feature_generation.su7.feature_su7` / `train_su7` を `sys.modules` に動的登録。
+   - 旧来の `__main__.SU7FullFeatureAugmenter` を参照する pickle を廃止し、
+     明示モジュールパス付きの `inference_bundle.pkl` のみを使用するよう統一。
+
+3. **ポストプロセスの保守化**
+   - 当初は OOF grid search で得た post-process params（mult, lo, hi）をそのまま使用していたが、
+     これが MSR 観点で攻め過ぎている可能性を考慮。
+   - `predict_su7.py` の `_resolve_postprocess_params` を修正し、
+     すべての実運用 submit で **固定パラメータ `mult=1.0, lo=0.9, hi=1.1`** を使用。
+   - これにより、シグナル振幅を抑えた「保守版」 submission を case_c / case_d それぞれで再生成し、Kaggle へ再提出。
+
+4. **submission 形式の検証**
+   - `submission.csv` は `date_id,prediction` ヘッダ + 10 行（計 11 行）で、
+     Hull Tactical の評価仕様に沿った特殊フォーマット（内部API評価用）であることを確認。
+   - SU5 ラインとのフォーマット差異はなく、行数・カラム名起因のスコア異常ではないことを確認。
+
+これらの技術的修正・再学習にもかかわらず、SU7 ラインの Public LB は
+
+- case_c: 0.476
+- case_d: 0.469
+
+から実質的に改善せず、SU1+SU5 ベースライン（0.681）との差は依然として大きかった。
+
+### 原因分析: 過学習 / レジームミスマッチ
+
+切り分けの結果、以下の可能性はおおむね除外できた。
+
+- 実装バグ（特徴生成のリーク、fold_indices 不整合 など）
+- ライブラリバージョンの不整合（numpy / MT19937）
+- submission 行数やヘッダの誤り
+- 過剰な post-process によるシグナル暴走
+
+それでもなお OOF では改善している SU7 case_c/case_d が、
+Public LB では 0.47 台まで崩れることから、最も説明力が高い仮説は次の通り:
+
+- SU7 のモメンタム/リバーサル特徴は **学習 + OOF 期間の市場レジームでは有効** だが、
+  Public 評価期間のレジームでは逆方向に働いた。
+- 特に MSR proxy によるシグナル最適化が、ある種の方向性に強く張る形になっており、
+  Public 期間ではその賭けが大きく外れた。
+- これは分割範囲内の OOF では検出しきれず、「OOF 改善 ↔ LB 大幅悪化」という
+  **レジームミスマッチを含む広義の過学習** として現れたと考えられる。
+
+### 最終判断とコンフィグ反映
+
+- 現コンテストでは SU7 を **採用しない**（非採用 / not_adopted）。
+- `configs/feature_generation.yaml`:
+  - `su7.enabled: false`
+  - `status: not_adopted`, `decision: not_used`
+  - `kaggle_lb_su5_baseline: 0.681`, `kaggle_lb_su7_case_c: 0.476`, `kaggle_lb_su7_case_d: 0.469` をメタ情報として記録。
+- 本番ラインは引き続き **SU1+SU5 (SU5 Policy1, LB 0.681)** を使用する。
+- SU7 のコード・スイープ設定・Notebook は、将来の別コンペ/別市場レジームでの検証用に残し、
+  本コンペにおける追加提出は行わない。
+
+### 学んだ教訓（SU7）
+
+1. **「OOF 改善」だけでは不十分**
+   - 特にモメンタム系・シグナル最適化系の特徴は、市場レジーム依存性が強く、
+     OOF が良くても Public 期間では逆効果になりうる。
+
+2. **MSR proxy の最適化は慎重に**
+   - MSR/vMSR を最大化する post-process は、「勝ちやすい局面に強く張る」構造になりやすい。
+   - 市場レジームが OOF と異なる場合、その賭けが一方向に外れて大きな損失となるリスクがある。
+
+3. **環境・実装起因の問題を切り分けたうえで、戦略レベルの問題を認める**
+   - ライブラリバージョン、pickle 互換性、fold_indices、ポストプロセス設定など、
+     機械的な要因を一通り潰した後に、それでも改善しない場合は「戦略そのものが Public 期間に合っていない」
+     という可能性を受け入れる必要がある。
+
+4. **ベースラインの堅牢さを優先する**
+   - SU1+SU5 ラインは LB 0.681 と安定しており、追加のモメンタム軸での攻めが必ずしも必要ではない。
+   - 不確実な改善よりも、安定したベースラインを維持することを優先する判断も重要。
+

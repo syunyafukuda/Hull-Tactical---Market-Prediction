@@ -355,9 +355,42 @@ SU2 の sweep_oof.py でも同じ方針（`ascending=[False, True]`）で統一�
 	2. Step2: SU7（diff/ローリング/RSI のコア部分）
 	3. Step3: SU8（ボラ・レジームタグとボラ調整リターン）
 	- 各ステップで SU1+SU5 ベースラインと比較し、OOF MSR/RMSE が **fold 間分散を考慮して +0.3〜0.5σ 以上** 改善した場合のみ採用。そうでなければ該当 SU はロールバック（オフに戻す）。
-- リーク防止と fit 範囲:
-	- rolling / EMA / quantile などの統計量は **各 CV fold の train 区間のみ** で fit し、val/test には持ち越す。
-	- カレンダー・祝日情報は、将来も確定している「決定可能情報」のみを利用する。
+
+#### SU7 スイープ結果と最終判断（2025-11-30 時点）
+
+OOF ベースのスイープ結果（2025-11-29 時点）は以下の通り（詳細は `docs/feature_generation/SU7.md` を参照）。
+
+- ベースライン: SU1+SU5
+	- OOF RMSE ≈ **0.012097**
+	- OOF MSR ≈ **0.013805**
+- スイープ設定: `configs/su7_sweep.yaml`、バリアント `case_a`〜`case_f`, `baseline` を TimeSeriesSplit(5fold) で評価。
+- 主要バリアントの結果（OOF, best post-process）：
+	- `case_a`（4 cols, RSI+sign）: RMSE=0.012141, MSR=0.014805
+	- `case_b`（6 cols, RSI+sign）: RMSE=0.012135, MSR=0.014235
+	- `case_c`（10 cols, RSI+sign）: RMSE=0.012047, **MSR=0.019161**
+	- `case_d`（12 cols, RSI+sign）: **RMSE=0.012045**, MSR=0.015722
+	- `case_e`（8 cols, sign のみ, RSI OFF）: RMSE=0.012129, MSR=0.009527
+	- `case_f`（8 cols, RSI+sign, rolling 5/10/20/60）: RMSE=0.012106, MSR=0.012968
+
+一見すると `case_c` / `case_d` は SU1+SU5 ベースラインより RMSE で優れており、有望に見える。
+しかし、これらを実際に Kaggle へ提出した結果、以下の Public LB を得た:
+
+- SU1+SU5 ベースライン（SU7 なし, SU5 Policy1）: **0.681**
+- SU7 case_c ライン: **0.476**
+- SU7 case_d ライン: **0.469**
+
+実装バグ・環境差分・post-process の過度な最適化などを一通り切り分けたうえでも、
+SU7 付きラインの LB は 0.47 台まで大きく悪化したままだった。
+OOF では改善しているにもかかわらず LB で大きく崩れることから、
+SU7 のモメンタム/リバーサル特徴が **train+OOF 期間には有効だが、Public 評価期間の市場レジームとは相性が悪い** という、
+レジームミスマッチを含む広義の過学習と判断した。
+
+そのため、2025-11-30 時点の最終判断として、
+
+- `configs/feature_generation.yaml` の `su7.enabled` を `false` に設定し、`status: not_adopted` とする。
+- 本番ラインは引き続き **SU1+SU5（LB 0.681）** を採用する。
+- SU7 のコード・スイープ結果・ドキュメントは将来の別コンペ/別レジーム検証用の「アーカイブ」として残すが、
+  現コンテストにおける追加提出は行わない。
 
 ### 実行順（軽→重）
 - コア: 1,2,3,4,5,9,10
