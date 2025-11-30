@@ -22,7 +22,16 @@ import yaml
 
 # Add project root to path
 THIS_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = THIS_DIR.parents[1]
+
+def find_project_root(start_dir: Path, marker: str = "pyproject.toml") -> Path:
+    """Search upwards from start_dir for a directory containing the marker file."""
+    for parent in [start_dir] + list(start_dir.parents):
+        if (parent / marker).is_file():
+            return parent
+    raise FileNotFoundError(f"Could not find project root containing {marker} from {start_dir}")
+
+# Find project root by searching for pyproject.toml
+PROJECT_ROOT = find_project_root(THIS_DIR)
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
