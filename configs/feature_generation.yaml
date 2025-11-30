@@ -426,3 +426,85 @@ su4:
     feature_importance_non_su4_total: 37198.00
     target_feature_count: ~151
     notes: "❌ 削除決定。補完トレース情報が予測に寄与しないことが判明。SU4なし（SU1+SU5+GroupImputers）を標準パイプラインとする。"
+
+su8:
+  # ========================================
+  # SU8: ボラティリティ・レジーム特徴量
+  # ========================================
+  # 目的: 局所ボラティリティとマーケットレジーム（低/中/高ボラ、トレンド/レンジなど）を特徴量化
+  # 軸: SU7 のモメンタム軸と補完的な「ボラ・レジーム軸」の SU
+  # パイプライン位置: SU1 → SU5 → GroupImputers → **SU8** → 前処理 → LGBM
+  #
+  # ⚠️ 初期は enabled: false で実装し、OOF 評価後に採用判断する。
+  enabled: false
+  base_features: [su1, su5]
+  id_column: date_id
+  output_prefix: su8
+
+  # ========================================
+  # 代表インデックス列 (core_index_col)
+  # ========================================
+  # M/E/P グループのインデックス列のうち、ターゲットに対する FI が高い列から選定。
+  # 暫定で M3 を指定（SU7 の case_c/case_d で FI 上位だった列）。
+  core_index_col: "M3"
+
+  # ターゲット近傍リターン列（ret_vol_adj 計算用）
+  # 暫定で M3 を指定（同じ列を使用）。
+  ret_base_col: "M3"
+
+  # ========================================
+  # パラメータ設定
+  # ========================================
+  # EWMA 半減期（短期/長期）
+  ewm_short_halflife: 5
+  ewm_long_halflife: 20
+
+  # 数値安定性用の epsilon
+  eps: 1.0e-4
+
+  # トレンド MA 窓サイズ（短期/長期）
+  trend_ma_short_window: 5
+  trend_ma_long_window: 20
+
+  # quantile 閾値（vol_regime / trend_regime の分類用）
+  vol_quantiles: [0.33, 0.66]
+  trend_quantiles: [0.33, 0.66]
+
+  # ret_vol_adj の winsorize パーセンタイル
+  winsorize_ret_vol_adj_p: 0.99
+
+  # カテゴリカル列（レジーム系、OneHot 対象）
+  categorical_cols:
+    - vol_regime_low
+    - vol_regime_mid
+    - vol_regime_high
+    - trend_regime_up
+    - trend_regime_down
+    - trend_regime_flat
+
+  # データ型
+  dtype:
+    float: float32
+    bool: bool
+
+  # ========================================
+  # 生成される特徴量
+  # ========================================
+  # - ewmstd_short: EWMA 標準偏差（短期）
+  # - ewmstd_long: EWMA 標準偏差（長期）
+  # - vol_ratio: ewmstd_short / (ewmstd_long + eps)
+  # - vol_level: ewmstd_long
+  # - vol_regime_low/mid/high: ボラレジームタグ（bool）
+  # - trend_regime_up/down/flat: トレンドレジームタグ（bool）
+  # - ret_vol_adj: ボラ調整リターン
+  # 合計: 11 列
+
+  metadata:
+    artifacts_dir: artifacts/SU8
+    depends_on: [SU1, SU5, GroupImputers]
+    expected_usage: "Volatility regime features (EWMA vol, vol regime tags, trend regime tags, vol-adjusted return)"
+    numpy_version: 1.26.4
+    status: development
+    decision: pending
+    expected_feature_count: 11
+    notes: "SU8 PoC: 固定構成 1 パターンのみで評価し、SU1+SU5 ベースラインとの比較を行う。"
