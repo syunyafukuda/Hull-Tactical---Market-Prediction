@@ -333,10 +333,14 @@ class SU8FeatureGenerator(BaseEstimator, TransformerMixin):
         tau_down = self.quantiles_["tau_down"]
         tau_up = self.quantiles_["tau_up"]
 
+        # Use strict inequalities to ensure mutual exclusivity
+        # trend_regime_down: <= tau_down
+        # trend_regime_up: > tau_up (changed from >= for strict exclusivity)
+        # trend_regime_flat: tau_down < x <= tau_up
         trend_regime_down = (trend_indicator_arr <= tau_down).astype(self.config.dtype_bool)
-        trend_regime_up = (trend_indicator_arr >= tau_up).astype(self.config.dtype_bool)
+        trend_regime_up = (trend_indicator_arr > tau_up).astype(self.config.dtype_bool)
         trend_regime_flat = (
-            (trend_indicator_arr > tau_down) & (trend_indicator_arr < tau_up)
+            (trend_indicator_arr > tau_down) & (trend_indicator_arr <= tau_up)
         ).astype(self.config.dtype_bool)
 
         return {
