@@ -111,6 +111,9 @@ from src.feature_generation.su8.feature_su8 import (  # noqa: E402,F401
 )
 from src.feature_generation.su8.train_su8 import (  # noqa: E402,F401
     SU8FullFeatureAugmenter,
+    _BoolToIntTransformer,
+    _categorical_or_bool_selector,
+    _numeric_non_bool_selector,
 )
 
 
