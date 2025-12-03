@@ -454,6 +454,7 @@ su8:
   # 現在の設定: M3
   #   - SU7 の case_c/case_d スイープで FI 上位だった列
   #   - 市場インデックス系の値動きを代表すると想定
+  #   - SU8 PoC では FI が安定して高いことを根拠に採用している
   #
   # 注意: 異なるデータセットでは、別の列がより適切な可能性があります。
   #       実際のデータで FI を確認し、必要に応じて変更してください。
@@ -519,4 +520,7 @@ su8:
     status: development
     decision: pending
     expected_feature_count: 11
-    notes: "SU8 PoC: 固定構成 1 パターンのみで評価し、SU1+SU5 ベースラインとの比較を行う。"
+    # SU8 PoC 用メタ情報（将来のスイープ/本採用を見据えたフィールド）
+    core_index_rationale: "MSR-proxy の FI で M/E/P 系インデックスの中で上位だったため M3 を代表列として採用"
+    sweep_budget_max_variants: 4  # 仕様上の想定: vol_quantiles×trend_quantiles などで最大 4 パターン程度まで
+    notes: "SU8 PoC: 固定構成 1 パターンのみで評価し、SU1+SU5 ベースラインとの比較を行う。将来スイープ時は sweep_budget_max_variants を上限とする想定。"

@@ -190,6 +190,13 @@ class SU8FeatureGenerator(BaseEstimator, TransformerMixin):
         trend_indicator = self._compute_trend_indicator(core_series)
 
         # vol_level の quantile
+        # NOTE:
+        #   - quantile は各 fold の train データからのみ推定する（val/test には触れない）
+        #   - 外れ値やサンプル数極小ケースで閾値が不安定になり得るため、
+        #     将来 sweep や production 採用を検討する際は、
+        #       * 有効サンプル数の閾値チェック
+        #       * ロバスト統計量（例: trimmed quantile）への切り替え
+        #     などのガードを追加する余地がある。
         vol_level_valid = vol_level.dropna()
         q_low = float(vol_level_valid.quantile(self.config.vol_quantiles[0]))
         q_high = float(vol_level_valid.quantile(self.config.vol_quantiles[1]))
@@ -213,6 +220,13 @@ class SU8FeatureGenerator(BaseEstimator, TransformerMixin):
         ret_vol_adj = ret_series / denom
         ret_vol_adj_valid = ret_vol_adj.dropna()
 
+        # NOTE:
+        #   winsorize の閾値も train データのみから推定する。
+        #   サンプル数が極端に少ない場合は quantile が不安定になるため、
+        #   現実運用では
+        #     - 最低サンプル数を満たさない場合は winsorize を無効化
+        #     - あるいは固定クリップ値にフォールバック
+        #   する拡張も検討できる（現状は PoC としてシンプルな実装を優先）。
         if len(ret_vol_adj_valid) > 0:
             p_low = 1.0 - self.config.winsorize_ret_vol_adj_p
             p_high = self.config.winsorize_ret_vol_adj_p

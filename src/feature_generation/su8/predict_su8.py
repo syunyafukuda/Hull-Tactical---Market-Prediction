@@ -246,12 +246,16 @@ def _coerce_postprocess_params(mapping: Mapping[str, Any] | None) -> PostProcess
 def _resolve_postprocess_params(meta: Mapping[str, Any]) -> PostProcessParams:
     """Resolve post-process params in a conservative way for SU8.
 
-    SU8 ラインでは保守的なパラメータに固定する。
-    具体的には、学習メタデータに保存された `oof_best_params` などは
-    参照せず、デフォルト値 (mult=1.0, lo=0.9, hi=1.1) を
-    直接返すようにする。
+        SU8 ラインでは保守的なパラメータに固定する。
+        - SU7 の反省から、OOF 上の最適パラメータをそのまま LB に
+            持ち込むことによるレジームミスマッチ / 過剰最適化を避ける。
+        - そのため、学習メタデータに保存された `oof_best_params` 等は
+            あくまでログ用途とし、推論時には使用しない。
+        - PoC 段階では (mult=1.0, lo=0.9, hi=1.1) の安全側レンジに固定し、
+            将来 SU8 を本採用する場合にのみポリシー拡張（例: "meta を参照
+            するが hi/lo を制限" など）を検討する。
     """
-    # 最も保守的な設定に固定
+    # 最も保守的な設定に固定（学習時の best_params は参照しない）
     return PostProcessParams(mult=1.0, lo=0.9, hi=1.1)
 
 
