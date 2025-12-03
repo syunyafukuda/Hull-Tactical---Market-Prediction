@@ -324,11 +324,13 @@ class SU8FeatureGenerator(BaseEstimator, TransformerMixin):
         q_low = self.quantiles_["q_low"]
         q_high = self.quantiles_["q_high"]
 
-        vol_regime_low = (vol_level <= q_low).astype(self.config.dtype_bool)
-        vol_regime_high = (vol_level > q_high).astype(self.config.dtype_bool)
-        vol_regime_mid = (
-            (vol_level > q_low) & (vol_level <= q_high)
-        ).astype(self.config.dtype_bool)
+        # Suppress warnings for NaN comparisons (NaN will result in False, which is correct)
+        with np.errstate(invalid="ignore"):
+            vol_regime_low = (vol_level <= q_low).astype(self.config.dtype_bool)
+            vol_regime_high = (vol_level > q_high).astype(self.config.dtype_bool)
+            vol_regime_mid = (
+                (vol_level > q_low) & (vol_level <= q_high)
+            ).astype(self.config.dtype_bool)
 
         return {
             "vol_regime_low": vol_regime_low,
@@ -351,11 +353,13 @@ class SU8FeatureGenerator(BaseEstimator, TransformerMixin):
         # trend_regime_down: <= tau_down
         # trend_regime_up: > tau_up (changed from >= for strict exclusivity)
         # trend_regime_flat: tau_down < x <= tau_up
-        trend_regime_down = (trend_indicator_arr <= tau_down).astype(self.config.dtype_bool)
-        trend_regime_up = (trend_indicator_arr > tau_up).astype(self.config.dtype_bool)
-        trend_regime_flat = (
-            (trend_indicator_arr > tau_down) & (trend_indicator_arr <= tau_up)
-        ).astype(self.config.dtype_bool)
+        # Suppress warnings for NaN comparisons (NaN will result in False, which is correct)
+        with np.errstate(invalid="ignore"):
+            trend_regime_down = (trend_indicator_arr <= tau_down).astype(self.config.dtype_bool)
+            trend_regime_up = (trend_indicator_arr > tau_up).astype(self.config.dtype_bool)
+            trend_regime_flat = (
+                (trend_indicator_arr > tau_down) & (trend_indicator_arr <= tau_up)
+            ).astype(self.config.dtype_bool)
 
         return {
             "trend_regime_down": trend_regime_down,
