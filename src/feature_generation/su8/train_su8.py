@@ -399,11 +399,61 @@ def _collect_imputer_metadata(pipeline: Pipeline) -> Dict[str, Dict[str, Any]]:
     return metadata
 
 
+class _BoolToIntTransformer(BaseEstimator, TransformerMixin):
+    """Convert bool columns to int before SimpleImputer (which doesn't support bool)."""
+
+    def __init__(self) -> None:
+        self.feature_names_in_: List[str] | None = None
+
+    def fit(self, X: Any, y: Any = None) -> "_BoolToIntTransformer":
+        if isinstance(X, pd.DataFrame):
+            self.feature_names_in_ = list(X.columns)
+        return self
+
+    def transform(self, X: Any) -> Any:
+        if isinstance(X, pd.DataFrame):
+            result = X.copy()
+            for col in result.columns:
+                if result[col].dtype == np.bool_:
+                    result[col] = result[col].astype(np.uint8)
+            return result
+        arr = np.asarray(X)
+        if arr.dtype == np.bool_:
+            return arr.astype(np.uint8)
+        return arr
+
+    def get_feature_names_out(self, input_features: Any = None) -> np.ndarray:
+        if input_features is not None:
+            return np.asarray(input_features)
+        if self.feature_names_in_ is not None:
+            return np.asarray(self.feature_names_in_)
+        raise ValueError("No feature names available")
+
+
+def _numeric_non_bool_selector(df: pd.DataFrame) -> List[str]:
+    """Select numeric columns excluding bool (for SimpleImputer compatibility)."""
+    return [
+        col
+        for col in df.columns
+        if pd.api.types.is_numeric_dtype(df[col]) and df[col].dtype != np.bool_
+    ]
+
+
+def _categorical_or_bool_selector(df: pd.DataFrame) -> List[str]:
+    """Select non-numeric or bool columns (bool must be cast before imputation)."""
+    return [
+        col
+        for col in df.columns
+        if not pd.api.types.is_numeric_dtype(df[col]) or df[col].dtype == np.bool_
+    ]
+
+
 def _build_preprocess(
     num_fill_value: float, *, handle_unknown: str = "ignore"
 ) -> ColumnTransformer:
-    numeric_selector = make_column_selector(dtype_include=np.number)  # type: ignore[arg-type]
-    categorical_selector = make_column_selector(dtype_exclude=np.number)  # type: ignore[arg-type]
+    # NOTE: SimpleImputer does not support bool dtype, so we must exclude bool
+    # columns from the numeric pipeline and route them to the categorical pipeline.
+    # SU8 regime tags (vol_regime_*, trend_regime_*) are bool and need this handling.
 
     numeric_pipeline = Pipeline(
         steps=[
@@ -417,8 +467,10 @@ def _build_preprocess(
     except TypeError:
         encoder = OneHotEncoder(sparse=False, **encoder_kwargs)  # type: ignore[call-arg]
 
+    # Use _BoolToIntTransformer to cast bool columns to uint8 before SimpleImputer
     categorical_pipeline = Pipeline(
         steps=[
+            ("bool_to_int", _BoolToIntTransformer()),
             ("imputer", SimpleImputer(strategy="most_frequent")),
             ("encoder", encoder),
         ]
@@ -426,8 +478,8 @@ def _build_preprocess(
 
     transformer = ColumnTransformer(
         transformers=[
-            ("num", numeric_pipeline, numeric_selector),
-            ("cat", categorical_pipeline, categorical_selector),
+            ("num", numeric_pipeline, _numeric_non_bool_selector),
+            ("cat", categorical_pipeline, _categorical_or_bool_selector),
         ],
         remainder="drop",
         verbose_feature_names_out=False,
@@ -1028,12 +1080,27 @@ def main(argv: Sequence[str] | None = None) -> int:
         model_feature_names = preprocess_step.get_feature_names_out()
         feature_manifest["model_feature_names"] = list(map(str, model_feature_names))
     except Exception:
-        transformed_sample = preprocess_step.transform(X_np.head(1))
-        sample_array = np.asarray(transformed_sample)
-        if sample_array.ndim >= 2:
-            feature_manifest["model_feature_count"] = int(sample_array.shape[1])
-        else:
-            feature_manifest["model_feature_count"] = int(sample_array.size)
+        # Fallback: run the full pipeline on a sample to get feature count
+        # (get_feature_names_out failed, likely due to custom transformers)
+        try:
+            # Use the augmented sample from CV to avoid column mismatch
+            sample_augmented = X_augmented_all.head(1)
+            # Run only the core pipeline (after augment) to get to preprocess
+            sample_through_imputers = sample_augmented.copy()
+            for step_name in ("m_imputer", "e_imputer", "i_imputer", "p_imputer", "s_imputer", "su8_augment"):
+                step = named_steps.get(step_name)
+                if step is not None:
+                    sample_through_imputers = step.transform(sample_through_imputers)
+            transformed_sample = preprocess_step.transform(sample_through_imputers)
+            sample_array = np.asarray(transformed_sample)
+            if sample_array.ndim >= 2:
+                feature_manifest["model_feature_count"] = int(sample_array.shape[1])
+            else:
+                feature_manifest["model_feature_count"] = int(sample_array.size)
+        except Exception as inner_exc:
+            # Last resort: just note that we couldn't determine feature count
+            feature_manifest["model_feature_count"] = "unknown"
+            feature_manifest["model_feature_count_error"] = str(inner_exc)
     imputer_metadata = _collect_imputer_metadata(final_pipeline)
     model_params_serialized = {
         k: _normalise_scalar(v) for k, v in model_step.get_params().items()
