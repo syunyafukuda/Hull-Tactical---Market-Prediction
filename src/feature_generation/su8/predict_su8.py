@@ -246,20 +246,49 @@ def _coerce_postprocess_params(mapping: Mapping[str, Any] | None) -> PostProcess
     return PostProcessParams(mult=mult_val, lo=lo_val, hi=hi_val)
 
 
-def _resolve_postprocess_params(meta: Mapping[str, Any]) -> PostProcessParams:
-    """Resolve post-process params in a conservative way for SU8.
+def _resolve_postprocess_params(
+    meta: Mapping[str, Any],
+    *,
+    use_oof_params: bool = False,
+    override_mult: float | None = None,
+    override_lo: float | None = None,
+    override_hi: float | None = None,
+) -> PostProcessParams:
+    """Resolve post-process params for SU8.
 
-        SU8 ラインでは保守的なパラメータに固定する。
-        - SU7 の反省から、OOF 上の最適パラメータをそのまま LB に
-            持ち込むことによるレジームミスマッチ / 過剰最適化を避ける。
-        - そのため、学習メタデータに保存された `oof_best_params` 等は
-            あくまでログ用途とし、推論時には使用しない。
-        - PoC 段階では (mult=1.0, lo=0.9, hi=1.1) の安全側レンジに固定し、
-            将来 SU8 を本採用する場合にのみポリシー拡張（例: "meta を参照
-            するが hi/lo を制限" など）を検討する。
+    Args:
+        meta: Model metadata from model_meta.json
+        use_oof_params: If True, use OOF best params from metadata
+        override_mult: Override multiplier value
+        override_lo: Override lower clip bound
+        override_hi: Override upper clip bound
+
+    Returns:
+        PostProcessParams with resolved values
     """
-    # 最も保守的な設定に固定（学習時の best_params は参照しない）
-    return PostProcessParams(mult=1.0, lo=0.9, hi=1.1)
+    # Start with conservative defaults
+    mult = 1.0
+    lo = 0.9
+    hi = 1.1
+
+    # If use_oof_params is True, try to load from metadata
+    if use_oof_params:
+        oof_params = meta.get("oof_best_params")
+        if isinstance(oof_params, Mapping):
+            parsed = _coerce_postprocess_params(oof_params)
+            if parsed is not None:
+                mult, lo, hi = parsed.mult, parsed.lo, parsed.hi
+                print(f"[info] using OOF best params: mult={mult}, lo={lo}, hi={hi}")
+
+    # Apply overrides
+    if override_mult is not None:
+        mult = override_mult
+    if override_lo is not None:
+        lo = override_lo
+    if override_hi is not None:
+        hi = override_hi
+
+    return PostProcessParams(mult=mult, lo=lo, hi=hi)
 
 
 def to_signal(pred: np.ndarray, params: PostProcessParams) -> np.ndarray:
@@ -421,6 +450,29 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Optional upper bound applied to predictions",
     )
+    parser.add_argument(
+        "--pp-mult",
+        type=float,
+        default=None,
+        help="Override post-process multiplier",
+    )
+    parser.add_argument(
+        "--pp-lo",
+        type=float,
+        default=None,
+        help="Override post-process lower clip bound",
+    )
+    parser.add_argument(
+        "--pp-hi",
+        type=float,
+        default=None,
+        help="Override post-process upper clip bound",
+    )
+    parser.add_argument(
+        "--use-oof-params",
+        action="store_true",
+        help="Use OOF best params from model_meta.json instead of conservative defaults",
+    )
     return parser.parse_args(list(argv) if argv is not None else None)
 
 
@@ -508,7 +560,11 @@ def main(argv: Iterable[str] | None = None) -> int:
     id_col = args.id_col or meta.get("id_col", "date_id")
     pred_col = args.pred_col
     postprocess_params = _resolve_postprocess_params(
-        meta if isinstance(meta, Mapping) else {}
+        meta if isinstance(meta, Mapping) else {},
+        use_oof_params=args.use_oof_params,
+        override_mult=args.pp_mult,
+        override_lo=args.pp_lo,
+        override_hi=args.pp_hi,
     )
     print(
         f"[info] post-process params: mult={postprocess_params.mult}, lo={postprocess_params.lo}, hi={postprocess_params.hi}"
