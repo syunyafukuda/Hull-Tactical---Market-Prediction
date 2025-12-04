@@ -530,6 +530,29 @@ su9:
     flag: uint8
     float: float32
 
+  # ========================================
+  # スイープ用グリッド設定
+  # ========================================
+  # 各フラグを True/False で切り替え、2^6 = 64通りの組み合わせを評価
+  # 使用方法:
+  #   uv run python src/feature_generation/su9/sweep_oof.py \
+  #     --data-dir data/raw \
+  #     --out-dir results/ablation/SU9 \
+  #     --n-splits 5 \
+  #     --include-dow-grid true false \
+  #     --include-dom-grid true false \
+  #     --include-month-grid true false \
+  #     --include-month-flags-grid true false \
+  #     --include-holiday-grid true false \
+  #     --include-year-position-grid true false
+  sweep:
+    include_dow: [true, false]
+    include_dom: [true, false]
+    include_month: [true, false]
+    include_month_flags: [true, false]
+    include_holiday: [true, false]
+    include_year_position: [true, false]
+
   metadata:
     artifacts_dir: artifacts/SU9
     depends_on: [SU1, SU5, GroupImputers]
