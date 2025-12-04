@@ -38,7 +38,7 @@ except Exception:
     HAS_LGBM = False
 
 from sklearn.base import BaseEstimator, TransformerMixin, clone
-from sklearn.compose import ColumnTransformer, make_column_selector
+from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import TimeSeriesSplit
