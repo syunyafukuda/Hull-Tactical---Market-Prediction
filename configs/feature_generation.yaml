@@ -345,6 +345,75 @@ su7:
     oof_rmse_case_d: 0.012045
     notes: "SU7 sweep (case_c/case_d) improved OOF RMSE vs SU1+SU5 baseline but caused severe Public LB degradation (0.476/0.469 vs 0.681). After re-training under numpy==1.26.4, regenerating artifacts, and disabling aggressive post-process, the LB remained poor. Concluded as structural overfitting / regime mismatch; SU7 is kept disabled and SU1+SU5 remains the production line."
 
+su8:
+  # SU8: ボラティリティ・レジーム特徴量
+  # 目的: 代表インデックスの局所ボラティリティとトレンドレジーム（低/中/高ボラ、上昇/下降/フラット）を特徴量化し、
+  #       市場モードをモデルに渡すこと。
+  # パイプライン位置: 生データ → SU1 → SU5 → GroupImputers → **SU8** → 前処理 → LGBM
+  #
+  # ✅ 実装: `src/feature_generation/su8/feature_su8.py`, `train_su8.py`, `predict_su8.py`
+  # ✅ OOF: SU5 ベースライン比でわずかに悪化 (RMSE 0.012139 → 0.012230)
+  # ✅ Kaggle Submit: LB 0.624（SU5: 0.681 から -0.057 ポイント劣化）
+  # 結論: SU8 は Public LB で明確に悪化したため **非採用**。本コンペでは SU1+SU5 ラインを継続採用する。
+  enabled: false
+  base_features: [su1, su5]
+  id_column: date_id
+  output_prefix: su8
+
+  # ========================================
+  # 代表インデックス列 (core_index_col)
+  # ========================================
+  # M/E/P グループのインデックス列のうち、ターゲットに対する FI（feature importance）が高い列から選定。
+  # 現在の設定: M3（SU7 の case_c/case_d スイープで FI 上位だった列）
+  core_index_col: "M3"
+  ret_base_col: "M3"
+
+  # ========================================
+  # パラメータ設定
+  # ========================================
+  ewm_short_halflife: 5
+  ewm_long_halflife: 20
+  eps: 1.0e-4
+  trend_ma_short_window: 5
+  trend_ma_long_window: 20
+  vol_quantiles: [0.33, 0.66]
+  trend_quantiles: [0.33, 0.66]
+  winsorize_ret_vol_adj_p: 0.99
+
+  # カテゴリカル列（レジーム系、OneHot 対象）
+  categorical_cols:
+    - vol_regime_low
+    - vol_regime_mid
+    - vol_regime_high
+    - trend_regime_up
+    - trend_regime_down
+    - trend_regime_flat
+
+  # データ型
+  dtype:
+    float: float32
+    bool: bool
+
+  # 生成される特徴量（11列）:
+  # - ewmstd_short, ewmstd_long, vol_ratio, vol_level
+  # - vol_regime_low/mid/high, trend_regime_up/down/flat
+  # - ret_vol_adj
+
+  metadata:
+    artifacts_dir: artifacts/SU8
+    depends_on: [SU1, SU5, GroupImputers]
+    expected_usage: "Volatility & regime features (ewmstd_short/long, vol_ratio, vol_level, regime tags, ret_vol_adj)"
+    numpy_version: 1.26.4
+    status: not_adopted
+    decision: not_used
+    decision_date: 2025-12-04
+    kaggle_lb_su5_baseline: 0.681
+    kaggle_lb_su8: 0.624
+    oof_rmse_su5_baseline: 0.012139
+    oof_rmse_su8: 0.012230
+    feature_count: 11
+    notes: "SU8 added volatility/regime features on top of SU1+SU5 and slightly worsened OOF RMSE (0.012230 vs 0.012139). The Kaggle Public LB dropped from 0.681 (SU5) to 0.624, so SU8 is kept disabled and archived as a non-adopted experiment."
+
 su4:
   # ❌ SU4削除決定 (2025-11-23)
   # 理由: 特徴重要度分析・Ablation Studyにより予測性能への寄与がほぼゼロと判明
@@ -426,3 +495,5 @@ su4:
     feature_importance_non_su4_total: 37198.00
     target_feature_count: ~151
     notes: "❌ 削除決定。補完トレース情報が予測に寄与しないことが判明。SU4なし（SU1+SU5+GroupImputers）を標準パイプラインとする。"
+
+    notes: "SU8 PoC: 固定構成 1 パターンのみで評価し、SU1+SU5 ベースラインとの比較を行う。将来スイープ時は sweep_budget_max_variants を上限とする想定。"

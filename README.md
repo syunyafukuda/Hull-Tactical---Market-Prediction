@@ -13,14 +13,15 @@ GitHub Codespaces を開発環境とし、パッケージ管理は **[uv](https:
 ├─ .devcontainer/                 # Codespaces 用開発コンテナ設定。
 ├─ src/                           # コアロジック（共通ユーティリティ + 前処理パイプライン）。
 │  ├─ hull_tactical/              # Notebook や提出ラインから再利用する共通ユーティリティ。
-│  ├─ feature_generation/         # 特徴量生成モジュール（SU1〜SU7）。
+│  ├─ feature_generation/         # 特徴量生成モジュール（SU1〜SU8）。
 │  │  ├─ su1/                     # SU1（欠損構造一次特徴） - **採用** (LB 0.674)
 │  │  ├─ su2/                     # SU2（二次欠損特徴スイープ） - **非採用** (LB 0.597, 過学習で却下)
 │  │  ├─ su3/                     # SU3（遷移・再出現・時間バイアス） - **非採用** (LB 0.461, コンセプト不適合)
 │  │  ├─ su4/                     # SU4（補完トレース） - **実装済みだが削除決定**（寄与ほぼゼロ）
 │  │  ├─ su5/                     # SU5（共欠損構造特徴） - **現行ベストライン** (LB 0.681)
 │  │  ├─ su6/                     # SU6（欠損軸PCA圧縮候補） - **保留中 / 未実装**
-│  │  └─ su7/                     # SU7（モメンタム・リバーサル特徴） - **非採用** (OOF改善もLB大幅悪化)
+│  │  ├─ su7/                     # SU7（モメンタム・リバーサル特徴） - **非採用** (OOF改善もLB大幅悪化)
+│  │  └─ su8/                     # SU8（ボラティリティ・レジーム特徴） - **非採用** (LB 0.624, OOF/LB両方で悪化)
 │  └─ preprocess/                 # 特徴量グループ別に欠損補完・学習・推論を実装。
 │      ├─ E_group/                # E 系特徴量向けパイプライン（train/predict/sweep）。
 │      ├─ I_group/                # I 系特徴量向けパイプライン。
@@ -376,6 +377,7 @@ data:
 | **SU5 (Policy1)**    | **0.681**         | 567 (94+368+105) | 0.012139 | **✅ 採用（現行ベスト）** |
 | SU1                  | 0.674             | 462 (94+368)     | 0.012120 | ベースライン（採用） |
 | SU7 (case_c/case_d)  | 0.476 / 0.469     | +SU7 96〜144列   | ≈0.01205 | ❌ 非採用（OOF改善も LB 大幅悪化） |
+| SU8                  | 0.624             | 567+11 (SU5+SU8) | 0.012230 | ❌ 非採用（OOFでもLBでも悪化） |
 | SU2                  | 0.597             | 1397 (94+368+935)| 0.012230 | ❌ 非採用（過学習） |
 | SU3                  | 0.461             | 444 (368+76)     | 0.011418 | ❌ 非採用（コンセプト不適合） |
 | Preprocessing P (mice) | 0.625           | -                | -        | 採用 |
@@ -387,9 +389,11 @@ data:
 - **現在のベストスコア**: SU5 Policy1 (LB 0.681) - SU1 から +0.007 改善。
 - SU7 は OOF RMSE では SU1+SU5 より改善しているものの、Public LB では 0.47 台まで大きく悪化したため、
   広義の過学習 / レジームミスマッチと判断し **非採用** としています。
+- SU8 は OOF の時点で SU5 ベースラインより悪化しており、Public LB でも 0.681 → 0.624 と
+  明確に劣化したため **非採用** としています。ボラティリティ/レジーム軸の特徴は本コンペでは有効でありませんでした。
 
 より詳細なスコア推移や判断理由は `docs/submissions.md` と
-各 SU の仕様書（例: `docs/feature_generation/SU7.md`）を参照してください。
+各 SU の仕様書（例: `docs/feature_generation/SU7.md`, `docs/feature_generation/SU8.md`）を参照してください。
 
 ---
 
@@ -403,6 +407,33 @@ data:
 - Artifacts: `artifacts/SU5/policy1_top10_w5/`
 
 詳細: `docs/submissions.md`
+
+---
+
+### SU8 Implementation (2025-12-04) ❌ 非採用
+
+**目的**: ボラティリティ・レジーム特徴（ewmstd, vol_ratio, vol_level, vol/trend regime tags, ret_vol_adj）を付加し、市場モードをモデルに渡す。
+
+**パイプライン位置**: 生データ → SU1 → SU5 → GroupImputers → **SU8** → 前処理 → LGBM
+
+- LB Score: **0.624** (SU5ベースライン0.681から **-0.057ポイント悪化**)
+- 特徴量: 11列
+  - ボラティリティ指標 (4列): `ewmstd_short`, `ewmstd_long`, `vol_ratio`, `vol_level`
+  - ボラレジームタグ (3列): `vol_regime_low`, `vol_regime_mid`, `vol_regime_high`
+  - トレンドレジームタグ (3列): `trend_regime_down`, `trend_regime_flat`, `trend_regime_up`
+  - ボラ調整リターン (1列): `ret_vol_adj`
+- OOF RMSE: 0.012230 (SU5: 0.012139から+0.00009悪化)
+- Artifacts: `artifacts/SU8/`
+- 実装: `src/feature_generation/su8/` (feature_su8.py, train_su8.py, predict_su8.py)
+
+**非採用理由**:
+- OOFの時点でSU5ベースラインよりわずかに悪化していた
+- Public LBでも明確に悪化（0.681 → 0.624）
+- ボラティリティ/レジーム軸の特徴がPublic評価期間で有効でなかった
+
+**コンフィグ**: `configs/feature_generation.yaml` の `su8.enabled: false` に設定済み。コード・アーティファクトは将来の別レジーム検証用に保持。
+
+詳細: `docs/feature_generation/SU8.md`, `docs/submissions.md`
 
 ---
 

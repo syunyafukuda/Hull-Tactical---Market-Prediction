@@ -428,3 +428,59 @@ Public LB では 0.47 台まで崩れることから、最も説明力が高い�
    - SU1+SU5 ラインは LB 0.681 と安定しており、追加のモメンタム軸での攻めが必ずしも必要ではない。
    - 不確実な改善よりも、安定したベースラインを維持することを優先する判断も重要。
 
+
+## 2025-12-04 su8 (Submission Unit 8) - **非採用（効果なし / LB悪化）**
+
+- Branch: `feat/su8`
+- Kaggle Notebook: Private（Dataset: feature-generation-su8, notebooks/submit/su8.ipynb）
+- LB score (Public):
+  - **SU1+SU5 baseline**: 0.681
+  - **su8_line**: **0.624**
+- Decision: **非採用 / not_adopted**（SU1+SU5 ラインを継続採用）
+
+### 概要
+
+SU8 は「ボラティリティ・レジーム特徴（ewmstd_short/long, vol_ratio, vol_level, ボラ/トレンドレジームタグ, ret_vol_adj）」を、
+SU1+SU5+GroupImputers 後の特徴行列に対して付加する Submission Unit として設計した。
+
+- 実装: `src/feature_generation/su8/feature_su8.py`, `train_su8.py`, `predict_su8.py`
+- パイプライン: 生データ → SU1 → SU5 → GroupImputers → **SU8** → 前処理 → LGBM
+- OOF 結果（SU5 baseline との比較）:
+  - SU1+SU5 baseline: OOF RMSE ≈ **0.012139**
+  - SU8 追加ライン: OOF RMSE ≈ **0.012230**（≒ +0.00009 悪化）
+
+OOF の時点でわずかに悪化していたものの、ボラティリティ軸の情報が Public 期間で効く可能性を確認するため、
+SU8 付きラインを Kaggle に submit した。
+
+### Kaggle 実行と post-process
+
+- Kaggle Notebook 内では `inference_bundle.pkl`, `model_meta.json`, `feature_list.json` を Private Dataset からロード。
+- ライブラリバージョンは numpy 1.26.4, scikit-learn 1.7.2（Wheel 同梱）に揃え、ローカルと互換を確保。
+- post-process は `model_meta.json` の `oof_best_params`（`mult=1.5, lo=0.8, hi=1.1`）を使用する実装と、
+  保守版の `mult=1.0, lo=0.9, hi=1.1` 実装の両方を検証。
+  最終的な SU8 ラインの submit では、OOF 最適パラメータ（`mult=1.5, lo=0.8, hi=1.1`）を採用した。
+
+ローカル側の `predict_su8.py` も CLI 引数経由で post-process パラメータを上書きできるようにし、
+
+```bash
+uv run python src/feature_generation/su8/predict_su8.py --use-oof-params
+```
+
+とすることで Kaggle と同じ `mult=1.5, lo=0.8, hi=1.1` ラインの `submission.csv` を再現可能にしている。
+
+### Public LB 結果
+
+- SU1+SU5 baseline（SU8 なし）: **0.681**
+- SU8 ライン（SU1+SU5+SU8）: **0.624**
+
+OOF ではもともとわずかに悪化しており、Public LB でも 0.681 → 0.624 と 0.057 ポイントの明確な劣化となった。
+ボラティリティ・レジーム特徴が train+OOF 期間・Public 評価期間のいずれでも優位性を示さなかったため、
+SU8 は本コンペでは **非採用** と判断した。
+
+### 結論と今後の扱い
+
+- `configs/feature_generation.yaml` の `su8.enabled` を `false` に設定し、`status: not_adopted` としてアーカイブ扱いとする。
+- 本番ラインは引き続き **SU1+SU5（LB 0.681）** を採用し、SU8 はコード・アーティファクトともに「将来別レジーム用の参考実装」として残す。
+- ボラティリティ/レジーム軸の特徴は、今回の Hull Tactical コンペの公開評価期間に対しては有効でなかったが、
+  別の市場環境や評価期間では再検証の余地があるため、実装は削除せずに保守最小限で維持する。
+
