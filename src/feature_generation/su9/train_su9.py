@@ -430,12 +430,18 @@ class _BoolToIntTransformer(BaseEstimator, TransformerMixin):
         raise ValueError("No feature names available")
 
 
+# Columns to exclude from model features (used for SU9 but not for prediction)
+_EXCLUDE_FROM_MODEL = {"date_id"}
+
+
 def _numeric_non_bool_selector(df: pd.DataFrame) -> List[str]:
     """Select numeric columns excluding bool (for SimpleImputer compatibility)."""
     return [
         col
         for col in df.columns
-        if pd.api.types.is_numeric_dtype(df[col]) and df[col].dtype != np.bool_
+        if pd.api.types.is_numeric_dtype(df[col])
+        and df[col].dtype != np.bool_
+        and col not in _EXCLUDE_FROM_MODEL
     ]
 
 
@@ -444,7 +450,8 @@ def _categorical_or_bool_selector(df: pd.DataFrame) -> List[str]:
     return [
         col
         for col in df.columns
-        if not pd.api.types.is_numeric_dtype(df[col]) or df[col].dtype == np.bool_
+        if (not pd.api.types.is_numeric_dtype(df[col]) or df[col].dtype == np.bool_)
+        and col not in _EXCLUDE_FROM_MODEL
     ]
 
 
@@ -712,17 +719,31 @@ def _prepare_features(
     target_col: str,
     id_col: str,
     exclude_lagged: bool = True,
+    keep_date_id: bool = True,
 ) -> tuple[pd.DataFrame, pd.Series, List[str]]:
-    """Prepare feature matrices for training and testing."""
+    """Prepare feature matrices for training and testing.
+    
+    Args:
+        train_df: Training DataFrame
+        test_df: Test DataFrame
+        target_col: Target column name
+        id_col: ID column name
+        exclude_lagged: Whether to exclude lagged columns
+        keep_date_id: Whether to keep date_id for SU9 processing
+    """
     drop_cols = {
         target_col,
-        id_col,
-        "date_id",
         "forward_returns",
         "risk_free_rate",
         "market_forward_excess_returns",
         "is_scored",
     }
+    # id_col should be dropped unless it's date_id and keep_date_id is True
+    if id_col != "date_id" or not keep_date_id:
+        drop_cols.add(id_col)
+    # date_id is needed for SU9, so only drop it if explicitly requested
+    if not keep_date_id:
+        drop_cols.add("date_id")
 
     y_series = cast(pd.Series, train_df[target_col])
     y = y_series.astype(float)
