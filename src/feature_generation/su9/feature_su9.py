@@ -480,7 +480,7 @@ class SU9FeatureGenerator(BaseEstimator, TransformerMixin):
         """期待される列数を返す。
 
         Returns:
-            生成される特徴列数（全機能有効時は33）
+            生成される特徴列数（全機能有効時は32）
         """
         count = 0
         if self.config.include_dow:
