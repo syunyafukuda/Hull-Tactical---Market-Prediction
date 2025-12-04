@@ -130,12 +130,12 @@ def build_param_grid(args: argparse.Namespace) -> List[Dict[str, bool]]:
         include_year_position_values,
     ):
         config = {
-            "include_dow": bool(dow),
-            "include_dom": bool(dom),
-            "include_month": bool(month),
-            "include_month_flags": bool(month_flags),
-            "include_holiday": bool(holiday),
-            "include_year_position": bool(year_pos),
+            "include_dow": dow,
+            "include_dom": dom,
+            "include_month": month,
+            "include_month_flags": month_flags,
+            "include_holiday": holiday,
+            "include_year_position": year_pos,
         }
         # Skip all-False configuration if requested
         if args.skip_all_false and not any(config.values()):
@@ -467,7 +467,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     if valid_results:
         best_rmse = min(valid_results, key=lambda r: r["oof_rmse"])
         print("\n[best by RMSE] configuration:")
-        flags = ", ".join(f"{k}={v}" for k in ["include_dow", "include_dom", "include_month", "include_month_flags", "include_holiday", "include_year_position"] for v in [best_rmse[k]])
         print(f"  include_dow={best_rmse['include_dow']}, include_dom={best_rmse['include_dom']}, include_month={best_rmse['include_month']}")
         print(f"  include_month_flags={best_rmse['include_month_flags']}, include_holiday={best_rmse['include_holiday']}, include_year_position={best_rmse['include_year_position']}")
         print(f"  oof_rmse={best_rmse['oof_rmse']:.6f}, oof_msr={best_rmse['oof_msr']:.6f}")

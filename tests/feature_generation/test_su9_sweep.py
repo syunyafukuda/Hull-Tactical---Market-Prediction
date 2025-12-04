@@ -1,4 +1,4 @@
-"""SU9 sweep_oof スクリプトの単体テスト。"""
+"""Unit tests for SU9 sweep_oof script."""
 
 from __future__ import annotations
 
