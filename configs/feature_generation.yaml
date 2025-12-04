@@ -360,6 +360,45 @@ su8:
   id_column: date_id
   output_prefix: su8
 
+  # ========================================
+  # 代表インデックス列 (core_index_col)
+  # ========================================
+  # M/E/P グループのインデックス列のうち、ターゲットに対する FI（feature importance）が高い列から選定。
+  # 現在の設定: M3（SU7 の case_c/case_d スイープで FI 上位だった列）
+  core_index_col: "M3"
+  ret_base_col: "M3"
+
+  # ========================================
+  # パラメータ設定
+  # ========================================
+  ewm_short_halflife: 5
+  ewm_long_halflife: 20
+  eps: 1.0e-4
+  trend_ma_short_window: 5
+  trend_ma_long_window: 20
+  vol_quantiles: [0.33, 0.66]
+  trend_quantiles: [0.33, 0.66]
+  winsorize_ret_vol_adj_p: 0.99
+
+  # カテゴリカル列（レジーム系、OneHot 対象）
+  categorical_cols:
+    - vol_regime_low
+    - vol_regime_mid
+    - vol_regime_high
+    - trend_regime_up
+    - trend_regime_down
+    - trend_regime_flat
+
+  # データ型
+  dtype:
+    float: float32
+    bool: bool
+
+  # 生成される特徴量（11列）:
+  # - ewmstd_short, ewmstd_long, vol_ratio, vol_level
+  # - vol_regime_low/mid/high, trend_regime_up/down/flat
+  # - ret_vol_adj
+
   metadata:
     artifacts_dir: artifacts/SU8
     depends_on: [SU1, SU5, GroupImputers]
@@ -372,7 +411,7 @@ su8:
     kaggle_lb_su8: 0.624
     oof_rmse_su5_baseline: 0.012139
     oof_rmse_su8: 0.012230
-    feature_count: 94
+    feature_count: 11
     notes: "SU8 added volatility/regime features on top of SU1+SU5 and slightly worsened OOF RMSE (0.012230 vs 0.012139). The Kaggle Public LB dropped from 0.681 (SU5) to 0.624, so SU8 is kept disabled and archived as a non-adopted experiment."
 
 su4:
@@ -457,100 +496,4 @@ su4:
     target_feature_count: ~151
     notes: "❌ 削除決定。補完トレース情報が予測に寄与しないことが判明。SU4なし（SU1+SU5+GroupImputers）を標準パイプラインとする。"
 
-su8:
-  # ========================================
-  # SU8: ボラティリティ・レジーム特徴量
-  # ========================================
-  # 目的: 局所ボラティリティとマーケットレジーム（低/中/高ボラ、トレンド/レンジなど）を特徴量化
-  # 軸: SU7 のモメンタム軸と補完的な「ボラ・レジーム軸」の SU
-  # パイプライン位置: SU1 → SU5 → GroupImputers → **SU8** → 前処理 → LGBM
-  #
-  # ⚠️ 初期は enabled: false で実装し、OOF 評価後に採用判断する。
-  enabled: false
-  base_features: [su1, su5]
-  id_column: date_id
-  output_prefix: su8
-
-  # ========================================
-  # 代表インデックス列 (core_index_col)
-  # ========================================
-  # M/E/P グループのインデックス列のうち、ターゲットに対する FI（feature importance）が高い列から選定する。
-  # 
-  # 選定手順:
-  #   1. MSR-proxy の per-feature FI (artifacts/MSR-proxy/feature_importances_per_feature.csv) を参照
-  #   2. M/E/P グループの列から gain ベースの FI 上位を確認
-  #   3. 安定性・解釈性を考慮して代表列を決定
-  # 
-  # 現在の設定: M3
-  #   - SU7 の case_c/case_d スイープで FI 上位だった列
-  #   - 市場インデックス系の値動きを代表すると想定
-  #   - SU8 PoC では FI が安定して高いことを根拠に採用している
-  #
-  # 注意: 異なるデータセットでは、別の列がより適切な可能性があります。
-  #       実際のデータで FI を確認し、必要に応じて変更してください。
-  core_index_col: "M3"
-
-  # ターゲット近傍リターン列（ret_vol_adj 計算用）
-  # core_index_col と同じ列を使用するか、ターゲットに最も相関の高いリターン列を指定。
-  # ret_vol_adj = ret / (1 + ewmstd_short) として計算される。
-  ret_base_col: "M3"
-
-  # ========================================
-  # パラメータ設定
-  # ========================================
-  # EWMA 半減期（短期/長期）
-  ewm_short_halflife: 5
-  ewm_long_halflife: 20
-
-  # 数値安定性用の epsilon
-  eps: 1.0e-4
-
-  # トレンド MA 窓サイズ（短期/長期）
-  trend_ma_short_window: 5
-  trend_ma_long_window: 20
-
-  # quantile 閾値（vol_regime / trend_regime の分類用）
-  vol_quantiles: [0.33, 0.66]
-  trend_quantiles: [0.33, 0.66]
-
-  # ret_vol_adj の winsorize パーセンタイル
-  winsorize_ret_vol_adj_p: 0.99
-
-  # カテゴリカル列（レジーム系、OneHot 対象）
-  categorical_cols:
-    - vol_regime_low
-    - vol_regime_mid
-    - vol_regime_high
-    - trend_regime_up
-    - trend_regime_down
-    - trend_regime_flat
-
-  # データ型
-  dtype:
-    float: float32
-    bool: bool
-
-  # ========================================
-  # 生成される特徴量
-  # ========================================
-  # - ewmstd_short: EWMA 標準偏差（短期）
-  # - ewmstd_long: EWMA 標準偏差（長期）
-  # - vol_ratio: ewmstd_short / (ewmstd_long + eps)
-  # - vol_level: ewmstd_long
-  # - vol_regime_low/mid/high: ボラレジームタグ（bool）
-  # - trend_regime_up/down/flat: トレンドレジームタグ（bool）
-  # - ret_vol_adj: ボラ調整リターン
-  # 合計: 11 列
-
-  metadata:
-    artifacts_dir: artifacts/SU8
-    depends_on: [SU1, SU5, GroupImputers]
-    expected_usage: "Volatility regime features (EWMA vol, vol regime tags, trend regime tags, vol-adjusted return)"
-    numpy_version: 1.26.4
-    status: development
-    decision: pending
-    expected_feature_count: 11
-    # SU8 PoC 用メタ情報（将来のスイープ/本採用を見据えたフィールド）
-    core_index_rationale: "MSR-proxy の FI で M/E/P 系インデックスの中で上位だったため M3 を代表列として採用"
-    sweep_budget_max_variants: 4  # 仕様上の想定: vol_quantiles×trend_quantiles などで最大 4 パターン程度まで
     notes: "SU8 PoC: 固定構成 1 パターンのみで評価し、SU1+SU5 ベースラインとの比較を行う。将来スイープ時は sweep_budget_max_variants を上限とする想定。"
