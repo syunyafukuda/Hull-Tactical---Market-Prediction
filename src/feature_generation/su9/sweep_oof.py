@@ -261,8 +261,11 @@ def run_single_config(
         fit_kwargs: Dict[str, Any] = {}
         if callbacks:
             fit_kwargs["model__callbacks"] = callbacks
-            fit_kwargs["model__eval_set"] = [(X_valid, y_valid)]
             fit_kwargs["model__eval_metric"] = "rmse"
+            # NOTE: eval_set is not passed here because the validation data would
+            # need to go through the same preprocessing pipeline transform as
+            # training data, but sklearn Pipeline only transforms training data.
+            # This matches train_su9.py behavior.
 
         pipe.fit(X_train, y_train, **fit_kwargs)
         pred = pipe.predict(X_valid)
