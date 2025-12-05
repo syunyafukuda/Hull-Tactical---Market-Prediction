@@ -49,7 +49,7 @@ from scripts.utils_msr import (  # noqa: E402
 )
 from src.feature_generation.su1.feature_su1 import SU1Config, load_su1_config  # noqa: E402
 from src.feature_generation.su5.feature_su5 import SU5Config, load_su5_config  # noqa: E402
-from src.feature_generation.su9.feature_su9 import SU9Config, SU9FeatureAugmenter  # noqa: E402
+from src.feature_generation.su9.feature_su9 import SU9Config  # noqa: E402
 from src.feature_generation.su9.train_su9 import (  # noqa: E402
     SU9FullFeatureAugmenter,
     _initialise_callbacks,
@@ -255,7 +255,7 @@ def run_single_config(
         X_train = X_augmented_all.iloc[train_idx]
         y_train = y_np.iloc[train_idx]
         X_valid = X_augmented_all.iloc[val_idx]
-        y_valid = y_np.iloc[val_idx]
+        # y_valid is not needed here as we use pipe.predict(X_valid) only
 
         pipe = cast(Pipeline, clone(core_pipeline_template))
         fit_kwargs: Dict[str, Any] = {}
