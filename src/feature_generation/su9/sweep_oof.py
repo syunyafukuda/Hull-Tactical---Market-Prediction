@@ -394,13 +394,24 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # Build parameter grid
     param_grid = build_param_grid(args)
-    print(f"[info] evaluating {len(param_grid)} parameter configurations")
+    total_configs = len(param_grid)
+    print(f"[info] evaluating {total_configs} parameter configurations")
+    print(f"[info] estimated time: {total_configs * 2.5:.0f}〜{total_configs * 3.5:.0f} minutes")
 
     # Run sweep
     all_results: List[Dict[str, Any]] = []
+    sweep_start_time = time.time()
     for idx, config_params in enumerate(param_grid, start=1):
-        flags_summary = ", ".join(f"{k}={v}" for k, v in config_params.items())
-        print(f"\n[sweep {idx}/{len(param_grid)}] {flags_summary}")
+        flags_summary = ", ".join(f"{k.replace('include_', '')}={v}" for k, v in config_params.items())
+        elapsed = time.time() - sweep_start_time
+        if idx > 1:
+            avg_time_per_config = elapsed / (idx - 1)
+            remaining = avg_time_per_config * (total_configs - idx + 1)
+            eta_str = f"ETA: {remaining / 60:.1f}min"
+        else:
+            eta_str = "ETA: calculating..."
+        print(f"\n[sweep {idx}/{total_configs}] ({100 * idx / total_configs:.1f}%) {eta_str}")
+        print(f"  config: {flags_summary}")
         try:
             result = run_single_config(
                 config_params,
@@ -425,6 +436,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  [error] {exc}")
             import traceback
             traceback.print_exc()
+
+    total_elapsed = time.time() - sweep_start_time
+    print(f"\n[info] sweep completed in {total_elapsed / 60:.1f} minutes ({len(all_results)}/{total_configs} successful)")
 
     if not all_results:
         print("[error] no successful configurations")
