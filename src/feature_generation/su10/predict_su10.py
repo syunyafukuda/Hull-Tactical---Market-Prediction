@@ -16,7 +16,7 @@ import sys
 import hashlib
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, Sequence
 
 import joblib
 import numpy as np
@@ -49,7 +49,7 @@ def _ensure_numpy_bitgenerator_aliases() -> None:
         "MT19937",
     )
 
-    registries: list[dict[str, Any]] = []
+    registries: List[Dict[str, Any]] = []
     try:
         import numpy.random._pickle as _np_random_pickle  # type: ignore
     except Exception:
@@ -72,7 +72,7 @@ def _ensure_numpy_bitgenerator_aliases() -> None:
                 registries.append(registry)
 
     seen: set[int] = set()
-    unique_registries: list[dict[str, Any]] = []
+    unique_registries: List[Dict[str, Any]] = []
     for registry in registries:
         registry_id = id(registry)
         if registry_id not in seen:
@@ -85,7 +85,7 @@ def _ensure_numpy_bitgenerator_aliases() -> None:
 
     if not unique_registries:
         try:
-            import numpy.random._pickle as _np_random_pickle  # type: ignore[attr-defined]
+            import numpy.random._pickle as _np_random_pickle  # type: ignore
         except Exception:
             return
         registry = getattr(_np_random_pickle, "BitGenerators", None)

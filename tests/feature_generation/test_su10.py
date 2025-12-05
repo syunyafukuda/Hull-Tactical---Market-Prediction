@@ -196,7 +196,7 @@ def test_su10_no_future_leakage() -> None:
     # ただし、EWM の warm-up の関係で完全一致はしない可能性がある
     # 少なくとも大きな差異がないことを確認
 
-    # vol_quantiles_ の差が小さいことを確認（相対誤差 10% 以内）
+    # vol_quantiles_ の差が小さいことを確認（相対誤差 50% 以内）
     if gen1.vol_quantiles_ is not None and gen2.vol_quantiles_ is not None:
         for i in range(2):
             diff = abs(gen1.vol_quantiles_[i] - gen2.vol_quantiles_[i])
