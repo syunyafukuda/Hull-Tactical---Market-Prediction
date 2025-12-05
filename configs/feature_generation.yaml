@@ -497,3 +497,76 @@ su4:
     notes: "❌ 削除決定。補完トレース情報が予測に寄与しないことが判明。SU4なし（SU1+SU5+GroupImputers）を標準パイプラインとする。"
 
     notes: "SU8 PoC: 固定構成 1 パターンのみで評価し、SU1+SU5 ベースラインとの比較を行う。将来スイープ時は sweep_budget_max_variants を上限とする想定。"
+
+su9:
+  # ========================================
+  # SU9: カレンダー・季節性特徴量
+  # ========================================
+  # 目的: 決定可能な日付情報（曜日・月・祝日など）を特徴量化し、時間構造軸の情報をモデルに渡す
+  # パイプライン位置: 生データ → SU1 → SU5 → GroupImputers → **SU9** → 前処理 → LGBM
+  #
+  # リーク防止:
+  #   - すべて「将来も確定している決定可能な日付情報」のみを使用
+  #   - 未来情報は一切含まない
+  #   - train/testで同一のカレンダーテーブルから派生
+  enabled: false  # LB悪化のため非採用 (2025-12-05)
+  base_features: [su1, su5]
+  id_column: date_id
+  output_prefix: su9
+
+  # 特徴量ON/OFF
+  # スイープ最良設定 (OOF RMSE=0.012041, SU5ベースライン0.012088から0.388%改善)
+  # month + holiday のみが最も効果的と判明
+  include_dow: false          # 曜日 one-hot (7列) - 悪化させるため無効
+  include_dom: false          # 月内位置ビン (3列) - 悪化させるため無効
+  include_month: true         # 月 one-hot (12列) - 有効
+  include_month_flags: false  # 月末・期末フラグ (4列) - 効果なし
+  include_holiday: true       # 祝日・ブリッジ (4列) - 有効
+  include_year_position: false  # 年内ポジション (2列) - 悪化させるため無効
+
+  # 祝日カレンダー（未指定の場合は祝日関連特徴が全て0）
+  holiday_calendar_path: null
+
+  # データ型
+  dtype:
+    flag: uint8
+    float: float32
+
+  # ========================================
+  # スイープ用グリッド設定
+  # ========================================
+  # 各フラグを True/False で切り替え、2^6 = 64通りの組み合わせを評価
+  # 使用方法:
+  #   uv run python src/feature_generation/su9/sweep_oof.py \
+  #     --data-dir data/raw \
+  #     --out-dir results/ablation/SU9 \
+  #     --n-splits 5 \
+  #     --include-dow-grid true false \
+  #     --include-dom-grid true false \
+  #     --include-month-grid true false \
+  #     --include-month-flags-grid true false \
+  #     --include-holiday-grid true false \
+  #     --include-year-position-grid true false
+  sweep:
+    include_dow: [true, false]
+    include_dom: [true, false]
+    include_month: [true, false]
+    include_month_flags: [true, false]
+    include_holiday: [true, false]
+    include_year_position: [true, false]
+
+  metadata:
+    artifacts_dir: artifacts/SU9
+    depends_on: [SU1, SU5, GroupImputers]
+    expected_usage: "Calendar/seasonality features (month one-hot, holiday flags)"
+    numpy_version: 1.26.4
+    status: not_adopted
+    decision: rejected
+    expected_feature_count: 16
+    oof_rmse: 0.012041
+    baseline_rmse: 0.012088
+    improvement_pct: 0.388
+    kaggle_lb_su5_baseline: 0.681
+    kaggle_lb_su9: 0.679
+    sweep_date: "2025-12-05"
+    notes: "スイープでmonth+holiday構成がOOF最良（RMSE 0.012041）だったが、LB=0.679とベースライン0.681より悪化。OOF改善がLB改善に繋がらず、過学習パターンと判断して非採用。"

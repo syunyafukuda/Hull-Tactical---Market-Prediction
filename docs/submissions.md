@@ -481,6 +481,83 @@ SU8 は本コンペでは **非採用** と判断した。
 
 - `configs/feature_generation.yaml` の `su8.enabled` を `false` に設定し、`status: not_adopted` としてアーカイブ扱いとする。
 - 本番ラインは引き続き **SU1+SU5（LB 0.681）** を採用し、SU8 はコード・アーティファクトともに「将来別レジーム用の参考実装」として残す。
-- ボラティリティ/レジーム軸の特徴は、今回の Hull Tactical コンペの公開評価期間に対しては有効でなかったが、
+  - ボラティリティ/レジーム軸の特徴は、今回の Hull Tactical コンペの公開評価期間に対しては有効でなかったが、
   別の市場環境や評価期間では再検証の余地があるため、実装は削除せずに保守最小限で維持する。
 
+
+## 2025-12-05 su9 (Submission Unit 9) - **非採用（OOF改善 / LB悪化）**
+
+- Branch: `feat/su9`
+- Kaggle Notebook: Private（Dataset: feature-generation-su9）
+- LB score (Public):
+  - **SU1+SU5 baseline**: 0.681
+  - **su9_line (month+holiday)**: **0.679**
+- Decision: **非採用 / not_adopted**（SU1+SU5 ラインを継続採用）
+
+### 概要
+
+SU9 は「カレンダー・季節性特徴（曜日one-hot, 月one-hot, 祝日フラグ, 月末/期末フラグ, 年内ポジション）」を、
+SU1+SU5+GroupImputers 後の特徴行列に対して付加する Submission Unit として設計した。
+
+- 実装: `src/feature_generation/su9/feature_su9.py`, `train_su9.py`, `predict_su9.py`, `sweep_oof.py`
+- パイプライン: 生データ → SU1 → SU5 → GroupImputers → **SU9** → 前処理 → LGBM
+- スイープ設定: 6つの特徴グループフラグ（dow/dom/month/month_flags/holiday/year_position）を grid search
+- スイープ規模: 63パターン（全false除外）、約173分
+
+### スイープ結果
+
+| 構成 | 列数 | OOF RMSE | 備考 |
+|------|------|----------|------|
+| 全て有効 | 32 | 0.012131 | 悪化 |
+| month + holiday のみ | 16 | **0.012041** | ベスト |
+| baseline (SU5) | 0 | 0.012088 | 比較基準 |
+
+**ベスト構成**: `include_month=True, include_holiday=True`（他は全て False）
+- OOF RMSE: 0.012041（baseline 0.012088 から **0.39%改善**）
+- 特徴量: 月one-hot 12列 + 祝日フラグ 4列 = 16列
+
+### Kaggle LB 結果
+
+| ライン | LB score | 差分 |
+|--------|----------|------|
+| SU1+SU5 baseline | 0.681 | - |
+| SU9 (month+holiday) | **0.679** | **-0.002 悪化** |
+
+**OOF改善がLB改善に繋がらなかった**。
+
+### 原因分析
+
+1. **過学習パターン**
+   - OOFでは0.39%改善したが、LBでは0.002ポイント悪化
+   - カレンダー特徴（特に月one-hot 12列）が訓練期間の局所パターンを学習した可能性
+
+2. **SU7/SU8との類似性**
+   - SU7 (モメンタム): OOF改善 → LB 0.476（大幅悪化）
+   - SU8 (ボラティリティ): OOF悪化 → LB 0.624（悪化）
+   - SU9 (カレンダー): OOF改善 → LB 0.679（微悪化）
+   - いずれもベースラインより悪化するパターン
+
+3. **カレンダー特徴の限界**
+   - 「決定可能な情報」でも過学習は起こりうる
+   - 月ごとのアノマリーが訓練期間固有のものだった可能性
+
+### 技術的詳細
+
+- 環境統一: `numpy==1.26.4`, `scikit-learn==1.7.2`
+- アーティファクト: `artifacts/SU9/best/`（inference_bundle.pkl, model_meta.json, submission.csv）
+- 設定: `configs/feature_generation.yaml` の `su9.enabled=false`
+
+### 最終判断
+
+**SU9は非採用**。理由:
+- LBスコアがベースラインより悪化（0.681 → 0.679）
+- OOF改善はCV分割内でのみ有効だった
+- カレンダー特徴は本コンペでは有効でない
+
+現行ベストラインは引き続き **SU1+SU5 (LB 0.681)** を維持する。
+
+### 学んだ教訓
+
+1. **OOF改善 ≠ LB改善**: SU7/SU8/SU9 すべてでこのパターンが確認された
+2. **カレンダー特徴でも過学習は起こりうる**: 「決定可能な情報」の安全神話は崩れた
+3. **ベースラインの安定性を優先**: 追加特徴による複雑化は必ずしも改善に繋がらない
