@@ -509,18 +509,20 @@ su9:
   #   - すべて「将来も確定している決定可能な日付情報」のみを使用
   #   - 未来情報は一切含まない
   #   - train/testで同一のカレンダーテーブルから派生
-  enabled: false  # 初期はfalse、OOF評価後に判断
+  enabled: false  # LB悪化のため非採用 (2025-12-05)
   base_features: [su1, su5]
   id_column: date_id
   output_prefix: su9
 
   # 特徴量ON/OFF
-  include_dow: true          # 曜日 one-hot (7列)
-  include_dom: true          # 月内位置ビン (3列)
-  include_month: true        # 月 one-hot (12列)
-  include_month_flags: true  # 月末・期末フラグ (4列)
-  include_holiday: true      # 祝日・ブリッジ (4列)
-  include_year_position: true  # 年内ポジション (2列)
+  # スイープ最良設定 (OOF RMSE=0.012041, SU5ベースライン0.012088から0.388%改善)
+  # month + holiday のみが最も効果的と判明
+  include_dow: false          # 曜日 one-hot (7列) - 悪化させるため無効
+  include_dom: false          # 月内位置ビン (3列) - 悪化させるため無効
+  include_month: true         # 月 one-hot (12列) - 有効
+  include_month_flags: false  # 月末・期末フラグ (4列) - 効果なし
+  include_holiday: true       # 祝日・ブリッジ (4列) - 有効
+  include_year_position: false  # 年内ポジション (2列) - 悪化させるため無効
 
   # 祝日カレンダー（未指定の場合は祝日関連特徴が全て0）
   holiday_calendar_path: null
@@ -556,9 +558,15 @@ su9:
   metadata:
     artifacts_dir: artifacts/SU9
     depends_on: [SU1, SU5, GroupImputers]
-    expected_usage: "Calendar/seasonality features (dow, dom, month, holiday, year position)"
+    expected_usage: "Calendar/seasonality features (month one-hot, holiday flags)"
     numpy_version: 1.26.4
-    status: development
-    decision: pending
-    expected_feature_count: 32
-    notes: "SU9は決定可能な日付情報のみを使用するため、リークリスクがなく汎用性が高い。SU7/SU8（価格由来）のようなレジームミスマッチリスクが低い。"
+    status: not_adopted
+    decision: rejected
+    expected_feature_count: 16
+    oof_rmse: 0.012041
+    baseline_rmse: 0.012088
+    improvement_pct: 0.388
+    kaggle_lb_su5_baseline: 0.681
+    kaggle_lb_su9: 0.679
+    sweep_date: "2025-12-05"
+    notes: "スイープでmonth+holiday構成がOOF最良（RMSE 0.012041）だったが、LB=0.679とベースライン0.681より悪化。OOF改善がLB改善に繋がらず、過学習パターンと判断して非採用。"
