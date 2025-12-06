@@ -5,24 +5,60 @@
 戦略単位（SU1-SU11）のフェーズ完了後、特徴量選定フェーズに移行。
 約 577 列の特徴量から、**Sharpe に寄与しない／揺らぎが大きい特徴を系統立てて削る・圧縮する**ことが目的。
 
-## 現状ベースライン
+## 現状ベースライン（Tier0）
 
 | 項目 | 値 |
 |------|-----|
 | ベストライン | SU1 + SU5 + Brushup (生特徴 + 前処理 + LGBM) |
-| 特徴量数 | 577 列 |
+| 特徴量数 | 577 列（94 input + 366 SU1 + 108 SU5 + 9 other） |
 | OOF RMSE | 0.012134 |
+| OOF MSR | 0.019929 |
 | LB Score | 0.681 |
 | ブランチ | `dev` |
+| アーティファクト | `artifacts/tier0/` |
+
+---
+
+## パイプライン構造と選定位置
+
+全フェーズの特徴量選定は、以下のパイプライン内の同じ位置で適用される。
+
+```
+生データ (94列)
+    ↓
+[SU1 特徴量生成] → 366列追加
+    ↓
+[SU5 特徴量生成] → 108列追加
+    ↓
+合計 568列
+    ↓
+[★ 特徴量選定（除外処理）] ← Phase 1-3 の除外リストをここで適用
+    ↓
+[前処理 (ColumnTransformer)]
+  - Imputer
+  - Scaler
+  - OneHotEncoder
+    ↓
+[LightGBM]
+```
+
+### 選定の判定と除外のタイミング
+
+| 処理 | タイミング | 説明 |
+|------|-----------|------|
+| **判定** | 前処理後の値で分析 | Imputer/Scaler 適用後の値で分散・欠損・相関を評価 |
+| **除外** | SU5 適用後・前処理前 | 除外リストに基づき DataFrame から列を drop |
+
+この方式により、全フェーズ（Phase 1〜3）で生成された除外リストを統一的に適用できる。
 
 ---
 
 ## フェーズ構成
 
 ```
-Phase 0: Tier0 固定（ベースライン凍結）
+Phase 0: Tier0 固定（ベースライン凍結）        ✅ 完了
     ↓
-Phase 1: フィルタベースの雑草抜き（統計的除去）
+Phase 1: フィルタベースの雑草抜き（統計的除去）  🔜 次のステップ
     ↓
 Phase 2: モデルベース重要度（LGBM importance → Permutation）
     ↓
@@ -35,7 +71,7 @@ Phase 5: 最終評価とアーティファクト整理
 
 ---
 
-## Phase 0: Tier0 固定（ベースライン凍結）
+## Phase 0: Tier0 固定（ベースライン凍結）✅ 完了
 
 ### 目的
 - 以降の「削る・圧縮する」判断が、Sharpe 向きの指標と整合するようにする
@@ -43,27 +79,41 @@ Phase 5: 最終評価とアーティファクト整理
 
 ### タスク
 
-- [ ] **T0-1**: 現行ベストライン（生＋SU1＋SU5＋前処理＋LGBM）を「Tier0」として固定
+- [x] **T0-1**: 現行ベストライン（生＋SU1＋SU5＋前処理＋LGBM）を「Tier0」として固定
   - config snapshot: `configs/tier0_snapshot/`
   - 特徴量リスト: `artifacts/tier0/feature_list.json`
   - 学習済みパイプライン: `artifacts/tier0/inference_bundle.pkl`
+  - モデルメタ情報: `artifacts/tier0/model_meta.json`
 
-- [ ] **T0-2**: 評価軸を CV に統一
+- [x] **T0-2**: 評価軸を CV に統一
   - Primary: RMSE ― 予測精度の直接評価、モデル・特徴量セットの採用判断は基本こちらに従う
   - Secondary: MSR (Mean-Sharpe-Ratio) ― リターン予測の実用性評価、補助指標
   - 評価関数: `scripts/utils_msr.py` の既存実装を使用
 
-- [ ] **T0-3**: ベースライン評価スクリプト作成
+- [x] **T0-3**: ベースライン評価スクリプト作成
   - `src/feature_selection/evaluate_baseline.py`
   - fold 毎の importance 出力機能を含む
 
 ### 成果物
-- `artifacts/tier0/` ディレクトリ
-- `configs/tier0_snapshot/` ディレクトリ
+
+| ファイル | 説明 |
+|----------|------|
+| `configs/tier0_snapshot/feature_generation.yaml` | 特徴量生成設定 |
+| `configs/tier0_snapshot/preprocess.yaml` | 前処理設定 |
+| `artifacts/tier0/feature_list.json` | 特徴量リスト（568列） |
+| `artifacts/tier0/model_meta.json` | モデルパラメータ・評価結果 |
+| `artifacts/tier0/inference_bundle.pkl` | 学習済みパイプライン |
+| `results/feature_selection/tier0_evaluation.json` | OOF 評価結果 |
+| `results/feature_selection/tier0_importance.csv` | fold毎の importance |
+| `results/feature_selection/tier0_importance_summary.csv` | importance 集計 |
+| `results/feature_selection/tier0_fold_logs.csv` | fold毎の RMSE/MSR |
+
+### 仕様書
+- `docs/feature_selection/phase0_spec.md`
 
 ---
 
-## Phase 1: フィルタベースの雑草抜き
+## Phase 1: フィルタベースの雑草抜き 🔜 次のステップ
 
 ### 目的
 - 統計的に明らかに不要な列を機械的に落とす
@@ -94,6 +144,9 @@ Phase 5: 最終評価とアーティファクト整理
 ### 判定基準
 - Sharpe 同等以上 → 削除採用
 - Sharpe 微減でも列数大幅減 → 採用検討
+
+### 仕様書
+- `docs/feature_selection/phase1_spec.md`
 
 ---
 
