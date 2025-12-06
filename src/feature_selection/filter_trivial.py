@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Sequence
 
 import numpy as np
 import pandas as pd
+from sklearn.pipeline import Pipeline
 
 # Add paths for imports
 THIS_DIR = Path(__file__).resolve().parent
@@ -279,6 +280,9 @@ def find_high_correlation_features(
                 processed_pairs.add(pair_key)
                 
                 # Determine which feature to drop
+                # Use -1.0 as sentinel value for missing importance to ensure
+                # features without importance data are treated equally and fall
+                # back to alphabetical ordering
                 imp_i = importance_lookup.get(str(feature_i), -1.0)
                 imp_j = importance_lookup.get(str(feature_j), -1.0)
                 
@@ -395,11 +399,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     
     # Fit the pipeline (excluding augmenter which is already applied)
     # Get the preprocessing steps only
-    from sklearn.pipeline import Pipeline as SkPipeline
     preprocess_steps = [step for name, step in full_pipeline.steps if name != 'augmenter' and name != 'model']
     
     if preprocess_steps:
-        preprocess_pipeline = SkPipeline([(f"step_{i}", step) for i, step in enumerate(preprocess_steps)])
+        preprocess_pipeline = Pipeline([(f"step_{i}", step) for i, step in enumerate(preprocess_steps)])
         print("[info] Fitting and transforming preprocessing pipeline...")
         X_preprocessed = preprocess_pipeline.fit_transform(X_augmented, y)
         
