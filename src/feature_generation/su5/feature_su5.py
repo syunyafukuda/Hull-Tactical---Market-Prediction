@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import yaml
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.cluster import KMeans
 
 
 def _infer_group(column_name: str) -> str | None:
@@ -177,7 +178,6 @@ class SU5FeatureGenerator(BaseEstimator, TransformerMixin):
 
 		# 5. brushup: k-means fit (if enabled)
 		if self.config.brushup_enabled:
-			from sklearn.cluster import KMeans
 			miss_matrix = X[[col for col in self.m_columns_]].values
 			self.kmeans_model_ = KMeans(
 				n_clusters=self.config.brushup_n_clusters,
@@ -477,7 +477,9 @@ class SU5FeatureGenerator(BaseEstimator, TransformerMixin):
 				base_col = col[2:]
 				degree_col = f"co_miss_deg/{base_col}"
 				if degree_col in existing_features:
-					degree_values[base_col] = existing_features[degree_col][0]  # constant value
+					# co_miss_deg values are constant across all rows (static graph property)
+					# so we can extract from first element
+					degree_values[base_col] = existing_features[degree_col][0]
 			
 			# Calculate deg sum and mean for missing columns in each row
 			deg_sum = np.zeros(n, dtype=self.config.dtype_float)

@@ -394,7 +394,8 @@ class SU1FeatureGenerator(BaseEstimator, TransformerMixin):
 			window=self.config.brushup_miss_count_window, 
 			min_periods=self.config.brushup_miss_count_window
 		).sum()
-		# Fill NaN with 0 before converting to int16
+		# Fill NaN with 0 for early periods where window is insufficient
+		# This avoids casting errors and treats incomplete windows as 0 missing
 		miss_count_last_5d = miss_count_last_5d.fillna(0)
 		brushup_data["miss_count_last_5d"] = miss_count_last_5d.astype(self.config.run_dtype)
 		
