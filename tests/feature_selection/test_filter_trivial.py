@@ -16,12 +16,12 @@ SRC_ROOT = PROJECT_ROOT / "src"
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(SRC_ROOT))
 
-from src.feature_selection.filter_trivial import (
+from src.feature_selection.filter_trivial import (  # noqa: E402
     find_low_variance_features,
     find_high_missing_features,
     find_high_correlation_features,
 )
-from src.feature_selection.evaluate_baseline import _load_exclude_features
+from src.feature_selection.evaluate_baseline import _load_exclude_features  # noqa: E402
 
 
 class TestFilterTrivial:

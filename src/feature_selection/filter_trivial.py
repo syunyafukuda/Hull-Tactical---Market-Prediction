@@ -30,7 +30,7 @@ for path in (SRC_ROOT, PROJECT_ROOT):
     if str(path) not in sys.path:
         sys.path.append(str(path))
 
-from src.feature_generation.su5.train_su5 import (
+from src.feature_generation.su5.train_su5 import (  # noqa: E402
     build_pipeline,
     load_su1_config,
     load_su5_config,

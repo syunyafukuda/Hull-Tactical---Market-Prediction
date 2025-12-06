@@ -43,7 +43,7 @@ for path in (SRC_ROOT, PROJECT_ROOT):
         sys.path.append(str(path))
 
 # Import from train_su5.py
-from src.feature_generation.su5.train_su5 import (
+from src.feature_generation.su5.train_su5 import (  # noqa: E402
     build_pipeline,
     load_su1_config,
     load_su5_config,
@@ -56,7 +56,7 @@ from src.feature_generation.su5.train_su5 import (
 )
 
 # Import MSR utilities
-from scripts.utils_msr import evaluate_msr_proxy, grid_search_msr, PostProcessParams
+from scripts.utils_msr import evaluate_msr_proxy, grid_search_msr  # noqa: E402
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
