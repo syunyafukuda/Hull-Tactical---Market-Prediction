@@ -23,11 +23,9 @@ import pandas as pd
 
 try:
     from lightgbm import LGBMRegressor
-    import lightgbm as lgb
     HAS_LGBM = True
 except Exception:
     LGBMRegressor = None
-    lgb = None
     HAS_LGBM = False
 
 from sklearn.base import clone
@@ -174,7 +172,17 @@ def compute_fold_importance(
     
     # Get importances
     importance_gain = model.feature_importances_  # default is 'gain'
-    importance_split = model.booster_.feature_importance(importance_type='split')
+    
+    # Get split importance - check if booster_ attribute exists (LightGBM specific)
+    try:
+        if hasattr(model, "booster_"):
+            importance_split = model.booster_.feature_importance(importance_type='split')
+        else:
+            # Fallback: use gain importance for split as well
+            importance_split = importance_gain.copy()
+    except Exception as e:
+        print(f"[warn][fold {fold_idx}] Could not get split importance: {e}")
+        importance_split = importance_gain.copy()
     
     # Ensure same length
     n_features = len(feature_names)
@@ -316,6 +324,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     
     if not HAS_LGBM:
         print("[error] LightGBM is required but not installed.")
+        print("[error] Please install with: pip install lightgbm")
         return 1
     
     # Setup paths
@@ -477,7 +486,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             preprocess_step = pipe.named_steps.get("preprocess")
             if preprocess_step is not None:
                 try:
-                    feature_names = list(preprocess_step.get_feature_names_out())
+                    # Try to get feature names using get_feature_names_out()
+                    if hasattr(preprocess_step, "get_feature_names_out"):
+                        feature_names = list(preprocess_step.get_feature_names_out())
+                    else:
+                        # Fallback: use generic names
+                        n_features = len(model_step.feature_importances_)
+                        feature_names = [f"feature_{i}" for i in range(n_features)]
                 except Exception:
                     # Fallback: use generic names
                     n_features = len(model_step.feature_importances_)
