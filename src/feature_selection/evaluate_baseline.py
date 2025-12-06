@@ -20,6 +20,8 @@ from typing import Any, Dict, Iterable, List, Sequence, cast
 
 import numpy as np
 import pandas as pd
+import joblib
+from datetime import datetime, timezone
 
 try:
     from lightgbm import LGBMRegressor
@@ -97,6 +99,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         type=str,
         default="results/feature_selection",
         help="Output directory for results",
+    )
+    ap.add_argument(
+        "--artifacts-dir",
+        type=str,
+        default="artifacts/tier0",
+        help="Directory for tier0 artifacts (inference_bundle.pkl, feature_list.json, model_meta.json)",
     )
     ap.add_argument(
         "--target-col",
@@ -554,6 +562,127 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"[ok] saved importance summary: {summary_path}")
     else:
         print("[warn] No importance data collected.")
+    
+    # =========================================
+    # Tier0 artifacts output
+    # =========================================
+    artifacts_dir = Path(args.artifacts_dir)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    
+    print("[info] Training final model on full dataset for inference bundle...")
+    
+    # Get feature names from augmenter
+    augmented_feature_names = list(X_augmented_all.columns)
+    
+    # Separate pipeline input columns (original) from generated columns
+    original_cols = list(X_np.columns)
+    su1_cols = [c for c in augmented_feature_names if c not in original_cols and "/" in c and not c.startswith("co_miss")]
+    su5_cols = [c for c in augmented_feature_names if c.startswith("co_miss")]
+    
+    # Build and fit final pipeline on all data
+    final_pipeline = cast(Pipeline, clone(core_pipeline_template))
+    final_pipeline.fit(X_augmented_all, y_np)
+    
+    # Get model feature names after preprocessing
+    model_step = final_pipeline.named_steps.get("model")
+    preprocess_step = final_pipeline.named_steps.get("preprocess")
+    model_feature_names = []
+    if preprocess_step is not None and hasattr(preprocess_step, "get_feature_names_out"):
+        try:
+            model_feature_names = list(preprocess_step.get_feature_names_out())
+        except Exception:
+            pass
+    
+    # Create inference bundle that includes augmenter
+    inference_bundle = {
+        "augmenter": su5_prefit,
+        "pipeline": final_pipeline,
+        "feature_names": augmented_feature_names,
+        "model_feature_names": model_feature_names,
+    }
+    
+    # Save inference bundle
+    bundle_path = artifacts_dir / "inference_bundle.pkl"
+    joblib.dump(inference_bundle, bundle_path)
+    print(f"[ok] saved inference bundle: {bundle_path}")
+    
+    # Get current commit hash
+    try:
+        import subprocess
+        commit_hash = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(PROJECT_ROOT),
+            text=True
+        ).strip()
+        branch_name = subprocess.check_output(
+            ["git", "branch", "--show-current"],
+            cwd=str(PROJECT_ROOT),
+            text=True
+        ).strip()
+    except Exception:
+        commit_hash = "unknown"
+        branch_name = "unknown"
+    
+    # Update feature_list.json
+    feature_list = {
+        "version": "tier0-v1",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "pipeline_input_columns": original_cols,
+        "su1_generated_columns": su1_cols,
+        "su5_generated_columns": su5_cols,
+        "model_input_columns": model_feature_names if model_feature_names else augmented_feature_names,
+        "total_feature_count": len(augmented_feature_names),
+        "source_commit": commit_hash,
+        "source_branch": branch_name,
+    }
+    
+    feature_list_path = artifacts_dir / "feature_list.json"
+    with feature_list_path.open("w", encoding="utf-8") as fh:
+        json.dump(feature_list, fh, indent=2, ensure_ascii=False)
+    print(f"[ok] saved feature list: {feature_list_path}")
+    print(f"[info] Pipeline input: {len(original_cols)} cols, SU1: {len(su1_cols)} cols, SU5: {len(su5_cols)} cols")
+    
+    # Update model_meta.json
+    model_meta = {
+        "version": "tier0-v1",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "evaluation_settings": {
+            "cv_strategy": "TimeSeriesSplit",
+            "n_splits": args.n_splits,
+            "gap": args.gap,
+            "primary_metric": "RMSE",
+            "secondary_metric": "MSR",
+        },
+        "model_params": {
+            "learning_rate": args.learning_rate,
+            "n_estimators": args.n_estimators,
+            "num_leaves": args.num_leaves,
+            "min_data_in_leaf": args.min_data_in_leaf,
+            "feature_fraction": args.feature_fraction,
+            "bagging_fraction": args.bagging_fraction,
+            "bagging_freq": args.bagging_freq,
+            "random_state": args.random_state,
+        },
+        "metrics": {
+            "oof_rmse": oof_results["oof_rmse"],
+            "oof_msr": oof_results["oof_msr"],
+            "oof_msr_down": oof_results["oof_msr_down"],
+            "oof_coverage": oof_results["oof_coverage"],
+        },
+        "post_process_params": {
+            "best_mult": oof_results.get("oof_best_mult"),
+            "best_lo": oof_results.get("oof_best_lo"),
+            "best_hi": oof_results.get("oof_best_hi"),
+        },
+        "source_commit": commit_hash,
+        "source_branch": branch_name,
+        "inference_bundle": str(bundle_path),
+    }
+    
+    model_meta_path = artifacts_dir / "model_meta.json"
+    with model_meta_path.open("w", encoding="utf-8") as fh:
+        json.dump(model_meta, fh, indent=2, ensure_ascii=False)
+    print(f"[ok] saved model meta: {model_meta_path}")
     
     print("[ok] Baseline evaluation complete.")
     return 0
