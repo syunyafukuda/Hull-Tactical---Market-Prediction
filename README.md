@@ -415,33 +415,6 @@ data:
 
 ---
 
-### SU8 Implementation (2025-12-04) ❌ 非採用
-
-**目的**: ボラティリティ・レジーム特徴（ewmstd, vol_ratio, vol_level, vol/trend regime tags, ret_vol_adj）を付加し、市場モードをモデルに渡す。
-
-**パイプライン位置**: 生データ → SU1 → SU5 → GroupImputers → **SU8** → 前処理 → LGBM
-
-- LB Score: **0.624** (SU5ベースライン0.681から **-0.057ポイント悪化**)
-- 特徴量: 11列
-  - ボラティリティ指標 (4列): `ewmstd_short`, `ewmstd_long`, `vol_ratio`, `vol_level`
-  - ボラレジームタグ (3列): `vol_regime_low`, `vol_regime_mid`, `vol_regime_high`
-  - トレンドレジームタグ (3列): `trend_regime_down`, `trend_regime_flat`, `trend_regime_up`
-  - ボラ調整リターン (1列): `ret_vol_adj`
-- OOF RMSE: 0.012230 (SU5: 0.012139から+0.00009悪化)
-- Artifacts: `artifacts/SU8/`
-- 実装: `src/feature_generation/su8/` (feature_su8.py, train_su8.py, predict_su8.py)
-
-**非採用理由**:
-- OOFの時点でSU5ベースラインよりわずかに悪化していた
-- Public LBでも明確に悪化（0.681 → 0.624）
-- ボラティリティ/レジーム軸の特徴がPublic評価期間で有効でなかった
-
-**コンフィグ**: `configs/feature_generation.yaml` の `su8.enabled: false` に設定済み。コード・アーティファクトは将来の別レジーム検証用に保持。
-
-詳細: `docs/feature_generation/SU8.md`, `docs/submissions.md`
-
----
-
 ## テスト方針（Submitラインを増やす場合）
 
 結論: 各Submitラインで `scripts/<experiment>/` を増やしてOK。ただしテストは「共通インターフェース」を対象に統一します。
