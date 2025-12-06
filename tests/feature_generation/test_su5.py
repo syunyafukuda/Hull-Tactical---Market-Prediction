@@ -144,6 +144,12 @@ def test_su5_single_co_miss_pair() -> None:
         dtype_flag=np.dtype("uint8"),
         dtype_int=np.dtype("int16"),
         dtype_float=np.dtype("float32"),
+        brushup_enabled=False,
+        brushup_n_clusters=6,
+        brushup_random_state=42,
+        brushup_include_density=False,
+        brushup_include_deg_stats=False,
+        brushup_include_centrality=False,
     )
 
     # M1 と M2 のみが同じパターンで欠損
@@ -218,6 +224,12 @@ def test_su5_output_shape() -> None:
         dtype_flag=np.dtype("uint8"),
         dtype_int=np.dtype("int16"),
         dtype_float=np.dtype("float32"),
+        brushup_enabled=False,
+        brushup_n_clusters=6,
+        brushup_random_state=42,
+        brushup_include_density=False,
+        brushup_include_deg_stats=False,
+        brushup_include_centrality=False,
     )
 
     su1_features = pd.DataFrame(

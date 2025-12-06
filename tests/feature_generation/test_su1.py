@@ -157,9 +157,9 @@ def test_su1_brushup_miss_count_last_5d(tmp_path: Path) -> None:
 	assert "miss_count_last_5d" in features.columns
 	assert "miss_ratio_last_5d" in features.columns
 
-	# First 4 rows should be NaN (min_periods=5)
-	assert pd.isna(features.loc[0, "miss_count_last_5d"])
-	assert pd.isna(features.loc[3, "miss_count_last_5d"])
+	# First 4 rows should be 0 (filled from NaN)
+	assert features.loc[0, "miss_count_last_5d"] == 0
+	assert features.loc[3, "miss_count_last_5d"] == 0
 
 	# Row 4: sum of missings in rows 0-4 = 2+1+0+0+0 = 3
 	assert features.loc[4, "miss_count_last_5d"] == 3
