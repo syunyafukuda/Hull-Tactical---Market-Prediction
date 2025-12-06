@@ -570,3 +570,67 @@ su9:
     kaggle_lb_su9: 0.679
     sweep_date: "2025-12-05"
     notes: "スイープでmonth+holiday構成がOOF最良（RMSE 0.012041）だったが、LB=0.679とベースライン0.681より悪化。OOF改善がLB改善に繋がらず、過学習パターンと判断して非採用。"
+
+su10:
+  # ❌ SU10 非採用 (2025-12-06決定)
+  # 理由: LB 0.597 (ベースラインSU5の0.681から-12.3%大幅悪化)
+  # OOF RMSE: 0.01227 (ベースライン0.01214から+1.1%悪化)
+  # 原因: 外部レジームデータの時間的ミスマッチ、過学習の兆候
+  # 結論: SU5をベースラインとして継続採用
+  enabled: false
+  base_features: [su1, su5]
+  id_column: date_id
+  output_prefix: su10
+
+  # 外部データソース: S&P 500 / SPY historical data
+  external_data:
+    source_url: "https://www.kaggle.com/datasets/ambrosm/s-and-p-historical-data-for-hull-tactical-competition/"
+    file: "data/su10/su10_external_regime.csv"
+    date_id_range: [780, 8989]  # date_id 0-779 はデータなし
+    rows: 8210
+    columns: 15  # date_id + 14 features
+
+  # 特徴量（14列）
+  features:
+    - su10_spx_ewmstd_20d       # 短期ボラ (EWMA 20日)
+    - su10_spx_ewmstd_60d       # 長期ボラ (EWMA 60日)
+    - su10_spx_vol_ratio        # 短期/長期ボラ比
+    - su10_spx_vol_level        # 標準化ボラ水準
+    - su10_spx_vol_regime_low   # ボラレジーム low (one-hot)
+    - su10_spx_vol_regime_mid   # ボラレジーム mid (one-hot)
+    - su10_spx_vol_regime_high  # ボラレジーム high (one-hot)
+    - su10_spx_trend_indicator  # トレンド指標 (MA短期-長期)
+    - su10_spx_trend_regime_down  # トレンドレジーム down (one-hot)
+    - su10_spx_trend_regime_flat  # トレンドレジーム flat (one-hot)
+    - su10_spx_trend_regime_up    # トレンドレジーム up (one-hot)
+    - su10_spx_ret_5d           # 5日リターン
+    - su10_spx_ret_20d          # 20日リターン
+    - su10_spx_ret_vol_adj_5d   # ボラ調整済み5日リターン
+
+  dtype:
+    flag: uint8
+    float: float32
+
+  metadata:
+    artifacts_dir: artifacts/SU10
+    depends_on: [SU1, SU5, GroupImputers]
+    expected_usage: "External regime features from S&P 500 / SPY data"
+    numpy_version: 1.26.4
+    status: not_adopted
+    decision: rejected
+    expected_feature_count: 14
+    oof_rmse: 0.01227
+    baseline_rmse: 0.01214  # SU5 baseline
+    oof_change_pct: 1.1  # +1.1% worse
+    kaggle_lb_su5_baseline: 0.681
+    kaggle_lb_su10: 0.597
+    lb_change_pct: -12.3  # -12.3% worse
+    evaluation_date: "2025-12-06"
+    notes: |
+      ❌ 非採用。LB 0.597（ベースライン0.681から-12.3%大幅悪化）。
+      OOF RMSE 0.01227（+1.1%悪化）と LB の乖離が大きく、過学習の兆候。
+      外部レジームデータ（SPY）の時間的整合性に問題がある可能性:
+        - Look-ahead bias: date_id マッピング時の将来情報混入
+        - 期間ズレ: Kaggle隠しテストが date_id 8990以降の場合、SU10特徴はNaN
+        - レジーム変化: 学習期間のパターンが推論期間で通用しない
+      SU5（LB 0.681）を引き続きベストラインとして維持。

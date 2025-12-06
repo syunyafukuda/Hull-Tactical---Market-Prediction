@@ -561,3 +561,63 @@ SU1+SU5+GroupImputers 後の特徴行列に対して付加する Submission Unit
 1. **OOF改善 ≠ LB改善**: SU7/SU8/SU9 すべてでこのパターンが確認された
 2. **カレンダー特徴でも過学習は起こりうる**: 「決定可能な情報」の安全神話は崩れた
 3. **ベースラインの安定性を優先**: 追加特徴による複雑化は必ずしも改善に繋がらない
+
+
+## 2025-12-06 SU10 (External Regime Dataset: SPY)
+
+- Commit: feat/SU10 ブランチ
+- Submit line: SU10 (SU1+SU5+外部レジーム)
+- Kaggle Notebook: Private (Dataset: feature-generation-su10-hulltactical)
+- **LB score: 0.597** ❌
+- Decision: **非採用**
+
+### 概要
+
+外部データソース（S&P 500 / SPY historical data）からボラティリティ・トレンドレジーム特徴を生成し、SU1+SU5 に追加する試み。
+
+- データソース: [S and P historical data for Hull Tactical competition](https://www.kaggle.com/datasets/ambrosm/s-and-p-historical-data-for-hull-tactical-competition/)
+- 外部特徴量: 14列（ボラ指標4列、ボラレジーム3列、トレンド指標1列、トレンドレジーム3列、リターン系3列）
+- date_id 範囲: 780〜8989（date_id 0-779 はデータなし）
+
+### 結果
+
+| 指標 | SU5 (ベースライン) | SU10 | 変化 |
+|------|---------------------|------|------|
+| **LB score** | 0.681 | 0.597 | **-12.3%** ❌ |
+| OOF RMSE | 0.01214 | 0.01227 | +1.1% |
+
+### 問題分析
+
+1. **OOF と LB の乖離が大きい**
+   - OOF では +1.1% の軽微な悪化
+   - LB では **-12.3%** の大幅悪化
+   - → 過学習の兆候、または外部データの時間的ミスマッチ
+
+2. **外部レジームデータの問題点**
+   - **Look-ahead bias**: SPY の過去データを date_id にマッピングする際、将来情報が混入した可能性
+   - **時系列のズレ**: Kaggle の隠しテスト期間と外部データの期間がズレている可能性
+   - **レジーム変化**: 学習期間のレジームパターンが推論期間で通用しない
+   - **date_id 範囲制約**: 外部データは date_id 780-8989 のみ、隠しテストが 8990 以降なら NaN
+
+### 技術的詳細
+
+- 実装: `src/feature_generation/su10/feature_su10.py`, `train_su10.py`, `predict_su10.py`
+- テスト: 14件全てパス
+- アーティファクト: `artifacts/SU10/` (inference_bundle.pkl, model_meta.json, submission.csv)
+- 外部データ: `data/su10/su10_external_regime.csv` (8,210行, 15列)
+
+### 最終判断
+
+**SU10は非採用**。理由:
+- LBスコアが大幅悪化（0.681 → 0.597, -12.3%）
+- OOF と LB の乖離 → 汎化性能に問題
+- 外部データの時間的整合性に懸念
+- リスク・リターンが見合わない
+
+現行ベストラインは引き続き **SU1+SU5 (LB 0.681)** を維持する。
+
+### 学んだ教訓
+
+1. **外部データは諸刃の剣**: 追加情報源でもデータの時間的整合性が重要
+2. **OOF と LB の乖離が大きい場合は危険信号**: SU10 は OOF +1.1% 悪化に対し LB -12.3% 悪化
+3. **SU7/SU8/SU9/SU10 すべて LB 悪化**: ベースライン (SU1+SU5) が最適解である可能性が高い
