@@ -634,3 +634,68 @@ su10:
         - 期間ズレ: Kaggle隠しテストが date_id 8990以降の場合、SU10特徴はNaN
         - レジーム変化: 学習期間のパターンが推論期間で通用しない
       SU5（LB 0.681）を引き続きベストラインとして維持。
+
+su11:
+  # ❌ SU11 非採用 (2025-12-06決定)
+  # 理由: LB 0.464 (ベースラインSU5の0.681から-31.9%大幅悪化)
+  # OOF RMSE: 0.010997 (ベースライン0.012139から-9.4%改善だが、LBでは逆効果)
+  # 原因: Level-2 Ridgeが予測を97%縮小し、ベッティングシグナルを消失
+  # 結論: 単一モデルstackingは本コンペでは無効、SU5をベストラインとして継続
+  enabled: false
+  mode: stacking
+  level1_artifacts_dir: artifacts/SU5
+  level2_model_type: ridge  # "ridge" | "lgbm" | "identity"
+  use_extra_features: false
+  extra_feature_names: []
+  n_splits: 5
+  random_state: 42
+
+  # Level-2 モデルパラメータ
+  level2_params:
+    ridge:
+      alpha: 0.001  # 1.0 → 0.001 に調整したが根本的な改善なし
+    lgbm:
+      n_estimators: 50
+      max_depth: 3
+      learning_rate: 0.05
+      reg_alpha: 1.0
+      reg_lambda: 1.0
+
+  metadata:
+    artifacts_dir: artifacts/SU11
+    depends_on: [SU1, SU5, GroupImputers]
+    expected_usage: "Meta-model using Level-1 predictions as features (stacking)"
+    numpy_version: 1.26.4
+    status: not_adopted
+    decision: rejected
+    kaggle_lb: 0.464
+    baseline_lb: 0.681
+    lb_change_pct: -31.9  # -31.9% worse
+    oof_rmse: 0.010997
+    baseline_oof_rmse: 0.012139
+    oof_change_pct: -9.4  # -9.4% improved (but misleading)
+    ridge_coef: 0.0137
+    prediction_shrinkage_pct: 97.3  # 予測分散の縮小率
+    signal_range_baseline: [0.97, 1.06]
+    signal_range_su11: [0.9997, 1.0006]
+    betting_range_ratio: 0.0275  # SU11 / SU5
+    evaluation_date: "2025-12-06"
+    notes: |
+      ❌ 非採用。LB 0.464（ベースライン0.681から-31.9%大幅悪化）。
+      OOF RMSE は -9.4% 改善したが、Level-2 Ridge が予測を 97% 縮小。
+      Ridge coef = 0.0137 により、Level-1 予測が極端に縮小され、
+      ベッティングシグナルがほぼ消失（signal range: 0.9997〜1.0006）。
+      
+      技術的詳細:
+        - SU5 予測 std: 0.00531 → SU11 予測 std: 0.000146 (97.3% 縮小)
+        - SU5 シグナル range: [0.97, 1.06] → SU11: [0.9997, 1.0006]
+        - alpha を 1.0 → 0.001 → 0.00001 と調整したが、coef は 0.078 に収束
+        - identity モードは SU5 と同等（改善なし）
+      
+      根本的な問題:
+        - 単一 Level-1 入力での Ridge stacking は、予測を平均値に縮小
+        - これは RMSE を最小化するが、ベッティングシグナルを失う
+        - LB の評価関数は RMSE ではなく収益性関連指標と推測
+      
+      真の改善には複数の多様な Level-1 モデルのアンサンブルが必要。
+      SU1+SU5（LB 0.681）を引き続きベストラインとして維持。

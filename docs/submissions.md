@@ -621,3 +621,87 @@ SU1+SU5+GroupImputers 後の特徴行列に対して付加する Submission Unit
 1. **外部データは諸刃の剣**: 追加情報源でもデータの時間的整合性が重要
 2. **OOF と LB の乖離が大きい場合は危険信号**: SU10 は OOF +1.1% 悪化に対し LB -12.3% 悪化
 3. **SU7/SU8/SU9/SU10 すべて LB 悪化**: ベースライン (SU1+SU5) が最適解である可能性が高い
+
+
+## 2025-12-06 SU11 (Level-2 Stacking: Ridge on SU5 predictions) - **非採用❌**
+
+- Branch: `dev`
+- Submit line: SU11 (Level-2 Stacking)
+- Kaggle Notebook: Private (Dataset: su11-stacking-hulltactical, notebooks/submit/su11.ipynb)
+- **LB score: 0.464** ❌
+- Decision: **非採用**
+
+### 概要
+
+Level-1 モデル（SU5）の OOF/test 予測値を入力とし、Level-2 Ridge 回帰で最終予測を行う 2 段階スタッキング。
+
+- Level-1: SU1+SU5+GroupImputers+StandardScaler+LGBMRegressor（既存 SU5 ライン）
+- Level-2: Ridge Regression（alpha=1.0 → 0.001 に調整も効果なし）
+- 評価指標: OOF RMSE, LB score
+
+### 結果
+
+| 指標 | SU5 (Level-1) | SU11 (Level-2) | 変化 |
+|------|---------------|----------------|------|
+| **LB score** | 0.681 | 0.464 | **-31.9%** ❌ |
+| OOF RMSE | 0.012139 | 0.010997 | -9.4% (改善) |
+| 予測 std | 0.00531 | 0.000146 | **-97.3%** (縮小) |
+| Signal range | [0.97, 1.06] | [0.9997, 1.0006] | 1/36 に縮小 |
+| Betting range | ±0.80% | ±0.02% | 1/36 に縮小 |
+
+### 問題の根本原因
+
+**Level-2 Ridge が予測を過度に縮小（shrinkage）**:
+
+```
+Ridge coef = 0.0137  (極端に小さい)
+→ y_pred_L2 ≈ 0.0137 × y_pred_L1 + 0.00007
+→ 予測の分散が 97% 縮小
+→ ベッティングレンジが 1/36 に
+→ ほぼ「常に 1.0 を予測」する状態
+```
+
+これは Ridge が OOF RMSE を最小化するために「正しく」動作した結果ですが、
+LB の評価関数（収益性関連指標）では分散の縮小が悪影響となりました。
+
+### 検証した対策
+
+| 対策 | Ridge coef | 結果 |
+|------|------------|------|
+| alpha=1.0（デフォルト） | 0.0137 | 予測 97% 縮小、LB 0.464 |
+| alpha=0.001 | 0.0779 | 予測 86% 縮小、改善なし |
+| alpha=0.00001 | 0.0783 | coef 収束、これ以上改善せず |
+| identity モード | 1.0 | Level-1 そのまま通過 → SU5 と同等 |
+
+### 技術的詳細
+
+- 実装: `src/feature_generation/su11/feature_su11.py`, `train_su11.py`, `predict_su11.py`
+- テスト: 全てパス
+- アーティファクト: `artifacts/SU11/` (inference_bundle.pkl, model_meta.json, submission.csv)
+- Notebook: `notebooks/submit/su11.ipynb`
+
+### 最終判断
+
+**SU11は非採用**。理由:
+- LBスコアが大幅悪化（0.681 → 0.464, -31.9%）
+- OOF RMSE 改善 (-9.4%) は「shrinkage」による見かけの改善
+- 予測の分散が 97% 縮小し、ベッティングシグナルが消失
+- 単一 Level-1 入力での Ridge stacking は本コンペでは無効
+
+現行ベストラインは引き続き **SU1+SU5 (LB 0.681)** を維持する。
+
+### 学んだ教訓
+
+1. **OOF RMSE 改善 ≠ LB 改善**: RMSE 最適化と収益性最適化は異なる
+2. **単一モデル stacking は効果なし**: 複数の多様な Level-1 モデルが必要
+3. **shrinkage のリスク**: 正則化が予測の「賭け」を消失させる
+4. **SU7〜SU11 すべて LB 悪化**: ベースライン (SU1+SU5) が最適解
+
+### 今後の方向性
+
+Level-2 stacking で真の改善を得るには:
+- **複数の多様な Level-1 モデル**（SU5, SU7, SU8 等）のアンサンブル
+- **異なる特徴量セット**を持つモデルの組み合わせ
+- **shrinkage を避ける** blending 手法（単純平均、加重平均など）
+
+現時点では SU1+SU5 ベースラインが最適解であり、これ以上の複雑化は推奨しない。
