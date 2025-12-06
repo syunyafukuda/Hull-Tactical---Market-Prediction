@@ -8,10 +8,18 @@
 
 | 項目 | 状態 |
 |------|------|
-| 実装状況 | 🚧 **実装中** |
+| 実装状況 | ✅ **完了・非採用** |
 | ベースライン | SU1+SU5+Brushup (LB 0.681, OOF RMSE 0.012134, 577列) |
-| 目標 | +3〜5列の最小構成で検証 |
-| リスク評価 | 低（列数が少なく、SU7の轍を踏まない設計） |
+| Lagged結果 | **LB 0.680, OOF RMSE 0.012215** |
+| 最終判断 | ❌ **非採用** - OOF/LB両方で悪化 |
+
+### 評価結果サマリ
+
+| 指標 | Brushup (ベースライン) | Lagged | 差分 |
+|------|------------------------|--------|------|
+| **LB score** | 0.681 | 0.680 | **-0.15%** (悪化) |
+| OOF RMSE | 0.012134 | 0.012215 | **+0.67%** (悪化) |
+| 特徴量数 | 577列 | 581列 | +4列 |
 
 ---
 
@@ -193,21 +201,24 @@ def _generate_lagged_features(
 
 ## 4. タスクチェックリスト
 
-### Sprint 1: 実装
+### Sprint 1: 実装 ✅
 
-- [ ] `src/feature_generation/su5/feature_su5.py` に lagged 特徴生成メソッド追加
-- [ ] `src/feature_generation/su5/train_su5.py` に train 側での lagged 再現ロジック追加
-- [ ] `configs/feature_generation.yaml` に lagged_features セクション追加
-- [ ] `tests/feature_generation/test_su5.py` に lagged テスト追加
+- [x] `src/feature_generation/su5/feature_su5.py` に lagged 特徴生成メソッド追加
+- [x] `src/feature_generation/su5/train_su5.py` に train 側での lagged 再現ロジック追加
+- [x] `configs/feature_generation.yaml` に lagged_features セクション追加
+- [x] `tests/feature_generation/test_su5.py` に lagged テスト追加
 
-### Sprint 2: 評価
+### Sprint 2: 評価 ✅
 
-- [ ] OOF評価実行（SU5+Brushup+lagged）
-- [ ] ベースライン比較
+- [x] OOF評価実行（SU5+Brushup+lagged）
+- [x] ベースライン比較
   - SU5+Brushup: OOF RMSE 0.012134
-  - SU5+Brushup+lagged: ?
-- [ ] LB提出（OOF改善時のみ）
-- [ ] 採否判断・ドキュメント更新
+  - SU5+Brushup+lagged: **OOF RMSE 0.012215 (+0.67%悪化)**
+- [x] LB提出
+  - SU5+Brushup: LB 0.681
+  - SU5+Brushup+lagged: **LB 0.680 (-0.15%悪化)**
+- [x] 採否判断: **非採用**
+- [x] ドキュメント更新
 
 ---
 
@@ -215,36 +226,42 @@ def _generate_lagged_features(
 
 ### 5.1 採用条件
 
-| 指標 | 条件 |
-|------|------|
-| OOF RMSE | ベースライン (0.012134) と同等以下 |
-| LB Score | ベースライン (0.681) 以上 |
+| 指標 | 条件 | 結果 |
+|------|------|------|
+| OOF RMSE | ベースライン (0.012134) と同等以下 | ❌ 0.012215 (+0.67%) |
+| LB Score | ベースライン (0.681) 以上 | ❌ 0.680 (-0.15%) |
 
-### 5.2 非採用条件（即座にロールバック）
+### 5.2 最終判断
 
-- OOF RMSE が +1% 以上悪化
-- LB Score が -0.005 以上悪化
+**非採用** - 両指標で悪化したため
 
-### 5.3 期待値
+### 5.3 実際の結果
 
-- **楽観シナリオ**: OOF/LB ともに微改善（+0.001〜0.003）
-- **現実的シナリオ**: OOF微改善、LB維持（±0）
-- **悲観シナリオ**: 効果なし or 微悪化 → lagged.enabled=false で即座に無効化
+- **悲観シナリオ該当**: 効果なし・微悪化 → `lagged_features.enabled=false` で無効化
 
 ---
 
 ## 6. リスクと対策
 
-| リスク | 対策 |
-|--------|------|
-| 自己相関が弱く効果なし | 3列だけなので損失も最小 |
-| SU7と同じ轍 | 列数を厳密に抑制（+5列以下） |
-| train/test不整合 | shift(1)再現を必ず実装 |
-| 先頭行のNaN | 既存の欠損補完で対応 |
+| リスク | 対策 | 実際の結果 |
+|--------|------|-----------|
+| 自己相関が弱く効果なし | 3列だけなので損失も最小 | ✅ 損失は-0.001で最小 |
+| SU7と同じ轍 | 列数を厳密に抑制（+5列以下） | ✅ +4列に抑制成功 |
+| train/test不整合 | shift(1)再現を必ず実装 | ✅ 正しく実装 |
+| 先頭行のNaN | 既存の欠損補完で対応 | ✅ 問題なし |
 
 ---
 
-## 7. 参考
+## 7. 学んだ教訓
+
+1. **主催者提供の lagged_* は必ずしも有効ではない** - 単純な前日値は既に他の特徴量に織り込まれている可能性
+2. **OOF悪化 → LB悪化の法則が継続** - SU7以降、OOFで悪化したものはLBでも改善しない
+3. **現行577列が最適解に近い** - これ以上の特徴追加は過学習リスクを高める
+4. **列数を抑えても効果がない場合がある** - 列数問題ではなく、特徴自体の有効性の問題
+
+---
+
+## 8. 参考
 
 - [submissions.md](../submissions.md) - SU7/SU8/SU9/SU10の失敗履歴
 - [SU7.md](./SU7.md) - モメンタム系の失敗分析

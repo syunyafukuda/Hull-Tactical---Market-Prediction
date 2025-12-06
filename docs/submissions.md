@@ -772,3 +772,75 @@ Level-2 stacking で真の改善を得るには:
 1. **列数を抑えた微調整は安全**: +10列でLB悪化なし
 2. **OOF微改善でもLB維持**: SU7〜SU11のような大幅悪化は発生せず
 3. **「攻め」より「守り」**: 既存ラインを壊さない慎重なアプローチが重要
+
+
+## 2025-12-06 Lagged Features (lagged_* 活用) - **非採用**
+
+- Branch: `feat/lagged`
+- Submit line: SU1+SU5+Brushup+Lagged
+- Kaggle Notebook: Private (Dataset: su5-missingness-core)
+- **LB score: 0.680** (ベースライン 0.681 から -0.15%)
+- Decision: **非採用** - OOF/LB両方で微悪化、費用対効果が悪い
+
+### 概要
+
+test.csv に存在する `lagged_*` カラム（主催者提供の前日特徴）を活用する試み。train.csv では shift(1) で再現し、sign/abs 派生も追加。
+
+### 追加された特徴 (+4列)
+
+| 特徴量 | 説明 | train側生成方法 |
+|--------|------|-----------------|
+| `lagged_forward_returns` | 前日の forward_returns | shift(1) |
+| `lagged_risk_free_rate` | 前日の risk_free_rate | shift(1) |
+| `lagged_market_forward_excess_returns` | 前日の超過リターン | shift(1) |
+| `sign_lagged_fwd_excess` | 上記の符号 (int8) | np.sign() |
+
+### 結果
+
+| 指標 | Brushup (ベースライン) | Lagged | 差分 |
+|------|------------------------|--------|------|
+| **LB score** | 0.681 | 0.680 | **-0.15%** (悪化) |
+| OOF RMSE | 0.012134 | 0.012215 | **+0.67%** (悪化) |
+| 特徴量数 | 577列 | 581列 | +4列 |
+
+### 非採用の理由
+
+1. **OOF/LB両方で悪化** - 一貫して微悪化しており、単なるノイズではなく実質的な劣化
+2. **列数増加のリスク** - 4列追加でこの結果は費用対効果が悪い
+3. **多様性としての価値が薄い** - 差が0.001しかなく、アンサンブル時に有意な貢献を期待しにくい
+4. **SU7〜SU11と同様のパターン** - 追加したら微悪化の傾向が継続
+
+### 技術的詳細
+
+- train側: `_generate_lagged_features_for_train()` で shift(1) により再現
+- test側: 主催者提供の lagged_* をそのまま使用、sign/abs 派生のみ生成
+- 実装: `src/feature_generation/su5/train_su5.py`, `predict_su5.py`
+- テスト: 全16ユニットテストパス
+- アーティファクト: `artifacts/SU5_lagged/` (参考保存のみ)
+
+### 設定
+
+```yaml
+# configs/feature_generation.yaml
+su5:
+  lagged_features:
+    enabled: false  # 非採用のため無効化
+    columns:
+      - lagged_forward_returns
+      - lagged_risk_free_rate
+      - lagged_market_forward_excess_returns
+    include_sign: true
+    include_abs: false
+```
+
+### 今後の方向性
+
+- **feat/lagged ブランチは保留**（マージしない）
+- 現行ベストライン **SU1+SU5+Brushup (LB 0.681)** を維持
+- 将来的にモデル構造を変更した際に再評価の選択肢として残す
+
+### 学んだ教訓
+
+1. **主催者提供の lagged_* は必ずしも有効ではない** - 単純な前日値は既に他の特徴量に織り込まれている可能性
+2. **OOF悪化 → LB悪化の法則が継続** - SU7以降、OOFで悪化したものはLBでも改善しない
+3. **現行577列が最適解に近い** - これ以上の特徴追加は過学習リスクを高める
