@@ -157,6 +157,12 @@ def run_single_config(
 		dtype_flag=np.dtype("uint8"),
 		dtype_int=np.dtype("int16"),
 		dtype_float=np.dtype("float32"),
+		brushup_enabled=False,
+		brushup_n_clusters=6,
+		brushup_random_state=42,
+		brushup_include_density=False,
+		brushup_include_deg_stats=False,
+		brushup_include_centrality=False,
 	)
 
 	# Build pipeline

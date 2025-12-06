@@ -186,7 +186,7 @@ class SU5FeatureGenerator(BaseEstimator, TransformerMixin):
 			kmeans = KMeans(
 				n_clusters=self.config.brushup_n_clusters,
 				random_state=self.config.brushup_random_state,
-				n_init=10
+				n_init=10  # type: ignore[arg-type]
 			)
 			kmeans.fit(miss_matrix)
 			self.kmeans_model_ = kmeans
@@ -464,7 +464,7 @@ class SU5FeatureGenerator(BaseEstimator, TransformerMixin):
 		# 1. miss_pattern_cluster (k-means)
 		if self.kmeans_model_ is not None:
 			miss_matrix = X[[col for col in self.m_columns_]].values
-			cluster_labels = self.kmeans_model_.predict(miss_matrix)
+			cluster_labels: np.ndarray = self.kmeans_model_.predict(miss_matrix)  # type: ignore[assignment]
 			brushup_features["miss_pattern_cluster"] = cluster_labels.astype(np.int8)
 		
 		# 2. co_miss_density

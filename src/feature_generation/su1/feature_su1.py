@@ -375,7 +375,7 @@ class SU1FeatureGenerator(BaseEstimator, TransformerMixin):
 		
 		# SU1 brushup features
 		if self.config.brushup_enabled:
-			brushup_features = self._generate_brushup_features(flag_df, run_na_df, feature_columns)
+			brushup_features = self._generate_brushup_features(flag_df, run_na_df, feature_columns)  # type: ignore[arg-type]
 			output_frames.append(brushup_features)
 		
 		return pd.concat(output_frames, axis=1)
@@ -389,15 +389,15 @@ class SU1FeatureGenerator(BaseEstimator, TransformerMixin):
 		
 		# 1. miss_count_last_5d & miss_ratio_last_5d
 		m_cols = [f"m/{col}" for col in feature_columns]
-		daily_miss_count = flag_df[m_cols].sum(axis=1)
+		daily_miss_count: pd.Series = cast(pd.Series, flag_df[m_cols].sum(axis=1))
 		miss_count_last_5d = daily_miss_count.rolling(
 			window=self.config.brushup_miss_count_window, 
 			min_periods=self.config.brushup_miss_count_window
 		).sum()
 		# Fill NaN with 0 for early periods where window is insufficient
 		# This avoids casting errors and treats incomplete windows as 0 missing
-		miss_count_last_5d = miss_count_last_5d.fillna(0)
-		brushup_data["miss_count_last_5d"] = miss_count_last_5d.astype(self.config.run_dtype)
+		miss_count_last_5d = miss_count_last_5d.fillna(0)  # type: ignore[attr-defined]
+		brushup_data["miss_count_last_5d"] = miss_count_last_5d.astype(self.config.run_dtype)  # type: ignore[assignment]
 		
 		miss_ratio_last_5d = miss_count_last_5d / (self.config.brushup_miss_count_window * n_cols)
 		brushup_data["miss_ratio_last_5d"] = miss_ratio_last_5d.astype(np.float32)
@@ -434,7 +434,8 @@ class SU1FeatureGenerator(BaseEstimator, TransformerMixin):
 		
 		# Any column has regime change
 		regime_change_df = pd.DataFrame(regime_change_flags).T
-		miss_regime_change = regime_change_df.any(axis=1).fillna(False).astype(self.config.flag_dtype)
+		any_change: pd.Series = cast(pd.Series, regime_change_df.any(axis=1))
+		miss_regime_change = any_change.fillna(False).astype(self.config.flag_dtype)
 		brushup_data["miss_regime_change"] = miss_regime_change
 		
 		return pd.DataFrame(brushup_data, index=flag_df.index)
