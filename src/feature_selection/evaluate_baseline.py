@@ -15,7 +15,6 @@ import csv
 import json
 import math
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Sequence, cast
 
@@ -218,16 +217,23 @@ def aggregate_importance(importance_df: pd.DataFrame) -> pd.DataFrame:
     
     grouped = importance_df.groupby("feature_name").agg(agg_dict)
     
-    # Flatten column names
-    grouped.columns = [
-        f"{stat}_{metric.split('_')[1]}"
-        for metric, stat in grouped.columns
-    ]
+    # Flatten column names more robustly
+    new_columns = []
+    for col in grouped.columns:
+        metric, stat = col  # col is a tuple (metric, stat)
+        # Extract the type from metric: 'importance_gain' -> 'gain'
+        if "_" in metric:
+            metric_type = metric.split("_", 1)[1]  # Split on first underscore only
+        else:
+            metric_type = metric
+        new_columns.append(f"{stat}_{metric_type}")
     
+    grouped.columns = new_columns
     grouped = grouped.reset_index()
     
     # Sort by mean gain importance (descending)
-    grouped = grouped.sort_values("mean_gain", ascending=False)
+    if "mean_gain" in grouped.columns:
+        grouped = grouped.sort_values("mean_gain", ascending=False)
     
     return grouped
 
