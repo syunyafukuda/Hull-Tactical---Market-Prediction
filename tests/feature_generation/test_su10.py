@@ -179,8 +179,8 @@ def test_su10_no_future_leakage() -> None:
     config = SU10Config(train_max_date_id=50)
 
     # train期間のみのデータ
-    train_only_data = _build_mock_spy_data(n_rows=60)
-    train_only_data = train_only_data[train_only_data["date_id"] <= 50].reset_index(drop=True)
+    train_only_data_raw = _build_mock_spy_data(n_rows=60)
+    train_only_data = pd.DataFrame(train_only_data_raw[train_only_data_raw["date_id"] <= 50]).reset_index(drop=True)
 
     # train + test 期間のデータ
     full_data = _build_mock_spy_data(n_rows=100)
@@ -247,11 +247,13 @@ def test_su10_nan_handling() -> None:
     assert len(first_row) == 1
 
     # date_id = 0 の su10_spx_ewmstd_20d は NaN
-    assert pd.isna(first_row["su10_spx_ewmstd_20d"].values[0])
+    first_val = first_row.loc[first_row.index[0], "su10_spx_ewmstd_20d"]
+    assert pd.isna(first_val)
 
     # 後半の行では値が存在する
     last_row = result[result["date_id"] == 99]
-    assert not pd.isna(last_row["su10_spx_ewmstd_20d"].values[0])
+    last_val = last_row.loc[last_row.index[0], "su10_spx_ewmstd_20d"]
+    assert not pd.isna(last_val)
 
 
 def test_su10_regime_one_hot() -> None:
