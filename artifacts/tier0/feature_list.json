@@ -1,0 +1,12 @@
+{
+  "version": "tier0-v1",
+  "created_at": "2025-12-06T17:30:00Z",
+  "description": "Tier0 baseline feature freeze for feature selection phase",
+  "pipeline_input_columns": [],
+  "su1_generated_columns": [],
+  "su5_generated_columns": [],
+  "total_feature_count": 577,
+  "source_commit": "76ccb48588998bcfbe7c7510b2952fc7a881a3b3",
+  "source_branch": "copilot/freeze-tier0-baseline",
+  "note": "Feature lists will be populated by running train_su5.py or evaluate_baseline.py"
+}

@@ -1,0 +1,719 @@
+su1:
+  id_column: date_id
+  exclude_columns:
+    - forward_returns
+    - risk_free_rate
+    - market_forward_excess_returns
+  groups:
+    include: ["M", "E", "I", "P", "S", "V"]
+    exclude: []
+  gap_clip: 60
+  run_clip: 60
+  dtype:
+    flag: uint8
+    run: int16
+  include_group_means:
+    gap_ffill: true
+    run_na: true
+    exclude_all_nan: true
+  data:
+    raw_dir: data/raw
+    train_filename: train.csv
+    test_filename: test.csv
+  brushup:
+    enabled: true
+    miss_count_window: 5
+    streak_threshold: 3
+    regime_change:
+      recent_window: 5
+      past_window: 30
+      recent_threshold: 0.5
+      past_threshold: 0.1
+  metadata:
+    artifacts_dir: artifacts/SU1
+    kaggle_lb: 0.674
+    numpy_version: 1.26.4
+    updated_at: 2025-11-04
+    notes: "Artifacts regenerated with uv under pinned numpy 1.26.4 to keep MT19937 compatibility."
+
+su2:
+  # ⚠️ SU2は非採用 (2025-11-21決定)
+  # 理由: LB 0.597 (SU1の0.674から-0.077ポイント大幅悪化)
+  # 原因: 935個の二次特徴量による過学習・汎化性能低下
+  # 結論: SU1をベースラインとして継続採用
+  enabled: false
+  base_features: su1
+  id_column: date_id
+  # 最終確定: config_id=3 (2025-11-07)
+  input_sources: [m, gap_ffill, run_na, run_obs]
+  target_groups:
+    include: ["D", "M", "E", "I", "P", "S", "V"]
+    exclude: []
+  # 固定パラメータ（スイープ停止）
+  rolling_windows: [5]
+  ewma_alpha: [0.1]
+  recovery_clip: 60
+  dtype:
+    flag: uint8
+    run: int16
+    float: float32
+  features:
+    rolling:
+      include_metrics: [mean, std]
+      include_current: [false]
+      fill_missing_with_zero: true
+    ewma:
+      signals: [m, gap_ffill]
+      include_std: [true]
+      reset_each_fold: [true]
+    transitions:
+      windows: [5, 10, 20, 60]
+      flip_rate_windows: [5, 10, 20, 60]
+      burst_score_windows: [5, 10, 20, 60]
+      recovery_feature: true
+    normalization:
+      windows: [5, 10, 20, 60]
+      minmax_windows: [5, 10, 20, 60]
+      rank_windows: [5, 10, 20, 60]
+      epsilon: 1.0e-6
+  include_rolling: [true]
+  include_ewma: [true]
+  include_transitions: [true]
+  include_normalization: [true]
+  normalization_mode: [both]
+  epsilon: [1.0e-6]
+  output_prefix: su2
+  clip_max: 30
+  drop_constant_columns: [true]
+  metadata:
+    artifacts_dir: artifacts/SU2
+    depends_on: SU1
+    expected_usage: "Roll-based missingness regime detection over SU1 outputs"
+    numpy_version: 1.26.4
+    status: deprecated  # stable → deprecated
+    kaggle_lb: 0.597  
+    oof_rmse: 0.01223  
+    decision: not_adopted  
+    updated_at: 2025-11-21  
+    notes: "⚠️ NON-ADOPTED: LB score 0.597 (vs SU1's 0.674). Overfitting due to 935 secondary features. Stage2 best config (id=3) parameters preserved for reference: windows=[5], alpha=0.1, transitions/normalization windows=[5,10,20,60], metrics=mean|std, signals=m|gap_ffill, recovery_clip=60, clip_max=30."
+
+su3:
+  # ❌ SU3 完全放棄 (2025-11-22決定)
+  # 理由: LB 0.461 (初回も修正版も変化なし)、OOF MSRがSU1の65%しかない
+  # 原因: 欠損パターンの二次特徴化が本コンペでは無効、根本的なコンセプトの失敗
+  # 結論: Stage 2は開発しない、SU1をベースラインとして継続採用
+  enabled: false  # ❌ 完全放棄
+  base_features: su1
+  id_column: date_id
+  output_prefix: su3
+  
+  # ========================================
+  # Stage 1 構成（参考保存のみ）
+  # ========================================
+  # OOF性能:
+  #   - RMSE: 0.011418
+  #   - MSR: 0.017162 ← ❌ SU1の0.026376の65.1%（大幅劣化）
+  #   - 特徴量数: 444列 (SU1: 368列 + SU3: 76列)
+  # 
+  # LB推移:
+  #   - 初回提出（fold_indices不整合あり）: 0.461
+  #   - 修正版（fold_indices不整合解消）: 0.461 ← ❌ 変化なし
+  # 
+  # 問題分析:
+  #   ❌ OOF時点で致命的な性能劣化（MSR 65%）
+  #   ❌ 修正してもLBスコア不変（コンセプトの失敗）
+  #   ❌ テストデータで予測崩壊（全て同じ値）
+  #   ❌ 欠損パターンの高次特徴化が本コンペでは無効
+  # 
+  # 教訓:
+  #   - SU1（一次欠損特徴）が最適解、これ以上の複雑化は不要
+  #   - OOF MSRがベースラインの65%の時点で採用すべきでなかった
+  #   - Stage 2の開発は時間の無駄
+  # ========================================
+  
+  # Stage 1構成（参考）
+  include_transitions: true
+  transition_group_agg: true
+  
+  include_reappearance: true
+  reappear_clip: 60
+  reappear_top_k: 20
+  
+  include_imputation_trace: false
+  imp_delta_winsorize_p: 0.99
+  imp_delta_top_k: 20
+  imp_policy_group_level: true
+  
+  include_temporal_bias: true
+  temporal_burn_in: 3
+  temporal_top_k: 10
+  
+  include_holiday_interaction: true
+  holiday_top_k: 10
+  
+  dtype:
+    flag: uint8
+    int: int16
+    float: float32
+  
+  reset_each_fold: true
+  
+  metadata:
+    artifacts_dir: artifacts/SU3
+    depends_on: SU1
+    expected_usage: "[DEPRECATED] Transition, reappearance, temporal bias features"
+    numpy_version: 1.26.4
+    status: deprecated  # adoption_pending → deprecated
+    stage: 1
+    kaggle_lb: 0.461  # 初回・修正版ともに変化なし
+    oof_rmse: 0.011418
+    oof_msr: 0.017162  # SU1の65.1%
+    feature_count: 444
+    decision: fully_abandoned  # stage1_adopted → fully_abandoned
+    abandonment_reason: "LBスコア0.461（SU1の0.674から-0.213）、OOF MSR SU1比65%、修正の効果なし"
+    troubleshooting:
+      - issue: "fold_indices不整合"
+        fix: "最終学習時にfold_indicesを渡さない（推論時と一致）"
+        result: "LBスコア不変（0.461）、修正は無意味だった"
+        doc: "docs/feature_generation/SU3_LB_COLLAPSE_ANALYSIS.md"
+      - issue: "MSR=0問題"
+        cause: "PostProcessParams(lo=1.0, hi=1.0)でシグナル定数化"
+        fix: "lo=0.0, hi=2.0に変更"
+        doc: "docs/feature_generation/troubleshooting/MSR_zero_issue.md"
+    updated_at: 2025-11-22
+    notes: "❌ 完全放棄。LB 0.461（初回・修正版ともに変化なし）、OOF MSR SU1の65%。欠損パターンの高次特徴化は本コンペでは無効と判断。Stage 2は開発しない。SU1をベースラインとして継続採用。"
+
+su5:
+  enabled: true
+  base_features: su1
+  id_column: date_id
+  output_prefix: su5
+
+  # ========================================
+  # 採用構成（Policy1）: top_k=10, windows=[5]
+  # LB score: 0.681 (SU1の0.674から+0.007、+1.04%改善)
+  # OOF RMSE: 0.012139
+  # OOF MSR: 0.024071
+  # Features: 567 (SU1:368 + SU5:105)
+  # ========================================
+  top_k_pairs: 10
+  top_k_pairs_per_group: null
+  windows: [5]
+  reset_each_fold: true
+
+  dtype:
+    flag: uint8
+    int: int16
+    float: float32
+
+  brushup:
+    enabled: true
+    cluster:
+      n_clusters: 6
+      random_state: 42
+    include_density: true
+    include_deg_stats: true
+    include_centrality: true
+
+  metadata:
+    artifacts_dir: artifacts/SU5/policy1_top10_w5
+    depends_on: SU1
+    expected_usage: "Co-missing structure features (top-K pairs, rolling co-miss rate, degree)"
+    numpy_version: 1.26.4
+    status: adopted
+    decision_date: 2025-11-23
+    kaggle_lb: 0.681
+    oof_rmse: 0.012139
+    oof_msr: 0.024071
+    feature_count: 567
+    baseline_su1_lb: 0.674
+    improvement: "+0.007 (+1.04%)"
+    policy_comparison:
+      policy1:
+        top_k: 10
+        windows: [5]
+        lb_score: 0.681
+        adopted: true
+      policy2:
+        top_k: 5
+        windows: [5, 20]
+        lb_score: 0.679
+        adopted: false
+    notes: "✅ ADOPTED: Policy1 achieves LB 0.681 (best score ever). Policy2 scored 0.679. Policy1 selected for simpler configuration and higher LB."
+
+su6:
+  # ⏸ SU6は「欠損軸の圧縮」候補だが、現時点では優先度低として実装をスキップする。
+  # 理由:
+  #   - SU1+SU5 までで欠損構造の一次・共欠損情報は十分にカバーできている。
+  #   - 先に欠損以外の軸（SU7=モメンタム, SU8=ボラ・レジーム, SU9=カレンダー）を実装・評価したい。
+  #   - PCAなどの圧縮は列爆発が起きたときの「最後の手段」として温存する方針。
+  # 結論:
+  #   - 当面は SU6 を **enabled: false** のままにし、Issue/仕様は残しつつ実装は後回しにする。
+  enabled: false
+  base_features: su1
+  id_column: date_id
+  output_prefix: su6
+
+  metadata:
+    artifacts_dir: artifacts/SU6
+    depends_on: SU1
+    expected_usage: "[ON HOLD] PCA-based compression of missingness features"
+    numpy_version: 1.26.4
+    status: on_hold
+    decision: skipped_for_now
+    notes: "⏸ Priority set low. We first implement and evaluate SU7–SU9 (non-missingness axes). SU6 will be reconsidered only if total feature count becomes problematic."
+
+su7:
+  # ========================================
+  # SU7: モメンタム・リバーサル特徴量
+  # ========================================
+  # 目的: 価格・リターン系列のモメンタム/リバーサル構造を特徴量化
+  # 軸: 欠損構造（SU1〜SU5）とは独立した「価格変化軸」の SU
+  # パイプライン位置: SU1 → SU5 → GroupImputers → **SU7** → 前処理 → LGBM
+  #
+  # ⚠️ 2025-11-30 時点で **非採用決定**。
+  #   - OOF では SU1+SU5 ベースライン比で RMSE 改善（≈0.01205）
+  #   - しかし Public LB では大幅悪化（case_c: 0.476, case_d: 0.469 vs SU5: 0.681）
+  #   - 実装・環境・post-process の技術的な問題を除外したうえで、
+  #     「train 期間では有効だが Public 評価期間のレジームとは相性が悪い」
+  #     広義の過学習（レジームミスマッチ）が主因と判断
+  # 結論: SU7 は当面オフとし、SU1+SU5 ラインを継続採用する。
+  enabled: false
+  base_features: [su1, su5]
+  id_column: date_id
+  output_prefix: su7
+
+  # ========================================
+  # 対象カラム (su7_base_cols)
+  # ========================================
+  # - 1日リターン系列 r_t を前提
+  # - 全グループ（M/E/I/P/S/V など）の 1日リターン列を候補とし、
+  #   SU1+SU5 ベースラインの feature_importance をもとに **FI 上位の 6〜8 列を横断的に選ぶ**。
+  #   （M系に限定しない / インデックス・セクター系も含めてよい）
+  # - 2025-11 時点では、MSR-proxy の per-feature FI
+  #   (`artifacts/MSR-proxy/feature_importances_per_feature.csv`, gainベース) を用いて
+  #   全 numeric_cols から FI 上位 8 本を選定し、さらに SU7 スイープ結果
+  #   （configs/su7_sweep.yaml, artifacts/SU7/case_*/model_meta.json）に基づき、
+  #   RMSE を第一優先・MSR を補助指標として評価した。
+  #   その結果、以下の **12 列構成（case_d バリアント）** を本命として採用:
+  #     M3, M4, M11, S2, S5, P5, P8, V9, M1, M2, M5, M6
+  #   サブ候補としては、10 列構成の case_c
+  #     (M3, M4, M11, S2, S5, P5, P8, V9, M1, M2)
+  #   が RMSE ほぼ同等・MSR やや高めという結果となっている。
+  su7_base_cols:
+    - M3
+    - M4
+    - M11
+    - S2
+    - S5
+    - P5
+    - P8
+    - V9
+    - M1
+    - M2
+    - M5
+    - M6
+
+  # ========================================
+  # パラメータ設定
+  # ========================================
+  # diff/lag の k 値
+  lags: [1, 5, 20]
+
+  # ローリング窓サイズ
+  windows: [5, 20]
+
+  # RSI の halflife（W=5 固定）
+  halflife_rsi: 5
+
+  # 数値安定性
+  eps: 1.0e-8
+  rs_max: 100.0
+
+  # データ型
+  dtype:
+    float: float32
+    int: int8
+
+  # ========================================
+  # 生成される特徴量
+  # ========================================
+  # B = len(su7_base_cols) の場合 (例: B=8):
+  # - diff_k/<col>: 3 * B = 18 列
+  # - lag_k/<col>: 3 * B = 18 列
+  # - roll_ret_W/<col>: 2 * B = 12 列
+  # - roll_mean_diff_W/<col>: 2 * B = 12 列
+  # - rsi_5/<col>: B = 6 列
+  # - sign_r_t/<col>: B = 6 列
+  # 合計: 12 * B 列（例: B=8 → 96 列、目標 40〜100 列レンジ内）
+
+  metadata:
+    artifacts_dir: artifacts/SU7
+    depends_on: [SU1, SU5, GroupImputers]
+    expected_usage: "Momentum/reversal features (diff, lag, rolling, RSI, sign)"
+    numpy_version: 1.26.4
+    status: not_adopted
+    decision: not_used
+    decision_date: 2025-11-30
+    expected_feature_count: 144
+    kaggle_lb_su5_baseline: 0.681
+    kaggle_lb_su7_case_c: 0.476
+    kaggle_lb_su7_case_d: 0.469
+    oof_rmse_case_c: 0.012047
+    oof_rmse_case_d: 0.012045
+    notes: "SU7 sweep (case_c/case_d) improved OOF RMSE vs SU1+SU5 baseline but caused severe Public LB degradation (0.476/0.469 vs 0.681). After re-training under numpy==1.26.4, regenerating artifacts, and disabling aggressive post-process, the LB remained poor. Concluded as structural overfitting / regime mismatch; SU7 is kept disabled and SU1+SU5 remains the production line."
+
+su8:
+  # SU8: ボラティリティ・レジーム特徴量
+  # 目的: 代表インデックスの局所ボラティリティとトレンドレジーム（低/中/高ボラ、上昇/下降/フラット）を特徴量化し、
+  #       市場モードをモデルに渡すこと。
+  # パイプライン位置: 生データ → SU1 → SU5 → GroupImputers → **SU8** → 前処理 → LGBM
+  #
+  # ✅ 実装: `src/feature_generation/su8/feature_su8.py`, `train_su8.py`, `predict_su8.py`
+  # ✅ OOF: SU5 ベースライン比でわずかに悪化 (RMSE 0.012139 → 0.012230)
+  # ✅ Kaggle Submit: LB 0.624（SU5: 0.681 から -0.057 ポイント劣化）
+  # 結論: SU8 は Public LB で明確に悪化したため **非採用**。本コンペでは SU1+SU5 ラインを継続採用する。
+  enabled: false
+  base_features: [su1, su5]
+  id_column: date_id
+  output_prefix: su8
+
+  # ========================================
+  # 代表インデックス列 (core_index_col)
+  # ========================================
+  # M/E/P グループのインデックス列のうち、ターゲットに対する FI（feature importance）が高い列から選定。
+  # 現在の設定: M3（SU7 の case_c/case_d スイープで FI 上位だった列）
+  core_index_col: "M3"
+  ret_base_col: "M3"
+
+  # ========================================
+  # パラメータ設定
+  # ========================================
+  ewm_short_halflife: 5
+  ewm_long_halflife: 20
+  eps: 1.0e-4
+  trend_ma_short_window: 5
+  trend_ma_long_window: 20
+  vol_quantiles: [0.33, 0.66]
+  trend_quantiles: [0.33, 0.66]
+  winsorize_ret_vol_adj_p: 0.99
+
+  # カテゴリカル列（レジーム系、OneHot 対象）
+  categorical_cols:
+    - vol_regime_low
+    - vol_regime_mid
+    - vol_regime_high
+    - trend_regime_up
+    - trend_regime_down
+    - trend_regime_flat
+
+  # データ型
+  dtype:
+    float: float32
+    bool: bool
+
+  # 生成される特徴量（11列）:
+  # - ewmstd_short, ewmstd_long, vol_ratio, vol_level
+  # - vol_regime_low/mid/high, trend_regime_up/down/flat
+  # - ret_vol_adj
+
+  metadata:
+    artifacts_dir: artifacts/SU8
+    depends_on: [SU1, SU5, GroupImputers]
+    expected_usage: "Volatility & regime features (ewmstd_short/long, vol_ratio, vol_level, regime tags, ret_vol_adj)"
+    numpy_version: 1.26.4
+    status: not_adopted
+    decision: not_used
+    decision_date: 2025-12-04
+    kaggle_lb_su5_baseline: 0.681
+    kaggle_lb_su8: 0.624
+    oof_rmse_su5_baseline: 0.012139
+    oof_rmse_su8: 0.012230
+    feature_count: 11
+    notes: "SU8 added volatility/regime features on top of SU1+SU5 and slightly worsened OOF RMSE (0.012230 vs 0.012139). The Kaggle Public LB dropped from 0.681 (SU5) to 0.624, so SU8 is kept disabled and archived as a non-adopted experiment."
+
+su4:
+  # ❌ SU4削除決定 (2025-11-23)
+  # 理由: 特徴重要度分析・Ablation Studyにより予測性能への寄与がほぼゼロと判明
+  # 証拠:
+  #   - 138特徴中136特徴が重要度0（LightGBMがほぼ使用していない）
+  #   - SU4なしOOF RMSE: 0.012284 vs SU4ありOOF RMSE: 0.012141（差分+0.000143、誤差範囲内）
+  #   - ハイパーパラメータスイープ18設定で完全に同一の性能
+  # 結論: 補完トレース情報（どう補完されたか）がtarget予測に無相関
+  # 詳細: docs/feature_generation/SU4-ablation-conclusion.md
+  # 削除計画: docs/feature_generation/SU4-deletion-plan.md
+  enabled: false  # ❌ 削除決定
+  base_features: su1
+  id_column: date_id
+  output_prefix: su4
+
+  # ========================================
+  # 開発時の構成（参考保存のみ）
+  # ========================================
+  # 特徴量:
+  #   - imp_used/*: 代入実施フラグ（94列）
+  #   - imp_delta/*: 代入差分（top-25列）
+  #   - imp_absdelta/*: 代入絶対差分（top-25列）
+  #   - imp_method/*: 代入手法one-hot（6列）
+  #   - holiday_bridge_x_m/*: holiday×SU1 m/交差（top-10列）
+  # 合計: 138列
+  #
+  # OOF性能:
+  #   - SU4あり: RMSE=0.012141, MSR=0.023319
+  #   - SU4なし: RMSE=0.012284, MSR=0.012284
+  #   - 差分: +0.000143 (誤差範囲内)
+  #
+  # 特徴重要度:
+  #   - SU4合計: 2.00 (全体の0.0%)
+  #   - 非SU4合計: 37,198.00 (全体の100.0%)
+  #   - SU4平均: 0.01 vs 非SU4平均: 65.60
+  #   - 重要度>0: わずか2特徴（imp_method/missforest, imp_method/ridge_stack）
+  # ========================================
+
+  # 列数制御パラメータ
+  top_k_imp_delta: 25
+  top_k_holiday_cross: 10
+
+  # Winsorization
+  winsor_p: 0.99
+
+  # 代入手法リスト（主要ポリシーのみ）
+  imp_methods:
+    - ffill
+    - mice
+    - missforest
+    - ridge_stack
+    - holiday_bridge
+    - other
+
+  # fold リセット
+  reset_each_fold: true
+
+  # データ型
+  dtype:
+    flag: uint8
+    int: int16
+    float: float32
+
+  # メタデータ
+  metadata:
+    artifacts_dir: artifacts/SU4
+    depends_on: [SU1, M/E/I/P/S GroupImputers]
+    expected_usage: "[DEPRECATED] Imputation trace features"
+    numpy_version: 1.26.4
+    status: deprecated  # development → deprecated
+    decision: fully_abandoned
+    decision_date: 2025-11-23
+    abandonment_reason: "特徴重要度分析で138特徴中136特徴が重要度0、Ablation Studyで性能差+0.000143（誤差範囲内）"
+    feature_count: 138
+    oof_rmse_with_su4: 0.012141
+    oof_rmse_without_su4: 0.012284
+    delta_rmse: 0.000143
+    feature_importance_su4_total: 2.00
+    feature_importance_non_su4_total: 37198.00
+    target_feature_count: ~151
+    notes: "❌ 削除決定。補完トレース情報が予測に寄与しないことが判明。SU4なし（SU1+SU5+GroupImputers）を標準パイプラインとする。"
+
+    notes: "SU8 PoC: 固定構成 1 パターンのみで評価し、SU1+SU5 ベースラインとの比較を行う。将来スイープ時は sweep_budget_max_variants を上限とする想定。"
+
+su9:
+  # ========================================
+  # SU9: カレンダー・季節性特徴量
+  # ========================================
+  # 目的: 決定可能な日付情報（曜日・月・祝日など）を特徴量化し、時間構造軸の情報をモデルに渡す
+  # パイプライン位置: 生データ → SU1 → SU5 → GroupImputers → **SU9** → 前処理 → LGBM
+  #
+  # リーク防止:
+  #   - すべて「将来も確定している決定可能な日付情報」のみを使用
+  #   - 未来情報は一切含まない
+  #   - train/testで同一のカレンダーテーブルから派生
+  enabled: false  # LB悪化のため非採用 (2025-12-05)
+  base_features: [su1, su5]
+  id_column: date_id
+  output_prefix: su9
+
+  # 特徴量ON/OFF
+  # スイープ最良設定 (OOF RMSE=0.012041, SU5ベースライン0.012088から0.388%改善)
+  # month + holiday のみが最も効果的と判明
+  include_dow: false          # 曜日 one-hot (7列) - 悪化させるため無効
+  include_dom: false          # 月内位置ビン (3列) - 悪化させるため無効
+  include_month: true         # 月 one-hot (12列) - 有効
+  include_month_flags: false  # 月末・期末フラグ (4列) - 効果なし
+  include_holiday: true       # 祝日・ブリッジ (4列) - 有効
+  include_year_position: false  # 年内ポジション (2列) - 悪化させるため無効
+
+  # 祝日カレンダー（未指定の場合は祝日関連特徴が全て0）
+  holiday_calendar_path: null
+
+  # データ型
+  dtype:
+    flag: uint8
+    float: float32
+
+  # ========================================
+  # スイープ用グリッド設定
+  # ========================================
+  # 各フラグを True/False で切り替え、2^6 = 64通りの組み合わせを評価
+  # 使用方法:
+  #   uv run python src/feature_generation/su9/sweep_oof.py \
+  #     --data-dir data/raw \
+  #     --out-dir results/ablation/SU9 \
+  #     --n-splits 5 \
+  #     --include-dow-grid true false \
+  #     --include-dom-grid true false \
+  #     --include-month-grid true false \
+  #     --include-month-flags-grid true false \
+  #     --include-holiday-grid true false \
+  #     --include-year-position-grid true false
+  sweep:
+    include_dow: [true, false]
+    include_dom: [true, false]
+    include_month: [true, false]
+    include_month_flags: [true, false]
+    include_holiday: [true, false]
+    include_year_position: [true, false]
+
+  metadata:
+    artifacts_dir: artifacts/SU9
+    depends_on: [SU1, SU5, GroupImputers]
+    expected_usage: "Calendar/seasonality features (month one-hot, holiday flags)"
+    numpy_version: 1.26.4
+    status: not_adopted
+    decision: rejected
+    expected_feature_count: 16
+    oof_rmse: 0.012041
+    baseline_rmse: 0.012088
+    improvement_pct: 0.388
+    kaggle_lb_su5_baseline: 0.681
+    kaggle_lb_su9: 0.679
+    sweep_date: "2025-12-05"
+    notes: "スイープでmonth+holiday構成がOOF最良（RMSE 0.012041）だったが、LB=0.679とベースライン0.681より悪化。OOF改善がLB改善に繋がらず、過学習パターンと判断して非採用。"
+
+su10:
+  # ❌ SU10 非採用 (2025-12-06決定)
+  # 理由: LB 0.597 (ベースラインSU5の0.681から-12.3%大幅悪化)
+  # OOF RMSE: 0.01227 (ベースライン0.01214から+1.1%悪化)
+  # 原因: 外部レジームデータの時間的ミスマッチ、過学習の兆候
+  # 結論: SU5をベースラインとして継続採用
+  enabled: false
+  base_features: [su1, su5]
+  id_column: date_id
+  output_prefix: su10
+
+  # 外部データソース: S&P 500 / SPY historical data
+  external_data:
+    source_url: "https://www.kaggle.com/datasets/ambrosm/s-and-p-historical-data-for-hull-tactical-competition/"
+    file: "data/su10/su10_external_regime.csv"
+    date_id_range: [780, 8989]  # date_id 0-779 はデータなし
+    rows: 8210
+    columns: 15  # date_id + 14 features
+
+  # 特徴量（14列）
+  features:
+    - su10_spx_ewmstd_20d       # 短期ボラ (EWMA 20日)
+    - su10_spx_ewmstd_60d       # 長期ボラ (EWMA 60日)
+    - su10_spx_vol_ratio        # 短期/長期ボラ比
+    - su10_spx_vol_level        # 標準化ボラ水準
+    - su10_spx_vol_regime_low   # ボラレジーム low (one-hot)
+    - su10_spx_vol_regime_mid   # ボラレジーム mid (one-hot)
+    - su10_spx_vol_regime_high  # ボラレジーム high (one-hot)
+    - su10_spx_trend_indicator  # トレンド指標 (MA短期-長期)
+    - su10_spx_trend_regime_down  # トレンドレジーム down (one-hot)
+    - su10_spx_trend_regime_flat  # トレンドレジーム flat (one-hot)
+    - su10_spx_trend_regime_up    # トレンドレジーム up (one-hot)
+    - su10_spx_ret_5d           # 5日リターン
+    - su10_spx_ret_20d          # 20日リターン
+    - su10_spx_ret_vol_adj_5d   # ボラ調整済み5日リターン
+
+  dtype:
+    flag: uint8
+    float: float32
+
+  metadata:
+    artifacts_dir: artifacts/SU10
+    depends_on: [SU1, SU5, GroupImputers]
+    expected_usage: "External regime features from S&P 500 / SPY data"
+    numpy_version: 1.26.4
+    status: not_adopted
+    decision: rejected
+    expected_feature_count: 14
+    oof_rmse: 0.01227
+    baseline_rmse: 0.01214  # SU5 baseline
+    oof_change_pct: 1.1  # +1.1% worse
+    kaggle_lb_su5_baseline: 0.681
+    kaggle_lb_su10: 0.597
+    lb_change_pct: -12.3  # -12.3% worse
+    evaluation_date: "2025-12-06"
+    notes: |
+      ❌ 非採用。LB 0.597（ベースライン0.681から-12.3%大幅悪化）。
+      OOF RMSE 0.01227（+1.1%悪化）と LB の乖離が大きく、過学習の兆候。
+      外部レジームデータ（SPY）の時間的整合性に問題がある可能性:
+        - Look-ahead bias: date_id マッピング時の将来情報混入
+        - 期間ズレ: Kaggle隠しテストが date_id 8990以降の場合、SU10特徴はNaN
+        - レジーム変化: 学習期間のパターンが推論期間で通用しない
+      SU5（LB 0.681）を引き続きベストラインとして維持。
+
+su11:
+  # ❌ SU11 非採用 (2025-12-06決定)
+  # 理由: LB 0.464 (ベースラインSU5の0.681から-31.9%大幅悪化)
+  # OOF RMSE: 0.010997 (ベースライン0.012139から-9.4%改善だが、LBでは逆効果)
+  # 原因: Level-2 Ridgeが予測を97%縮小し、ベッティングシグナルを消失
+  # 結論: 単一モデルstackingは本コンペでは無効、SU5をベストラインとして継続
+  enabled: false
+  mode: stacking
+  level1_artifacts_dir: artifacts/SU5
+  level2_model_type: ridge  # "ridge" | "lgbm" | "identity"
+  use_extra_features: false
+  extra_feature_names: []
+  n_splits: 5
+  random_state: 42
+
+  # Level-2 モデルパラメータ
+  level2_params:
+    ridge:
+      alpha: 0.001  # 1.0 → 0.001 に調整したが根本的な改善なし
+    lgbm:
+      n_estimators: 50
+      max_depth: 3
+      learning_rate: 0.05
+      reg_alpha: 1.0
+      reg_lambda: 1.0
+
+  metadata:
+    artifacts_dir: artifacts/SU11
+    depends_on: [SU1, SU5, GroupImputers]
+    expected_usage: "Meta-model using Level-1 predictions as features (stacking)"
+    numpy_version: 1.26.4
+    status: not_adopted
+    decision: rejected
+    kaggle_lb: 0.464
+    baseline_lb: 0.681
+    lb_change_pct: -31.9  # -31.9% worse
+    oof_rmse: 0.010997
+    baseline_oof_rmse: 0.012139
+    oof_change_pct: -9.4  # -9.4% improved (but misleading)
+    ridge_coef: 0.0137
+    prediction_shrinkage_pct: 97.3  # 予測分散の縮小率
+    signal_range_baseline: [0.97, 1.06]
+    signal_range_su11: [0.9997, 1.0006]
+    betting_range_ratio: 0.0275  # SU11 / SU5
+    evaluation_date: "2025-12-06"
+    notes: |
+      ❌ 非採用。LB 0.464（ベースライン0.681から-31.9%大幅悪化）。
+      OOF RMSE は -9.4% 改善したが、Level-2 Ridge が予測を 97% 縮小。
+      Ridge coef = 0.0137 により、Level-1 予測が極端に縮小され、
+      ベッティングシグナルがほぼ消失（signal range: 0.9997〜1.0006）。
+      
+      技術的詳細:
+        - SU5 予測 std: 0.00531 → SU11 予測 std: 0.000146 (97.3% 縮小)
+        - SU5 シグナル range: [0.97, 1.06] → SU11: [0.9997, 1.0006]
+        - alpha を 1.0 → 0.001 → 0.00001 と調整したが、coef は 0.078 に収束
+        - identity モードは SU5 と同等（改善なし）
+      
+      根本的な問題:
+        - 単一 Level-1 入力での Ridge stacking は、予測を平均値に縮小
+        - これは RMSE を最小化するが、ベッティングシグナルを失う
+        - LB の評価関数は RMSE ではなく収益性関連指標と推測
+      
+      真の改善には複数の多様な Level-1 モデルのアンサンブルが必要。
+      SU1+SU5（LB 0.681）を引き続きベストラインとして維持。

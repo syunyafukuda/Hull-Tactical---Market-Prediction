@@ -240,12 +240,16 @@ results/
 
 ## 完了条件
 
-- [ ] `configs/tier0_snapshot/` に設定ファイルがコピーされている
-- [ ] `artifacts/tier0/feature_list.json` が正しい形式で出力されている
-- [ ] `artifacts/tier0/inference_bundle.pkl` が生成されている
-- [ ] `src/feature_selection/evaluate_baseline.py` が動作する
-- [ ] `results/feature_selection/tier0_importance.csv` が出力されている
-- [ ] OOF RMSE が 0.012134 前後で再現されている
+- [x] `configs/tier0_snapshot/` に設定ファイルがコピーされている
+- [x] `artifacts/tier0/feature_list.json` が正しい形式で出力されている
+- [ ] `artifacts/tier0/inference_bundle.pkl` が生成されている（データ必要）
+- [x] `src/feature_selection/evaluate_baseline.py` が動作する
+- [ ] `results/feature_selection/tier0_importance.csv` が出力されている（データ必要）
+- [ ] OOF RMSE が 0.012134 前後で再現されている（データ必要）
+
+> **Note**: 完全な評価とテストには `data/raw/train.csv` と `data/raw/test.csv` が必要です。
+> データファイルは Git には含まれていないため、Kaggle からダウンロードするか、
+> プロジェクトの data ディレクトリに配置してください。
 
 ---
 
