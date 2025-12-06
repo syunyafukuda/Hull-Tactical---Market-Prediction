@@ -156,6 +156,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--feature-fraction", type=float, default=0.9)
     ap.add_argument("--bagging-fraction", type=float, default=0.9)
     ap.add_argument("--bagging-freq", type=int, default=1)
+    ap.add_argument(
+        "--exclude-features",
+        type=str,
+        default=None,
+        help="Path to JSON file containing features to exclude (from filter_trivial.py)",
+    )
     return ap.parse_args(argv)
 
 
@@ -328,6 +334,34 @@ def _write_csv(path: Path, rows: Iterable[Dict[str, Any]], *, fieldnames: Sequen
             writer.writerow(row)
 
 
+def _load_exclude_features(exclude_path: str | Path) -> set[str]:
+    """Load features to exclude from JSON file.
+    
+    Args:
+        exclude_path: Path to JSON file with candidate features
+        
+    Returns:
+        Set of feature names to exclude
+    """
+    path = Path(exclude_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Exclude features file not found: {path}")
+    
+    with path.open("r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    
+    if not isinstance(data, dict) or "candidates" not in data:
+        raise ValueError(f"Invalid exclude features file format: {path}")
+    
+    # Extract unique feature names from candidates
+    exclude_set = set()
+    for candidate in data["candidates"]:
+        if isinstance(candidate, dict) and "feature_name" in candidate:
+            exclude_set.add(candidate["feature_name"])
+    
+    return exclude_set
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Main entry point."""
     args = parse_args(argv)
@@ -415,6 +449,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     
     # Transform with fold_indices
     X_augmented_all = su5_prefit.transform(X_np, fold_indices=fold_indices_full)
+    
+    # Load and apply feature exclusions if specified
+    if args.exclude_features:
+        exclude_set = _load_exclude_features(args.exclude_features)
+        print(f"[info] Loaded {len(exclude_set)} features to exclude from {args.exclude_features}")
+        
+        # Filter out excluded features
+        cols_to_keep = [col for col in X_augmented_all.columns if col not in exclude_set]
+        cols_excluded = [col for col in X_augmented_all.columns if col in exclude_set]
+        
+        print(f"[info] Excluding {len(cols_excluded)} features")
+        print(f"[info] Keeping {len(cols_to_keep)} features")
+        
+        if cols_excluded:
+            print(f"[info] Sample excluded features: {cols_excluded[:5]}")
+        
+        X_augmented_all = X_augmented_all[cols_to_keep]
     
     # Get core pipeline (excluding augmenter which is the first step)
     # The augmenter is pre-fit separately, so we only need steps from index 1 onwards
@@ -530,15 +581,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"[metric][oof] msr={oof_results['oof_msr']:.6f}")
     print(f"[metric][oof] coverage={oof_results['oof_coverage']:.2%}")
     
+    # Determine output file prefix based on whether features were excluded
+    file_prefix = "tier1" if args.exclude_features else "tier0"
+    
     # Save evaluation results
-    evaluation_path = out_dir / "tier0_evaluation.json"
+    evaluation_path = out_dir / f"{file_prefix}_evaluation.json"
     with evaluation_path.open("w", encoding="utf-8") as fh:
         json.dump(oof_results, fh, indent=2, ensure_ascii=False)
     print(f"[ok] saved evaluation: {evaluation_path}")
     
     # Save fold logs
     if fold_logs:
-        fold_logs_path = out_dir / "tier0_fold_logs.csv"
+        fold_logs_path = out_dir / f"{file_prefix}_fold_logs.csv"
         fieldnames = ["fold", "train_size", "val_size", "rmse", "msr", "msr_down",
                       "best_mult", "best_lo", "best_hi"]
         _write_csv(fold_logs_path, fold_logs, fieldnames=fieldnames)
@@ -550,14 +604,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         all_importance = pd.concat(importance_dfs, ignore_index=True)
         
         # Save fold-wise importance
-        importance_path = out_dir / "tier0_importance.csv"
+        importance_path = out_dir / f"{file_prefix}_importance.csv"
         all_importance.to_csv(importance_path, index=False)
         print(f"[ok] saved importance: {importance_path}")
         print(f"[info] Total features tracked: {all_importance['feature_name'].nunique()}")
         
         # Aggregate importance
         summary = aggregate_importance(all_importance)
-        summary_path = out_dir / "tier0_importance_summary.csv"
+        summary_path = out_dir / f"{file_prefix}_importance_summary.csv"
         summary.to_csv(summary_path, index=False)
         print(f"[ok] saved importance summary: {summary_path}")
     else:
