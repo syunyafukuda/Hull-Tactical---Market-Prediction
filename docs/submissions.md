@@ -705,3 +705,70 @@ Level-2 stacking で真の改善を得るには:
 - **shrinkage を避ける** blending 手法（単純平均、加重平均など）
 
 現時点では SU1+SU5 ベースラインが最適解であり、これ以上の複雑化は推奨しない。
+
+
+## 2025-12-06 SU1/SU5 Brushup (微調整特徴追加) - **採用保留（効果なし / LB維持）**
+
+- Branch: `dev`
+- Submit line: SU1+SU5+Brushup
+- Kaggle Notebook: Private (Dataset: su5-missingness-core)
+- **LB score: 0.681** (ベースラインと同等)
+- Decision: **採用保留** - 変更を取り込むが、後続のPCA/特徴量選定で再評価
+
+### 概要
+
+既存のSU1+SU5ラインを「新しいSUを増やす」方向ではなく「既存を少しだけ厚くする」方向で微調整。
+
+- SU1拡張: +5列（欠損頻度、ストリーク、レジーム変化）
+- SU5拡張: +5列（k-meansクラスタ、共欠損密度、次数サマリ、中心性）
+- 合計: 567列 → **577列** (+10列、+1.8%)
+
+### 結果
+
+| 指標 | SU5 (ベースライン) | Brushup | 変化 |
+|------|---------------------|---------|------|
+| **LB score** | 0.681 | 0.681 | **±0** |
+| OOF RMSE | 0.012139 | 0.012134 | -0.04% (微改善) |
+| 特徴量数 | 567列 | 577列 | +10列 |
+
+### 追加された特徴
+
+**SU1拡張 (+5列)**:
+- `miss_count_last_5d` - 直近5日間の全列欠損数合計
+- `miss_ratio_last_5d` - 直近5日間の欠損率
+- `is_long_missing_streak` - 3日以上連続欠損フラグ
+- `long_streak_col_count` - 3日以上連続欠損の列数
+- `miss_regime_change` - 欠損レジーム変化フラグ
+
+**SU5拡張 (+5列)**:
+- `miss_pattern_cluster` - k-means クラスタID (k=6)
+- `co_miss_density` - top-k 共欠損ペアの同時欠損割合
+- `co_miss_deg_sum` - 欠損列の共欠損次数合計
+- `co_miss_deg_mean` - 欠損列の共欠損次数平均
+- `miss_graph_centrality` - 欠損列が top-k ペアに含まれる回数
+
+### 技術的詳細
+
+- 実装: `src/feature_generation/su1/feature_su1.py`, `su5/feature_su5.py`
+- テスト: 全17ユニットテストパス
+- 環境: numpy 1.26.4, scikit-learn 1.7.0
+- アーティファクト: `artifacts/SU5_brushup/` (inference_bundle.pkl, model_meta.json, submission.csv)
+
+### 判断理由
+
+1. **LBスコア維持**: ベースラインと同等（0.681）で悪化なし
+2. **OOF微改善**: 0.012139 → 0.012134 (-0.04%)
+3. **列数抑制**: +10列に厳守し、過学習リスクを最小化
+4. **後続施策との相性**: PCA/特徴量選定で有効に働く可能性
+
+### 今後の方向性
+
+- **Brushup変更を取り込み**、後続のPCA/特徴量選定で再評価
+- LB悪化がなければ正式採用、悪化すれば戻す
+- 現行ベストラインは引き続き **SU1+SU5 (LB 0.681)** を維持
+
+### 学んだ教訓
+
+1. **列数を抑えた微調整は安全**: +10列でLB悪化なし
+2. **OOF微改善でもLB維持**: SU7〜SU11のような大幅悪化は発生せず
+3. **「攻め」より「守り」**: 既存ラインを壊さない慎重なアプローチが重要
