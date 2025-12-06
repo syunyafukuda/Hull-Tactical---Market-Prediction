@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.feature_generation.su5.feature_su5 import SU5Config, SU5FeatureGenerator
+from src.feature_generation.lagged.feature_su5 import SU5Config, SU5FeatureGenerator
 
 
 def _build_config() -> SU5Config:
@@ -63,7 +63,7 @@ su5:
 """
     config_path.write_text(config_content)
 
-    from src.feature_generation.su5.feature_su5 import load_su5_config
+    from src.feature_generation.lagged.feature_su5 import load_su5_config
 
     config = load_su5_config(config_path)
     assert config.id_column == "date_id"
@@ -470,7 +470,7 @@ def test_su5_lagged_config_loading() -> None:
 
 def test_su5_lagged_features_train_generation() -> None:
     """train側でshift(1)によりlagged特徴が生成されることを確認。"""
-    from src.feature_generation.su5.train_su5 import _generate_lagged_features_for_train
+    from src.feature_generation.lagged.train_su5 import _generate_lagged_features_for_train
     
     config = _build_config_with_lagged()
     
@@ -505,7 +505,7 @@ def test_su5_lagged_features_train_generation() -> None:
 
 def test_su5_lagged_disabled() -> None:
     """lagged_enabled=False の場合、何も生成されないことを確認。"""
-    from src.feature_generation.su5.train_su5 import _generate_lagged_features_for_train
+    from src.feature_generation.lagged.train_su5 import _generate_lagged_features_for_train
     
     config = _build_config()  # lagged disabled by default
     
@@ -525,7 +525,7 @@ def test_su5_lagged_disabled() -> None:
 
 def test_su5_lagged_with_abs() -> None:
     """include_abs=True の場合、abs特徴も生成されることを確認。"""
-    from src.feature_generation.su5.train_su5 import _generate_lagged_features_for_train
+    from src.feature_generation.lagged.train_su5 import _generate_lagged_features_for_train
     
     mapping = {
         "id_column": "date_id",

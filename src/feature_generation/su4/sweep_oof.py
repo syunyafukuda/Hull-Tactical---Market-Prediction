@@ -57,7 +57,7 @@ from src.feature_generation.su4.train_su4 import (  # noqa: E402
 from src.feature_generation.su1.feature_su1 import (  # noqa: E402
 	load_su1_config,
 )
-from src.feature_generation.su5.feature_su5 import (  # noqa: E402
+from src.feature_generation.lagged.feature_su5 import (  # noqa: E402
 	load_su5_config,
 )
 from src.feature_generation.su4.feature_su4 import (  # noqa: E402

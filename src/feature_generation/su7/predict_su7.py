@@ -100,7 +100,7 @@ from preprocess.I_group.i_group import IGroupImputer  # noqa: E402,F401
 from preprocess.M_group.m_group import MGroupImputer  # noqa: E402,F401
 from preprocess.P_group.p_group import PGroupImputer  # noqa: E402,F401
 from preprocess.S_group.s_group import SGroupImputer  # noqa: E402,F401
-from src.feature_generation.su5.feature_su5 import (  # noqa: E402,F401
+from src.feature_generation.lagged.feature_su5 import (  # noqa: E402,F401
     SU5Config,
     SU5FeatureGenerator,
 )

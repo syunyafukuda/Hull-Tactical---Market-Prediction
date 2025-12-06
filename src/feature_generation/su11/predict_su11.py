@@ -27,11 +27,11 @@ for path in (SRC_ROOT, PROJECT_ROOT):
 		sys.path.insert(0, str(path))
 
 # SU5 クラスをインポート（pickle デシリアライズ用）
-from src.feature_generation.su5.feature_su5 import (  # noqa: F401, E402
+from src.feature_generation.lagged.feature_su5 import (  # noqa: F401, E402
 	SU5Config,
 	SU5FeatureGenerator,
 )
-from src.feature_generation.su5.train_su5 import SU5FeatureAugmenter  # noqa: F401, E402
+from src.feature_generation.lagged.train_su5 import SU5FeatureAugmenter  # noqa: F401, E402
 from src.feature_generation.su11.feature_su11 import SU11Config, SU11MetaFeatureBuilder  # noqa: E402
 
 

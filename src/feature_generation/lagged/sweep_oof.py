@@ -38,8 +38,8 @@ from scripts.utils_msr import (  # noqa: E402
 	grid_search_msr,
 )
 from src.feature_generation.su1.feature_su1 import SU1Config, load_su1_config  # noqa: E402
-from src.feature_generation.su5.feature_su5 import SU5Config  # noqa: E402
-from src.feature_generation.su5.train_su5 import (  # noqa: E402
+from src.feature_generation.lagged.feature_su5 import SU5Config  # noqa: E402
+from src.feature_generation.lagged.train_su5 import (  # noqa: E402
 	SU5FeatureAugmenter,
 	_initialise_callbacks,
 	_prepare_features,

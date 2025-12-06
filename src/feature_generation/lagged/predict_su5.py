@@ -100,9 +100,41 @@ from preprocess.E_group.e_group import EGroupImputer  # noqa: E402,F401
 from preprocess.I_group.i_group import IGroupImputer  # noqa: E402,F401
 from preprocess.P_group.p_group import PGroupImputer  # noqa: E402,F401
 from preprocess.S_group.s_group import SGroupImputer  # noqa: E402,F401
-from src.feature_generation.su5.train_su5 import SU5FeatureAugmenter  # noqa: E402,F401
+from src.feature_generation.lagged.train_su5 import SU5FeatureAugmenter  # noqa: E402,F401
 # from src.feature_generation.su1.feature_su1 import SU1Config, SU1FeatureGenerator  # noqa: E402,F401
-from src.feature_generation.su5.feature_su5 import SU5Config, SU5FeatureGenerator  # noqa: E402,F401
+from src.feature_generation.lagged.feature_su5 import SU5Config, SU5FeatureGenerator  # noqa: E402,F401
+
+
+def _generate_lagged_derived_features(
+    df: pd.DataFrame,
+    su5_config: SU5Config | None,
+) -> pd.DataFrame:
+    """Generate derived lagged features (sign/abs) for test data.
+    
+    In test.csv, the base lagged_* columns already exist. This function
+    only generates the derived features (sign_lagged_fwd_excess, 
+    abs_lagged_fwd_excess) if enabled in config.
+    """
+    if su5_config is None or not su5_config.lagged_enabled:
+        return df
+    
+    result = df.copy()
+    
+    # Generate sign feature (optional)
+    # NaN -> 0 (unknown direction) for robustness
+    if su5_config.lagged_include_sign:
+        excess_col = "lagged_market_forward_excess_returns"
+        if excess_col in result.columns:
+            sign_series = np.sign(result[excess_col]).fillna(0).astype("int8")
+            result["sign_lagged_fwd_excess"] = sign_series
+    
+    # Generate abs feature (optional)
+    if su5_config.lagged_include_abs:
+        excess_col = "lagged_market_forward_excess_returns"
+        if excess_col in result.columns:
+            result["abs_lagged_fwd_excess"] = np.abs(result[excess_col]).astype("float32")
+    
+    return result
 
 
 def infer_test_file(data_dir: Path, explicit: str | None) -> Path:
@@ -466,6 +498,38 @@ def main(argv: Iterable[str] | None = None) -> int:
 	working_df["__original_order__"] = np.arange(len(working_df))
 	working_sorted = working_df.sort_values(id_col).reset_index(drop=True)
 	feature_frame = working_sorted.drop(columns=["__original_order__"])
+
+	# Load su5_config from metadata and generate lagged derived features if enabled
+	su5_config: SU5Config | None = None
+	su5_config_dict = meta.get("su5_config")
+	if isinstance(su5_config_dict, dict):
+		try:
+			# Convert tuple-stored-as-list back to tuple for frozen dataclass
+			if "windows" in su5_config_dict and isinstance(su5_config_dict["windows"], list):
+				su5_config_dict = dict(su5_config_dict)
+				su5_config_dict["windows"] = tuple(su5_config_dict["windows"])
+			if "lagged_columns" in su5_config_dict and isinstance(su5_config_dict["lagged_columns"], list):
+				su5_config_dict = dict(su5_config_dict) if not isinstance(su5_config_dict, dict) else su5_config_dict
+				su5_config_dict["lagged_columns"] = tuple(su5_config_dict["lagged_columns"])
+			# Convert numpy dtypes back from string representation
+			for dtype_key in ("dtype_flag", "dtype_int", "dtype_float"):
+				if dtype_key in su5_config_dict and isinstance(su5_config_dict[dtype_key], str):
+					su5_config_dict[dtype_key] = np.dtype(su5_config_dict[dtype_key])
+			su5_config = SU5Config(**su5_config_dict)
+		except TypeError as e:
+			print(f"[warn] failed to reconstruct SU5Config from meta: {e}")
+			su5_config = None
+
+	# Generate lagged derived features (sign/abs) if lagged is enabled
+	if su5_config is not None and su5_config.lagged_enabled:
+		# Check for missing lagged columns
+		expected_lagged = set(su5_config.lagged_columns)
+		missing_lagged = expected_lagged - set(feature_frame.columns)
+		if missing_lagged:
+			print(f"[warn] expected lagged columns not found in test data: {missing_lagged}")
+		# Generate derived features
+		feature_frame = _generate_lagged_derived_features(feature_frame, su5_config)
+		print(f"[info] generated lagged derived features: sign={su5_config.lagged_include_sign}, abs={su5_config.lagged_include_abs}")
 
 	X_test = _ensure_columns(feature_frame, feature_cols, max_missing=args.max_missing_columns)
 	_coerce_numeric_like_columns(X_test)

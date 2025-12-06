@@ -69,6 +69,13 @@ class SU5Config:
 	brushup_include_deg_stats: bool
 	brushup_include_centrality: bool
 
+	# lagged_features 設定
+	lagged_enabled: bool
+	lagged_columns: Tuple[str, ...]
+	lagged_source_columns: Dict[str, str]
+	lagged_include_sign: bool
+	lagged_include_abs: bool
+
 	@classmethod
 	def from_mapping(cls, mapping: Mapping[str, Any]) -> "SU5Config":
 		"""YAML設定から SU5Config を生成する。"""
@@ -104,6 +111,24 @@ class SU5Config:
 		brushup_include_deg_stats = bool(brushup_section.get("include_deg_stats", True))
 		brushup_include_centrality = bool(brushup_section.get("include_centrality", True))
 
+		# lagged_features 設定
+		lagged_section = mapping.get("lagged_features", {})
+		lagged_enabled = bool(lagged_section.get("enabled", False))
+		lagged_columns_list = lagged_section.get("columns", [
+			"lagged_forward_returns",
+			"lagged_risk_free_rate",
+			"lagged_market_forward_excess_returns",
+		])
+		lagged_columns = tuple(lagged_columns_list)
+		lagged_source_raw = lagged_section.get("source_columns", {
+			"lagged_forward_returns": "forward_returns",
+			"lagged_risk_free_rate": "risk_free_rate",
+			"lagged_market_forward_excess_returns": "market_forward_excess_returns",
+		})
+		lagged_source_columns: Dict[str, str] = {str(k): str(v) for k, v in lagged_source_raw.items()}
+		lagged_include_sign = bool(lagged_section.get("include_sign", True))
+		lagged_include_abs = bool(lagged_section.get("include_abs", False))
+
 		return cls(
 			id_column=id_column,
 			output_prefix=output_prefix,
@@ -120,6 +145,11 @@ class SU5Config:
 			brushup_include_density=brushup_include_density,
 			brushup_include_deg_stats=brushup_include_deg_stats,
 			brushup_include_centrality=brushup_include_centrality,
+			lagged_enabled=lagged_enabled,
+			lagged_columns=lagged_columns,
+			lagged_source_columns=lagged_source_columns,
+			lagged_include_sign=lagged_include_sign,
+			lagged_include_abs=lagged_include_abs,
 		)
 
 

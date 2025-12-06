@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from src.feature_generation.su5.feature_su5 import (
+from src.feature_generation.lagged.feature_su5 import (
 	SU5Config,
 	SU5FeatureGenerator,
 	load_su5_config,
