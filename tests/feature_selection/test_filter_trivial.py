@@ -11,10 +11,8 @@ import tempfile
 
 # Add src to path
 TEST_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = TEST_DIR.parent
-SRC_ROOT = PROJECT_ROOT / "src"
+PROJECT_ROOT = TEST_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
-sys.path.insert(0, str(SRC_ROOT))
 
 from src.feature_selection.filter_trivial import (  # noqa: E402
     find_low_variance_features,
