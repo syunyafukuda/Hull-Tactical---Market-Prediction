@@ -179,9 +179,11 @@ def compute_fold_importance(
             importance_split = model.booster_.feature_importance(importance_type='split')
         else:
             # Fallback: use gain importance for split as well
+            print(f"[warn][fold {fold_idx}] Model does not have booster_ attribute, using gain for split importance")
             importance_split = importance_gain.copy()
     except Exception as e:
         print(f"[warn][fold {fold_idx}] Could not get split importance: {e}")
+        print(f"[warn][fold {fold_idx}] Falling back to gain importance for split metric")
         importance_split = importance_gain.copy()
     
     # Ensure same length
@@ -406,7 +408,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Transform with fold_indices
     X_augmented_all = su5_prefit.transform(X_np, fold_indices=fold_indices_full)
     
-    # Get core pipeline (excluding augmenter)
+    # Get core pipeline (excluding augmenter which is the first step)
+    # The augmenter is pre-fit separately, so we only need steps from index 1 onwards
     core_pipeline_template = cast(Pipeline, Pipeline(base_pipeline.steps[1:]))
     
     # Storage for results
@@ -422,6 +425,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         val_idx = np.array(val_idx)
         
         # Apply gap if specified
+        # Note: This follows the same gap logic as train_su5.py
+        # Gap removes the last samples from training and first samples from validation
+        # to prevent potential information leakage in time series data
         if args.gap > 0:
             if len(train_idx) > args.gap:
                 train_idx = train_idx[:-args.gap]
@@ -493,13 +499,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                         # Fallback: use generic names
                         n_features = len(model_step.feature_importances_)
                         feature_names = [f"feature_{i}" for i in range(n_features)]
-                except Exception:
+                        print(f"[warn][fold {fold_idx}] Preprocess step lacks get_feature_names_out(), using generic names")
+                except Exception as e:
                     # Fallback: use generic names
                     n_features = len(model_step.feature_importances_)
                     feature_names = [f"feature_{i}" for i in range(n_features)]
+                    print(f"[warn][fold {fold_idx}] Failed to extract feature names: {e}")
+                    print(f"[warn][fold {fold_idx}] Using generic feature names, which may make analysis harder")
             else:
                 n_features = len(model_step.feature_importances_)
                 feature_names = [f"feature_{i}" for i in range(n_features)]
+                print(f"[warn][fold {fold_idx}] No preprocess step found, using generic feature names")
             
             fold_importance = compute_fold_importance(model_step, feature_names, fold_idx)
             importance_dfs.append(fold_importance)
