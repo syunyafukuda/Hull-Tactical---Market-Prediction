@@ -7,13 +7,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import yaml
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.cluster import KMeans
+
+if TYPE_CHECKING:
+	# For type checking only - helps pyright understand the type
+	pass
 
 
 def _infer_group(column_name: str) -> str | None:
@@ -146,7 +150,7 @@ class SU5FeatureGenerator(BaseEstimator, TransformerMixin):
 		self.groups_: Optional[Dict[str, List[str]]] = None
 		self.top_pairs_: Optional[List[Tuple[str, str]]] = None
 		self.feature_names_: Optional[List[str]] = None
-		self.kmeans_model_: Optional[Any] = None  # k-means for brushup
+		self.kmeans_model_: Optional[KMeans] = None  # k-means for brushup
 
 	def fit(self, X: pd.DataFrame, y: Any = None) -> "SU5FeatureGenerator":
 		"""特徴名の抽出とtop-kペアの選択。
@@ -179,12 +183,13 @@ class SU5FeatureGenerator(BaseEstimator, TransformerMixin):
 		# 5. brushup: k-means fit (if enabled)
 		if self.config.brushup_enabled:
 			miss_matrix = X[[col for col in self.m_columns_]].values
-			self.kmeans_model_ = KMeans(
+			kmeans = KMeans(
 				n_clusters=self.config.brushup_n_clusters,
 				random_state=self.config.brushup_random_state,
 				n_init=10
 			)
-			self.kmeans_model_.fit(miss_matrix)
+			kmeans.fit(miss_matrix)
+			self.kmeans_model_ = kmeans
 
 		return self
 
