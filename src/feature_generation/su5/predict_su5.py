@@ -502,23 +502,34 @@ def main(argv: Iterable[str] | None = None) -> int:
 	# Load su5_config from metadata and generate lagged derived features if enabled
 	su5_config: SU5Config | None = None
 	su5_config_dict = meta.get("su5_config")
-	if isinstance(su5_config_dict, dict) and su5_config_dict.get("lagged_enabled", False):
-		# Reconstruct SU5Config from stored metadata
+	if isinstance(su5_config_dict, dict):
 		try:
-			su5_config = SU5Config(
-				enabled=su5_config_dict.get("enabled", True),
-				prefix=su5_config_dict.get("prefix", "su5_"),
-				threshold_pct=su5_config_dict.get("threshold_pct", 50.0),
-				lagged_enabled=su5_config_dict.get("lagged_enabled", False),
-				lagged_columns=tuple(su5_config_dict.get("lagged_columns", ())),
-				lagged_source_columns=su5_config_dict.get("lagged_source_columns", {}),
-				lagged_include_sign=su5_config_dict.get("lagged_include_sign", False),
-				lagged_include_abs=su5_config_dict.get("lagged_include_abs", False),
-			)
-			feature_frame = _generate_lagged_derived_features(feature_frame, su5_config)
-			print(f"[info] generated lagged derived features: sign={su5_config.lagged_include_sign}, abs={su5_config.lagged_include_abs}")
-		except Exception as e:
-			print(f"[warn] failed to reconstruct su5_config for lagged features: {e}")
+			# Convert tuple-stored-as-list back to tuple for frozen dataclass
+			if "windows" in su5_config_dict and isinstance(su5_config_dict["windows"], list):
+				su5_config_dict = dict(su5_config_dict)
+				su5_config_dict["windows"] = tuple(su5_config_dict["windows"])
+			if "lagged_columns" in su5_config_dict and isinstance(su5_config_dict["lagged_columns"], list):
+				su5_config_dict = dict(su5_config_dict) if not isinstance(su5_config_dict, dict) else su5_config_dict
+				su5_config_dict["lagged_columns"] = tuple(su5_config_dict["lagged_columns"])
+			# Convert numpy dtypes back from string representation
+			for dtype_key in ("dtype_flag", "dtype_int", "dtype_float"):
+				if dtype_key in su5_config_dict and isinstance(su5_config_dict[dtype_key], str):
+					su5_config_dict[dtype_key] = np.dtype(su5_config_dict[dtype_key])
+			su5_config = SU5Config(**su5_config_dict)
+		except TypeError as e:
+			print(f"[warn] failed to reconstruct SU5Config from meta: {e}")
+			su5_config = None
+
+	# Generate lagged derived features (sign/abs) if lagged is enabled
+	if su5_config is not None and su5_config.lagged_enabled:
+		# Check for missing lagged columns
+		expected_lagged = set(su5_config.lagged_columns)
+		missing_lagged = expected_lagged - set(feature_frame.columns)
+		if missing_lagged:
+			print(f"[warn] expected lagged columns not found in test data: {missing_lagged}")
+		# Generate derived features
+		feature_frame = _generate_lagged_derived_features(feature_frame, su5_config)
+		print(f"[info] generated lagged derived features: sign={su5_config.lagged_include_sign}, abs={su5_config.lagged_include_abs}")
 
 	X_test = _ensure_columns(feature_frame, feature_cols, max_missing=args.max_missing_columns)
 	_coerce_numeric_like_columns(X_test)
