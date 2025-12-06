@@ -71,6 +71,13 @@ class SU1Config:
 	raw_dir: Path
 	train_filename: str
 	test_filename: str
+	brushup_enabled: bool
+	brushup_miss_count_window: int
+	brushup_streak_threshold: int
+	brushup_regime_recent_window: int
+	brushup_regime_past_window: int
+	brushup_regime_recent_threshold: float
+	brushup_regime_past_threshold: float
 
 	@classmethod
 	def from_mapping(cls, mapping: Mapping[str, Any], *, base_dir: Path) -> "SU1Config":
@@ -102,6 +109,16 @@ class SU1Config:
 		train_filename = data_section.get("train_filename", "train.csv")
 		test_filename = data_section.get("test_filename", "test.csv")
 
+		brushup_section = mapping.get("brushup", {})
+		brushup_enabled = bool(brushup_section.get("enabled", False))
+		brushup_miss_count_window = int(brushup_section.get("miss_count_window", 5))
+		brushup_streak_threshold = int(brushup_section.get("streak_threshold", 3))
+		regime_change = brushup_section.get("regime_change", {})
+		brushup_regime_recent_window = int(regime_change.get("recent_window", 5))
+		brushup_regime_past_window = int(regime_change.get("past_window", 30))
+		brushup_regime_recent_threshold = float(regime_change.get("recent_threshold", 0.5))
+		brushup_regime_past_threshold = float(regime_change.get("past_threshold", 0.1))
+
 		return cls(
 			id_column=id_column,
 			exclude_columns=exclude_columns,
@@ -116,6 +133,13 @@ class SU1Config:
 			raw_dir=raw_dir,
 			train_filename=train_filename,
 			test_filename=test_filename,
+			brushup_enabled=brushup_enabled,
+			brushup_miss_count_window=brushup_miss_count_window,
+			brushup_streak_threshold=brushup_streak_threshold,
+			brushup_regime_recent_window=brushup_regime_recent_window,
+			brushup_regime_past_window=brushup_regime_past_window,
+			brushup_regime_recent_threshold=brushup_regime_recent_threshold,
+			brushup_regime_past_threshold=brushup_regime_past_threshold,
 		)
 
 	@property
@@ -348,7 +372,69 @@ class SU1FeatureGenerator(BaseEstimator, TransformerMixin):
 		aggregated_df = pd.DataFrame(group_features, index=data.index)
 
 		output_frames = [flag_df, gap_df, run_na_df, run_obs_df, aggregated_df]
+		
+		# SU1 brushup features
+		if self.config.brushup_enabled:
+			brushup_features = self._generate_brushup_features(flag_df, run_na_df, feature_columns)
+			output_frames.append(brushup_features)
+		
 		return pd.concat(output_frames, axis=1)
+
+	def _generate_brushup_features(
+		self, flag_df: pd.DataFrame, run_na_df: pd.DataFrame, feature_columns: list[str]
+	) -> pd.DataFrame:
+		"""Generate SU1 brushup features (5 new columns)."""
+		brushup_data: Dict[str, pd.Series] = {}
+		n_cols = len(feature_columns)
+		
+		# 1. miss_count_last_5d & miss_ratio_last_5d
+		m_cols = [f"m/{col}" for col in feature_columns]
+		daily_miss_count = flag_df[m_cols].sum(axis=1)
+		miss_count_last_5d = daily_miss_count.rolling(
+			window=self.config.brushup_miss_count_window, 
+			min_periods=self.config.brushup_miss_count_window
+		).sum()
+		brushup_data["miss_count_last_5d"] = miss_count_last_5d.astype(self.config.run_dtype)
+		
+		miss_ratio_last_5d = miss_count_last_5d / (self.config.brushup_miss_count_window * n_cols)
+		brushup_data["miss_ratio_last_5d"] = miss_ratio_last_5d.astype(np.float32)
+		
+		# 2. is_long_missing_streak & long_streak_col_count
+		run_na_cols = [f"run_na/{col}" for col in feature_columns]
+		is_long_streak = (run_na_df[run_na_cols].max(axis=1) >= self.config.brushup_streak_threshold).astype(self.config.flag_dtype)
+		brushup_data["is_long_missing_streak"] = is_long_streak
+		
+		long_streak_count = (run_na_df[run_na_cols] >= self.config.brushup_streak_threshold).sum(axis=1)
+		brushup_data["long_streak_col_count"] = long_streak_count.astype(self.config.run_dtype)
+		
+		# 3. miss_regime_change
+		regime_change_flags = []
+		for col in feature_columns:
+			m_col = f"m/{col}"
+			# Recent 5-day missingness rate
+			recent_miss_rate = flag_df[m_col].rolling(
+				window=self.config.brushup_regime_recent_window
+			).mean()
+			# Past 30-day missingness rate (shifted by 5 to avoid overlap)
+			past_miss_rate = flag_df[m_col].shift(
+				self.config.brushup_regime_recent_window
+			).rolling(
+				window=self.config.brushup_regime_past_window
+			).mean()
+			
+			# Regime change: recent > threshold AND past < threshold
+			is_change = (
+				(recent_miss_rate > self.config.brushup_regime_recent_threshold) & 
+				(past_miss_rate < self.config.brushup_regime_past_threshold)
+			)
+			regime_change_flags.append(is_change)
+		
+		# Any column has regime change
+		regime_change_df = pd.DataFrame(regime_change_flags).T
+		miss_regime_change = regime_change_df.any(axis=1).astype(self.config.flag_dtype)
+		brushup_data["miss_regime_change"] = miss_regime_change
+		
+		return pd.DataFrame(brushup_data, index=flag_df.index)
 
 
 def generate_su1_features(

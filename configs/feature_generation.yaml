@@ -20,6 +20,15 @@ su1:
     raw_dir: data/raw
     train_filename: train.csv
     test_filename: test.csv
+  brushup:
+    enabled: true
+    miss_count_window: 5
+    streak_threshold: 3
+    regime_change:
+      recent_window: 5
+      past_window: 30
+      recent_threshold: 0.5
+      past_threshold: 0.1
   metadata:
     artifacts_dir: artifacts/SU1
     kaggle_lb: 0.674
@@ -196,6 +205,15 @@ su5:
     flag: uint8
     int: int16
     float: float32
+
+  brushup:
+    enabled: true
+    cluster:
+      n_clusters: 6
+      random_state: 42
+    include_density: true
+    include_deg_stats: true
+    include_centrality: true
 
   metadata:
     artifacts_dir: artifacts/SU5/policy1_top10_w5
