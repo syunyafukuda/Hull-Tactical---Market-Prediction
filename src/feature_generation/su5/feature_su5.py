@@ -7,12 +7,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import yaml
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.cluster import KMeans
+
+if TYPE_CHECKING:
+	# For type checking only - helps pyright understand the type
+	pass
 
 
 def _infer_group(column_name: str) -> str | None:
@@ -55,6 +60,14 @@ class SU5Config:
 	dtype_flag: np.dtype
 	dtype_int: np.dtype
 	dtype_float: np.dtype
+	
+	# brushup 設定
+	brushup_enabled: bool
+	brushup_n_clusters: int
+	brushup_random_state: int
+	brushup_include_density: bool
+	brushup_include_deg_stats: bool
+	brushup_include_centrality: bool
 
 	@classmethod
 	def from_mapping(cls, mapping: Mapping[str, Any]) -> "SU5Config":
@@ -81,6 +94,16 @@ class SU5Config:
 		dtype_int = np.dtype(dtype_section.get("int", "int16"))
 		dtype_float = np.dtype(dtype_section.get("float", "float32"))
 
+		# brushup 設定
+		brushup_section = mapping.get("brushup", {})
+		brushup_enabled = bool(brushup_section.get("enabled", False))
+		cluster_section = brushup_section.get("cluster", {})
+		brushup_n_clusters = int(cluster_section.get("n_clusters", 6))
+		brushup_random_state = int(cluster_section.get("random_state", 42))
+		brushup_include_density = bool(brushup_section.get("include_density", True))
+		brushup_include_deg_stats = bool(brushup_section.get("include_deg_stats", True))
+		brushup_include_centrality = bool(brushup_section.get("include_centrality", True))
+
 		return cls(
 			id_column=id_column,
 			output_prefix=output_prefix,
@@ -91,6 +114,12 @@ class SU5Config:
 			dtype_flag=dtype_flag,
 			dtype_int=dtype_int,
 			dtype_float=dtype_float,
+			brushup_enabled=brushup_enabled,
+			brushup_n_clusters=brushup_n_clusters,
+			brushup_random_state=brushup_random_state,
+			brushup_include_density=brushup_include_density,
+			brushup_include_deg_stats=brushup_include_deg_stats,
+			brushup_include_centrality=brushup_include_centrality,
 		)
 
 
@@ -121,6 +150,7 @@ class SU5FeatureGenerator(BaseEstimator, TransformerMixin):
 		self.groups_: Optional[Dict[str, List[str]]] = None
 		self.top_pairs_: Optional[List[Tuple[str, str]]] = None
 		self.feature_names_: Optional[List[str]] = None
+		self.kmeans_model_: Optional[KMeans] = None  # k-means for brushup
 
 	def fit(self, X: pd.DataFrame, y: Any = None) -> "SU5FeatureGenerator":
 		"""特徴名の抽出とtop-kペアの選択。
@@ -149,6 +179,17 @@ class SU5FeatureGenerator(BaseEstimator, TransformerMixin):
 
 		# 4. feature_names_ を組み立て（transform 出力列の順序を固定）
 		self.feature_names_ = self._build_feature_names()
+
+		# 5. brushup: k-means fit (if enabled)
+		if self.config.brushup_enabled:
+			miss_matrix = X[[col for col in self.m_columns_]].values
+			kmeans = KMeans(
+				n_clusters=self.config.brushup_n_clusters,
+				random_state=self.config.brushup_random_state,
+				n_init=10  # type: ignore[arg-type]
+			)
+			kmeans.fit(miss_matrix)
+			self.kmeans_model_ = kmeans
 
 		return self
 
@@ -182,6 +223,11 @@ class SU5FeatureGenerator(BaseEstimator, TransformerMixin):
 		# C. degree（列ごとの共欠損次数）
 		co_deg = self._compute_co_miss_degree(X)
 		features.update(co_deg)
+
+		# D. brushup features (if enabled)
+		if self.config.brushup_enabled:
+			brushup_feats = self._compute_brushup_features(X, features)
+			features.update(brushup_feats)
 
 		return pd.DataFrame(features, index=X.index)
 
@@ -403,6 +449,81 @@ class SU5FeatureGenerator(BaseEstimator, TransformerMixin):
 			)
 
 		return degree_features
+
+	def _compute_brushup_features(
+		self, X: pd.DataFrame, existing_features: Dict[str, np.ndarray]
+	) -> Dict[str, np.ndarray]:
+		"""Generate SU5 brushup features (4-5 new columns)."""
+		brushup_features: Dict[str, np.ndarray] = {}
+		
+		if self.m_columns_ is None or self.top_pairs_ is None:
+			return brushup_features
+		
+		n = len(X)
+		
+		# 1. miss_pattern_cluster (k-means)
+		if self.kmeans_model_ is not None:
+			miss_matrix = X[[col for col in self.m_columns_]].values
+			cluster_labels: np.ndarray = self.kmeans_model_.predict(miss_matrix)  # type: ignore[assignment]
+			brushup_features["miss_pattern_cluster"] = cluster_labels.astype(np.int8)
+		
+		# 2. co_miss_density
+		if self.config.brushup_include_density:
+			co_miss_now_cols = [f"co_miss_now/{a}__{b}" for a, b in self.top_pairs_]
+			co_miss_flags = np.column_stack([existing_features[col] for col in co_miss_now_cols])
+			co_miss_density = co_miss_flags.mean(axis=1).astype(self.config.dtype_float)
+			brushup_features["co_miss_density"] = co_miss_density
+		
+		# 3. co_miss_deg_sum and co_miss_deg_mean
+		if self.config.brushup_include_deg_stats:
+			# Get degree values for each column
+			degree_values = {}
+			for col in self.m_columns_:
+				base_col = col[2:]
+				degree_col = f"co_miss_deg/{base_col}"
+				if degree_col in existing_features:
+					# co_miss_deg values are constant across all rows (static graph property)
+					# so we can extract from first element
+					degree_values[base_col] = existing_features[degree_col][0]
+			
+			# Calculate deg sum and mean for missing columns in each row
+			deg_sum = np.zeros(n, dtype=self.config.dtype_float)
+			deg_mean = np.zeros(n, dtype=self.config.dtype_float)
+			
+			for i in range(n):
+				missing_cols = []
+				for col in self.m_columns_:
+					if X.iloc[i][col] == 1:  # missing
+						base_col = col[2:]
+						if base_col in degree_values:
+							missing_cols.append(degree_values[base_col])
+				
+				if missing_cols:
+					deg_sum[i] = sum(missing_cols)
+					deg_mean[i] = sum(missing_cols) / len(missing_cols)
+			
+			brushup_features["co_miss_deg_sum"] = deg_sum
+			brushup_features["co_miss_deg_mean"] = deg_mean
+		
+		# 4. miss_graph_centrality (optional)
+		if self.config.brushup_include_centrality:
+			# Build set of columns in top-k pairs
+			pair_cols = set()
+			for a, b in self.top_pairs_:
+				pair_cols.add(a)
+				pair_cols.add(b)
+			
+			# Count how many missing columns are in top-k pairs
+			centrality = np.zeros(n, dtype=np.int8)
+			for i in range(n):
+				for col in self.m_columns_:
+					base_col = col[2:]
+					if X.iloc[i][col] == 1 and base_col in pair_cols:  # missing and in top-k
+						centrality[i] += 1
+			
+			brushup_features["miss_graph_centrality"] = centrality
+		
+		return brushup_features
 
 
 # Note: SU5FeatureAugmenter is defined in train_su5.py

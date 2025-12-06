@@ -24,6 +24,27 @@ def _build_config() -> SU5Config:
     return SU5Config.from_mapping(mapping)
 
 
+def _build_config_with_brushup() -> SU5Config:
+    """テスト用のSU5Config (brushup enabled) を生成する。"""
+    mapping = {
+        "id_column": "date_id",
+        "output_prefix": "su5",
+        "top_k_pairs": 3,
+        "top_k_pairs_per_group": None,
+        "windows": [5, 20],
+        "reset_each_fold": True,
+        "dtype": {"flag": "uint8", "int": "int16", "float": "float32"},
+        "brushup": {
+            "enabled": True,
+            "cluster": {"n_clusters": 6, "random_state": 42},
+            "include_density": True,
+            "include_deg_stats": True,
+            "include_centrality": True,
+        },
+    }
+    return SU5Config.from_mapping(mapping)
+
+
 def test_su5_config_loading(tmp_path: Path) -> None:
     """YAML設定の読込確認。"""
     config_path = tmp_path / "test_config.yaml"
@@ -123,6 +144,12 @@ def test_su5_single_co_miss_pair() -> None:
         dtype_flag=np.dtype("uint8"),
         dtype_int=np.dtype("int16"),
         dtype_float=np.dtype("float32"),
+        brushup_enabled=False,
+        brushup_n_clusters=6,
+        brushup_random_state=42,
+        brushup_include_density=False,
+        brushup_include_deg_stats=False,
+        brushup_include_centrality=False,
     )
 
     # M1 と M2 のみが同じパターンで欠損
@@ -197,6 +224,12 @@ def test_su5_output_shape() -> None:
         dtype_flag=np.dtype("uint8"),
         dtype_int=np.dtype("int16"),
         dtype_float=np.dtype("float32"),
+        brushup_enabled=False,
+        brushup_n_clusters=6,
+        brushup_random_state=42,
+        brushup_include_density=False,
+        brushup_include_deg_stats=False,
+        brushup_include_centrality=False,
     )
 
     su1_features = pd.DataFrame(
@@ -252,3 +285,128 @@ def test_su5_dtype() -> None:
     rollrate_cols = [c for c in features.columns if c.startswith("co_miss_rollrate_")]
     for col in rollrate_cols:
         assert features[col].dtype == np.float32, f"{col} should be float32"
+
+
+def test_su5_brushup_miss_pattern_cluster() -> None:
+    """Test miss_pattern_cluster k-means clustering."""
+    config = _build_config_with_brushup()
+
+    # Create data with distinct missing patterns
+    su1_features = pd.DataFrame(
+        {
+            "date_id": range(20),
+            # Group 1: all missing
+            "m/M1": [1] * 10 + [0] * 10,
+            # Group 2: none missing
+            "m/M2": [0] * 10 + [1] * 10,
+            "m/M3": [1, 0] * 10,
+        }
+    ).set_index("date_id")
+
+    transformer = SU5FeatureGenerator(config)
+    transformer.fit(su1_features)
+    features = transformer.transform(su1_features)
+
+    assert "miss_pattern_cluster" in features.columns
+    assert features["miss_pattern_cluster"].dtype == np.int8
+    # Values should be between 0 and n_clusters-1
+    assert features["miss_pattern_cluster"].min() >= 0
+    assert features["miss_pattern_cluster"].max() < config.brushup_n_clusters
+
+
+def test_su5_brushup_co_miss_density() -> None:
+    """Test co_miss_density calculation."""
+    config = _build_config_with_brushup()
+
+    # Create data where some rows have high co-missingness
+    su1_features = pd.DataFrame(
+        {
+            "date_id": range(10),
+            "m/M1": [1, 1, 0, 0, 1, 1, 0, 0, 1, 1],
+            "m/M2": [1, 1, 0, 0, 1, 1, 0, 0, 1, 1],
+            "m/M3": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        }
+    ).set_index("date_id")
+
+    transformer = SU5FeatureGenerator(config)
+    transformer.fit(su1_features)
+    features = transformer.transform(su1_features)
+
+    assert "co_miss_density" in features.columns
+    assert features["co_miss_density"].dtype == np.float32
+    # Density should be between 0 and 1
+    assert features["co_miss_density"].min() >= 0.0
+    assert features["co_miss_density"].max() <= 1.0
+
+
+def test_su5_brushup_co_miss_deg_stats() -> None:
+    """Test co_miss_deg_sum and co_miss_deg_mean calculation."""
+    config = _build_config_with_brushup()
+
+    su1_features = pd.DataFrame(
+        {
+            "date_id": range(10),
+            "m/M1": [1, 1, 0, 0, 1, 1, 0, 0, 1, 1],
+            "m/M2": [1, 1, 0, 0, 1, 1, 0, 0, 1, 1],
+            "m/M3": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        }
+    ).set_index("date_id")
+
+    transformer = SU5FeatureGenerator(config)
+    transformer.fit(su1_features)
+    features = transformer.transform(su1_features)
+
+    assert "co_miss_deg_sum" in features.columns
+    assert "co_miss_deg_mean" in features.columns
+    assert features["co_miss_deg_sum"].dtype == np.float32
+    assert features["co_miss_deg_mean"].dtype == np.float32
+
+
+def test_su5_brushup_miss_graph_centrality() -> None:
+    """Test miss_graph_centrality calculation."""
+    config = _build_config_with_brushup()
+
+    su1_features = pd.DataFrame(
+        {
+            "date_id": range(10),
+            "m/M1": [1, 1, 0, 0, 1, 1, 0, 0, 1, 1],
+            "m/M2": [1, 1, 0, 0, 1, 1, 0, 0, 1, 1],
+            "m/M3": [1, 0, 0, 0, 1, 0, 0, 0, 1, 0],
+        }
+    ).set_index("date_id")
+
+    transformer = SU5FeatureGenerator(config)
+    transformer.fit(su1_features)
+    features = transformer.transform(su1_features)
+
+    assert "miss_graph_centrality" in features.columns
+    assert features["miss_graph_centrality"].dtype == np.int8
+    # Centrality should be non-negative
+    assert features["miss_graph_centrality"].min() >= 0
+
+
+def test_su5_brushup_cv_leak_prevention() -> None:
+    """Test that k-means is fitted on train data only to prevent CV leak."""
+    config = _build_config_with_brushup()
+
+    su1_features = pd.DataFrame(
+        {
+            "date_id": range(20),
+            "m/M1": [1, 0] * 10,
+            "m/M2": [0, 1] * 10,
+            "m/M3": [1, 1, 0, 0] * 5,
+        }
+    ).set_index("date_id")
+
+    transformer = SU5FeatureGenerator(config)
+    # Fit only on first 10 rows (simulating train set)
+    transformer.fit(su1_features.iloc[:10])
+    
+    # Transform on all data (simulating train + val)
+    features = transformer.transform(su1_features)
+
+    # Should have cluster labels for all rows
+    assert len(features) == 20
+    assert "miss_pattern_cluster" in features.columns
+    # Verify kmeans was fitted
+    assert transformer.kmeans_model_ is not None
