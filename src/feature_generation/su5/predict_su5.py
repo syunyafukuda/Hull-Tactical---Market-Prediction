@@ -105,6 +105,38 @@ from src.feature_generation.su5.train_su5 import SU5FeatureAugmenter  # noqa: E4
 from src.feature_generation.su5.feature_su5 import SU5Config, SU5FeatureGenerator  # noqa: E402,F401
 
 
+def _generate_lagged_derived_features(
+    df: pd.DataFrame,
+    su5_config: SU5Config | None,
+) -> pd.DataFrame:
+    """Generate derived lagged features (sign/abs) for test data.
+    
+    In test.csv, the base lagged_* columns already exist. This function
+    only generates the derived features (sign_lagged_fwd_excess, 
+    abs_lagged_fwd_excess) if enabled in config.
+    """
+    if su5_config is None or not su5_config.lagged_enabled:
+        return df
+    
+    result = df.copy()
+    
+    # Generate sign feature (optional)
+    # NaN -> 0 (unknown direction) for robustness
+    if su5_config.lagged_include_sign:
+        excess_col = "lagged_market_forward_excess_returns"
+        if excess_col in result.columns:
+            sign_series = np.sign(result[excess_col]).fillna(0).astype("int8")
+            result["sign_lagged_fwd_excess"] = sign_series
+    
+    # Generate abs feature (optional)
+    if su5_config.lagged_include_abs:
+        excess_col = "lagged_market_forward_excess_returns"
+        if excess_col in result.columns:
+            result["abs_lagged_fwd_excess"] = np.abs(result[excess_col]).astype("float32")
+    
+    return result
+
+
 def infer_test_file(data_dir: Path, explicit: str | None) -> Path:
 	if explicit:
 		candidate = Path(explicit)
@@ -466,6 +498,27 @@ def main(argv: Iterable[str] | None = None) -> int:
 	working_df["__original_order__"] = np.arange(len(working_df))
 	working_sorted = working_df.sort_values(id_col).reset_index(drop=True)
 	feature_frame = working_sorted.drop(columns=["__original_order__"])
+
+	# Load su5_config from metadata and generate lagged derived features if enabled
+	su5_config: SU5Config | None = None
+	su5_config_dict = meta.get("su5_config")
+	if isinstance(su5_config_dict, dict) and su5_config_dict.get("lagged_enabled", False):
+		# Reconstruct SU5Config from stored metadata
+		try:
+			su5_config = SU5Config(
+				enabled=su5_config_dict.get("enabled", True),
+				prefix=su5_config_dict.get("prefix", "su5_"),
+				threshold_pct=su5_config_dict.get("threshold_pct", 50.0),
+				lagged_enabled=su5_config_dict.get("lagged_enabled", False),
+				lagged_columns=tuple(su5_config_dict.get("lagged_columns", ())),
+				lagged_source_columns=su5_config_dict.get("lagged_source_columns", {}),
+				lagged_include_sign=su5_config_dict.get("lagged_include_sign", False),
+				lagged_include_abs=su5_config_dict.get("lagged_include_abs", False),
+			)
+			feature_frame = _generate_lagged_derived_features(feature_frame, su5_config)
+			print(f"[info] generated lagged derived features: sign={su5_config.lagged_include_sign}, abs={su5_config.lagged_include_abs}")
+		except Exception as e:
+			print(f"[warn] failed to reconstruct su5_config for lagged features: {e}")
 
 	X_test = _ensure_columns(feature_frame, feature_cols, max_missing=args.max_missing_columns)
 	_coerce_numeric_like_columns(X_test)

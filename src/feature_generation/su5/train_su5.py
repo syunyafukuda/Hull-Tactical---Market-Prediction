@@ -563,6 +563,44 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 	return ap.parse_args(argv)
 
 
+def _generate_lagged_features_for_train(
+    df: pd.DataFrame,
+    su5_config: SU5Config,
+) -> pd.DataFrame:
+    """Generate lagged features for train data by shifting source columns.
+    
+    In train.csv, lagged_* columns don't exist, so we recreate them by
+    shifting the source columns (forward_returns, risk_free_rate, etc.)
+    by 1 day. The first row will have NaN which will be handled by
+    existing imputation logic.
+    """
+    result = df.copy()
+    
+    if not su5_config.lagged_enabled:
+        return result
+    
+    # Generate base lagged columns
+    for lagged_col, source_col in su5_config.lagged_source_columns.items():
+        if source_col in df.columns:
+            result[lagged_col] = df[source_col].shift(1).astype("float32")
+    
+    # Generate sign feature (optional)
+    # NaN (first row after shift) -> 0 (unknown direction)
+    if su5_config.lagged_include_sign:
+        excess_col = "lagged_market_forward_excess_returns"
+        if excess_col in result.columns:
+            sign_series = np.sign(result[excess_col]).fillna(0).astype("int8")
+            result["sign_lagged_fwd_excess"] = sign_series
+    
+    # Generate abs feature (optional)
+    if su5_config.lagged_include_abs:
+        excess_col = "lagged_market_forward_excess_returns"
+        if excess_col in result.columns:
+            result["abs_lagged_fwd_excess"] = np.abs(result[excess_col]).astype("float32")
+    
+    return result
+
+
 def _prepare_features(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
@@ -570,14 +608,24 @@ def _prepare_features(
     target_col: str,
     id_col: str,
     exclude_lagged: bool = True,
+    su5_config: SU5Config | None = None,
 ) -> tuple[pd.DataFrame, pd.Series, List[str]]:
     """
     Prepare feature matrices for training and testing.
 
     By default, columns starting with 'lagged_' are excluded from features.
     This is to avoid potential data leakage or unintended use of lagged features.
-    Set exclude_lagged=False to include lagged features if desired.
+    
+    If su5_config.lagged_enabled is True, lagged features are generated for
+    train data (by shift(1)) and included in the feature set.
     """
+    # First, generate lagged features for train if enabled
+    working_train = train_df.copy()
+    if su5_config is not None and su5_config.lagged_enabled:
+        working_train = _generate_lagged_features_for_train(train_df, su5_config)
+        # Don't exclude lagged columns when lagged_enabled is True
+        exclude_lagged = False
+    
     drop_cols = {
         target_col,
         id_col,
@@ -588,11 +636,22 @@ def _prepare_features(
         "is_scored",
     }
 
-    y_series = cast(pd.Series, train_df[target_col])
+    y_series = cast(pd.Series, working_train[target_col])
     y = y_series.astype(float)
 
-    candidate_cols = [c for c in train_df.columns if c not in drop_cols]
+    candidate_cols = [c for c in working_train.columns if c not in drop_cols]
     test_cols = set(test_df.columns) - drop_cols
+    
+    # If lagged is enabled, also add the derived columns to test_cols for matching
+    if su5_config is not None and su5_config.lagged_enabled:
+        # Add lagged columns that we generated
+        for lagged_col in su5_config.lagged_columns:
+            test_cols.add(lagged_col)
+        if su5_config.lagged_include_sign:
+            test_cols.add("sign_lagged_fwd_excess")
+        if su5_config.lagged_include_abs:
+            test_cols.add("abs_lagged_fwd_excess")
+    
     if exclude_lagged:
         use_cols = [c for c in candidate_cols if c in test_cols and not c.startswith("lagged_")]
     else:
@@ -600,7 +659,7 @@ def _prepare_features(
     if not use_cols:
         raise RuntimeError("No usable feature columns after intersecting train/test.")
 
-    X = cast(pd.DataFrame, train_df[use_cols].copy())
+    X = cast(pd.DataFrame, working_train[use_cols].copy())
     return X, y, use_cols
 def _initialise_callbacks(model: Any) -> List[Any]:
 	callbacks: List[Any] = []
@@ -660,7 +719,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 	if args.target_col not in train_df.columns:
 		raise KeyError(f"Target column '{args.target_col}' was not found in train data.")
 
-	X, y, feature_cols = _prepare_features(train_df, test_df, target_col=args.target_col, id_col=args.id_col)
+	X, y, feature_cols = _prepare_features(
+		train_df, test_df,
+		target_col=args.target_col,
+		id_col=args.id_col,
+		su5_config=su5_config,
+	)
 
 	model_kwargs = {
 		"learning_rate": args.learning_rate,

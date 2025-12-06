@@ -150,6 +150,11 @@ def test_su5_single_co_miss_pair() -> None:
         brushup_include_density=False,
         brushup_include_deg_stats=False,
         brushup_include_centrality=False,
+        lagged_enabled=False,
+        lagged_columns=(),
+        lagged_source_columns={},
+        lagged_include_sign=False,
+        lagged_include_abs=False,
     )
 
     # M1 と M2 のみが同じパターンで欠損
@@ -230,6 +235,11 @@ def test_su5_output_shape() -> None:
         brushup_include_density=False,
         brushup_include_deg_stats=False,
         brushup_include_centrality=False,
+        lagged_enabled=False,
+        lagged_columns=(),
+        lagged_source_columns={},
+        lagged_include_sign=False,
+        lagged_include_abs=False,
     )
 
     su1_features = pd.DataFrame(
@@ -410,3 +420,142 @@ def test_su5_brushup_cv_leak_prevention() -> None:
     assert "miss_pattern_cluster" in features.columns
     # Verify kmeans was fitted
     assert transformer.kmeans_model_ is not None
+
+
+# ========================================
+# Lagged Features Tests
+# ========================================
+
+
+def _build_config_with_lagged() -> SU5Config:
+    """テスト用のSU5Config (lagged enabled) を生成する。"""
+    mapping = {
+        "id_column": "date_id",
+        "output_prefix": "su5",
+        "top_k_pairs": 3,
+        "top_k_pairs_per_group": None,
+        "windows": [5],
+        "reset_each_fold": True,
+        "dtype": {"flag": "uint8", "int": "int16", "float": "float32"},
+        "lagged_features": {
+            "enabled": True,
+            "columns": [
+                "lagged_forward_returns",
+                "lagged_risk_free_rate",
+                "lagged_market_forward_excess_returns",
+            ],
+            "source_columns": {
+                "lagged_forward_returns": "forward_returns",
+                "lagged_risk_free_rate": "risk_free_rate",
+                "lagged_market_forward_excess_returns": "market_forward_excess_returns",
+            },
+            "include_sign": True,
+            "include_abs": False,
+        },
+    }
+    return SU5Config.from_mapping(mapping)
+
+
+def test_su5_lagged_config_loading() -> None:
+    """lagged設定が正しく読み込まれることを確認。"""
+    config = _build_config_with_lagged()
+    
+    assert config.lagged_enabled is True
+    assert len(config.lagged_columns) == 3
+    assert "lagged_forward_returns" in config.lagged_columns
+    assert config.lagged_source_columns["lagged_forward_returns"] == "forward_returns"
+    assert config.lagged_include_sign is True
+    assert config.lagged_include_abs is False
+
+
+def test_su5_lagged_features_train_generation() -> None:
+    """train側でshift(1)によりlagged特徴が生成されることを確認。"""
+    from src.feature_generation.su5.train_su5 import _generate_lagged_features_for_train
+    
+    config = _build_config_with_lagged()
+    
+    # シミュレートされた train データ
+    train_df = pd.DataFrame({
+        "date_id": range(5),
+        "forward_returns": [0.01, 0.02, -0.01, 0.03, -0.02],
+        "risk_free_rate": [0.001, 0.001, 0.001, 0.001, 0.001],
+        "market_forward_excess_returns": [0.005, 0.015, -0.015, 0.025, -0.025],
+    })
+    
+    result = _generate_lagged_features_for_train(train_df, config)
+    
+    # lagged カラムが生成されていること
+    assert "lagged_forward_returns" in result.columns
+    assert "lagged_risk_free_rate" in result.columns
+    assert "lagged_market_forward_excess_returns" in result.columns
+    
+    # shift(1) により最初の行は NaN → sign特徴では 0 (unknown)
+    assert pd.isna(result["lagged_forward_returns"].iloc[0])
+    
+    # 2行目は前日の値 (float32精度で比較)
+    assert abs(result["lagged_forward_returns"].iloc[1] - 0.01) < 1e-6
+    
+    # sign特徴が生成されていること
+    assert "sign_lagged_fwd_excess" in result.columns
+    # 最初の行は NaN → 0 (unknown)
+    assert result["sign_lagged_fwd_excess"].iloc[0] == 0
+    assert result["sign_lagged_fwd_excess"].iloc[1] == 1  # sign(0.005) = 1
+    assert result["sign_lagged_fwd_excess"].iloc[3] == -1  # sign(-0.015) = -1
+
+
+def test_su5_lagged_disabled() -> None:
+    """lagged_enabled=False の場合、何も生成されないことを確認。"""
+    from src.feature_generation.su5.train_su5 import _generate_lagged_features_for_train
+    
+    config = _build_config()  # lagged disabled by default
+    
+    train_df = pd.DataFrame({
+        "date_id": range(5),
+        "forward_returns": [0.01, 0.02, -0.01, 0.03, -0.02],
+        "risk_free_rate": [0.001, 0.001, 0.001, 0.001, 0.001],
+        "market_forward_excess_returns": [0.005, 0.015, -0.015, 0.025, -0.025],
+    })
+    
+    result = _generate_lagged_features_for_train(train_df, config)
+    
+    # lagged カラムは生成されない
+    assert "lagged_forward_returns" not in result.columns
+    assert "sign_lagged_fwd_excess" not in result.columns
+
+
+def test_su5_lagged_with_abs() -> None:
+    """include_abs=True の場合、abs特徴も生成されることを確認。"""
+    from src.feature_generation.su5.train_su5 import _generate_lagged_features_for_train
+    
+    mapping = {
+        "id_column": "date_id",
+        "output_prefix": "su5",
+        "top_k_pairs": 3,
+        "windows": [5],
+        "lagged_features": {
+            "enabled": True,
+            "columns": ["lagged_market_forward_excess_returns"],
+            "source_columns": {
+                "lagged_market_forward_excess_returns": "market_forward_excess_returns",
+            },
+            "include_sign": True,
+            "include_abs": True,
+        },
+    }
+    config = SU5Config.from_mapping(mapping)
+    
+    train_df = pd.DataFrame({
+        "date_id": range(5),
+        "market_forward_excess_returns": [0.005, -0.015, 0.025, -0.035, 0.045],
+    })
+    
+    result = _generate_lagged_features_for_train(train_df, config)
+    
+    # abs特徴が生成されていること
+    assert "abs_lagged_fwd_excess" in result.columns
+    
+    # abs値の確認（2行目は前日の0.005の絶対値）
+    assert abs(result["abs_lagged_fwd_excess"].iloc[1] - 0.005) < 1e-6
+    # 3行目は前日の-0.015の絶対値
+    assert abs(result["abs_lagged_fwd_excess"].iloc[2] - 0.015) < 1e-6
+

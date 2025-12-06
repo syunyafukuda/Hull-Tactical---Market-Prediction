@@ -241,6 +241,25 @@ su5:
         adopted: false
     notes: "✅ ADOPTED: Policy1 achieves LB 0.681 (best score ever). Policy2 scored 0.679. Policy1 selected for simpler configuration and higher LB."
 
+  # ========================================
+  # Lagged Features (experimental)
+  # ========================================
+  # 目的: test.csv に存在する lagged_* カラムを train でも利用
+  # 設計: train側では shift(1) で前日値を再現
+  # 追加列数: 3〜5列（最小限の追加）
+  lagged_features:
+    enabled: true
+    columns:
+      - lagged_forward_returns
+      - lagged_risk_free_rate
+      - lagged_market_forward_excess_returns
+    source_columns:
+      lagged_forward_returns: forward_returns
+      lagged_risk_free_rate: risk_free_rate
+      lagged_market_forward_excess_returns: market_forward_excess_returns
+    include_sign: true   # sign_lagged_fwd_excess (+1列)
+    include_abs: false   # abs_lagged_fwd_excess を追加する場合は true
+
 su6:
   # ⏸ SU6は「欠損軸の圧縮」候補だが、現時点では優先度低として実装をスキップする。
   # 理由:
