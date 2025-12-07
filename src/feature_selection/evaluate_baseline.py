@@ -645,7 +645,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if preprocess_step is not None and hasattr(preprocess_step, "get_feature_names_out"):
         try:
             model_feature_names = list(preprocess_step.get_feature_names_out())
-        except (NotFittedError, AttributeError, TypeError):
+        except (NotFittedError, AttributeError, TypeError, ValueError):
             # If get_feature_names_out() fails (e.g., step not fitted or incompatible),
             # keep model_feature_names as empty list. This is acceptable since it's
             # optional metadata for the inference bundle.
