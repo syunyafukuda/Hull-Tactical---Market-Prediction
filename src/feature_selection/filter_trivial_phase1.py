@@ -154,7 +154,7 @@ def compute_statistics(X: pd.DataFrame) -> Dict[str, Any]:
     X_numeric = X[numeric_cols]
     
     print(f"[info] Computing correlation matrix for {len(numeric_cols)} numeric columns...")
-    correlation_matrix = X_numeric.corr()
+    correlation_matrix = X_numeric.corr()  # type: ignore[assignment]
     
     return {
         "variance": variances,
@@ -176,10 +176,11 @@ def find_low_variance_features(
     Returns:
         List of dictionaries with feature_name, reason, and value
     """
-    variances = X.var(axis=0, skipna=True)
+    variances: pd.Series = X.var(axis=0, skipna=True)  # type: ignore[assignment]
     
     candidates = []
-    for feature_name, variance in variances.items():
+    for feature_name in variances.index:
+        variance = float(variances[feature_name])
         if variance < threshold:
             candidates.append({
                 "feature_name": str(feature_name),
@@ -204,10 +205,11 @@ def find_high_missing_features(
     Returns:
         List of dictionaries with feature_name, reason, and value
     """
-    missing_rates = X.isnull().mean(axis=0)
+    missing_rates: pd.Series = X.isnull().mean(axis=0)  # type: ignore[assignment]
     
     candidates = []
-    for feature_name, missing_rate in missing_rates.items():
+    for feature_name in missing_rates.index:
+        missing_rate = float(missing_rates[feature_name])
         if missing_rate > threshold:
             candidates.append({
                 "feature_name": str(feature_name),
@@ -243,7 +245,7 @@ def find_high_correlation_features(
     X_numeric = X[numeric_cols]
     
     print(f"[info] Computing correlations for {len(numeric_cols)} numeric columns...")
-    corr_matrix = X_numeric.corr()
+    corr_matrix = X_numeric.corr()  # type: ignore[assignment]
     
     # Build importance lookup
     importance_lookup = {}

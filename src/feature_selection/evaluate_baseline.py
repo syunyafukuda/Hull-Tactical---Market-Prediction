@@ -182,7 +182,7 @@ def compute_fold_importance(
     """
     if not hasattr(model, "feature_importances_"):
         # Return empty DataFrame if no importance available
-        return pd.DataFrame(columns=["feature_name", "importance_gain", "importance_split", "fold"])
+        return pd.DataFrame(columns=pd.Index(["feature_name", "importance_gain", "importance_split", "fold"]))
     
     # Get importances
     importance_gain = model.feature_importances_  # default is 'gain'

@@ -414,9 +414,14 @@ def main(argv: Iterable[str] | None = None) -> int:
     working_sorted = working_df.sort_values(id_col).reset_index(drop=True)
 
     # Ensure required columns
-    X_test = _ensure_columns(
+    X_test_source = (
         working_sorted[pipeline_input_cols].copy() if all(c in working_sorted.columns for c in pipeline_input_cols) 
-        else working_sorted.drop(columns=["__original_order__"], errors="ignore"),
+        else working_sorted.drop(columns=["__original_order__"], errors="ignore")
+    )
+    if not isinstance(X_test_source, pd.DataFrame):
+        raise ValueError("X_test_source must be a DataFrame")
+    X_test = _ensure_columns(
+        X_test_source,
         pipeline_input_cols,
         max_missing=args.max_missing_columns,
     )
@@ -446,6 +451,8 @@ def main(argv: Iterable[str] | None = None) -> int:
     
     # Predict
     print("[info] predicting...")
+    if pipeline is None:
+        raise ValueError("Pipeline is None - invalid bundle structure")
     prediction = pipeline.predict(X_augmented)
     prediction = _post_process_predictions(
         prediction,
@@ -511,7 +518,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         print(f"[ok] wrote {out_csv}")
 
     # Summary
-    print(f"\n[summary] Prediction stats:")
+    print("\n[summary] Prediction stats:")
     print(f"  - Raw prediction: min={prediction.min():.6f}, max={prediction.max():.6f}, mean={prediction.mean():.6f}")
     print(f"  - Signal: min={signal_prediction.min():.6f}, max={signal_prediction.max():.6f}, mean={signal_prediction.mean():.6f}")
     print(f"  - Submission rows: {len(submission)}")

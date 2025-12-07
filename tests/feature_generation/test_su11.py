@@ -28,7 +28,7 @@ class TestSU11Config:
 		assert config.level2_model_type == "ridge"
 		assert config.use_extra_features is False
 		assert config.extra_feature_names == []
-		assert config.ridge_alpha == 1.0
+		assert config.ridge_alpha == 0.001
 		assert config.lgbm_n_estimators == 50
 		assert config.lgbm_max_depth == 3
 		assert config.n_splits == 5
