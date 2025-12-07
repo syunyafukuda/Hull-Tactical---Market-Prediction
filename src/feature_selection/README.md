@@ -12,7 +12,7 @@ This directory contains scripts for evaluating and filtering features through mu
 ### Scripts
 
 - `evaluate_baseline.py`: Main evaluation script for Tier0/Tier1 baselines
-- `filter_trivial.py`: Statistical feature filtering script
+- `filter_trivial_phase1.py`: Statistical feature filtering script
 
 ### Phase 0 Results (in `results/feature_selection/`)
 
