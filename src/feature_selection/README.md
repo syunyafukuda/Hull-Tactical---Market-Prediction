@@ -71,10 +71,10 @@ When run with the Tier0 configuration:
 
 ### Step 1: Identify Candidate Features
 
-Use `filter_trivial.py` to identify features that should be excluded based on statistical criteria:
+Use `filter_trivial_phase1.py` to identify features that should be excluded based on statistical criteria:
 
 ```bash
-python src/feature_selection/filter_trivial.py \
+python src/feature_selection/filter_trivial_phase1.py \
   --config-path configs/tier0_snapshot/feature_generation.yaml \
   --preprocess-config configs/tier0_snapshot/preprocess.yaml \
   --data-dir data/raw \
@@ -214,7 +214,7 @@ fold,train_size,val_size,rmse,msr,msr_down,best_mult,best_lo,best_hi
 - Python 3.12+
 - Dependencies: numpy, pandas, scikit-learn, lightgbm, pyyaml
 - Input data: `data/raw/train.csv` or `data/raw/train.parquet`
-- Input data: `data/raw/test.csv` or `data/raw/test.parquet` (optional for filter_trivial.py)
+- Input data: `data/raw/test.csv` or `data/raw/test.parquet` (optional for filter_trivial_phase1.py)
 
 ## Related Documentation
 
