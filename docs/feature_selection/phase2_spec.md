@@ -16,7 +16,7 @@ RMSE ベースの Permutation Importance で本当に効いていない列を確
 
 | 項目 | 値 | ファイル |
 |------|-----|----------|
-| 特徴量セット | Tier1（Phase 1 フィルタ後） | `configs/feature_selection/tier1_excluded.json` |
+| 特徴量セット | Tier1（Phase 1 フィルタ後） | `configs/feature_selection/tier1/excluded.json` |
 | 特徴量数 | 160 列 | - |
 | OOF RMSE | 0.012168 | - |
 | LB Score | 0.681 | - |
@@ -26,10 +26,10 @@ RMSE ベースの Permutation Importance で本当に効いていない列を確
 
 | 項目 | 説明 | ファイル |
 |------|------|----------|
-| 削除候補リスト | Phase 2-1 で特定した低重要度列 | `results/feature_selection/phase2_importance_candidates.json` |
-| Permutation 結果 | Phase 2-2 の ΔRMSE 分析 | `results/feature_selection/phase2_permutation_results.csv` |
-| Tier2 除外リスト | Phase 2 で確定した削除列 | `configs/feature_selection/tier2_excluded.json` |
-| 評価結果 | Tier2 の OOF RMSE | `results/feature_selection/tier2_evaluation.json` |
+| 削除候補リスト | Phase 2-1 で特定した低重要度列 | `results/feature_selection/phase2/importance_candidates.json` |
+| Permutation 結果 | Phase 2-2 の ΔRMSE 分析 | `results/feature_selection/phase2/permutation_results.csv` |
+| Tier2 除外リスト | Phase 2 で確定した削除列 | `configs/feature_selection/tier2/excluded.json` |
+| 評価結果 | Tier2 の OOF RMSE | `results/feature_selection/tier2/evaluation.json` |
 
 ---
 
@@ -87,29 +87,33 @@ LightGBM の gain/split importance を fold ごとに取得し、
 1. Tier1 特徴セットで Tier0 と同じ CV・ハイパラ設定で学習
 2. 各 fold ごとに全特徴の gain/split importance を算出
 3. 出力:
-   - fold 毎の importance: `results/feature_selection/tier1_importance.csv`
-   - 集計統計: `results/feature_selection/tier1_importance_summary.csv`
+   - fold 毎の importance: `results/feature_selection/tier1/importance.csv`
+   - 集計統計: `results/feature_selection/tier1/importance_summary.csv`
 
 **出力スキーマ**:
 
-`tier1_importance.csv`（fold 別）:
+`importance.csv`（fold 別）:
 
 | 列名 | 型 | 説明 |
 |------|-----|------|
-| fold_id | int | fold 番号（1-5） |
+| fold | int | fold 番号（1-5） |
 | feature_name | str | 特徴量名 |
-| gain | float | gain importance |
-| split | int | split importance |
+| importance_gain | float | gain importance |
+| importance_split | int | split importance |
 
-`tier1_importance_summary.csv`（集計）:
+`importance_summary.csv`（集計）:
 
 | 列名 | 型 | 説明 |
 |------|-----|------|
 | feature_name | str | 特徴量名 |
 | mean_gain | float | 平均 gain importance（主指標） |
 | std_gain | float | fold 間標準偏差 |
+| min_gain | float | 最小 gain importance |
+| max_gain | float | 最大 gain importance |
 | mean_split | float | 平均 split importance（補助） |
 | std_split | float | fold 間標準偏差 |
+| min_split | float | 最小 split importance |
+| max_split | float | 最大 split importance |
 | mean_gain_normalized | float | 全体に占める割合（正規化、0-1）|
 
 **CLI インターフェース**:
@@ -119,8 +123,8 @@ python src/feature_selection/compute_importance.py \
   --config-path configs/feature_generation.yaml \
   --preprocess-config configs/preprocess.yaml \
   --data-dir data/raw \
-  --exclude-features configs/feature_selection/tier1_excluded.json \
-  --out-dir results/feature_selection \
+  --exclude-features configs/feature_selection/tier1/excluded.json \
+  --out-dir results/feature_selection/tier1 \
   --n-splits 5
 ```
 
@@ -154,7 +158,7 @@ python src/feature_selection/compute_importance.py \
 
 #### T2-1-3: 候補リスト出力
 
-**出力ファイル**: `results/feature_selection/phase2_importance_candidates.json`
+**出力ファイル**: `results/feature_selection/phase2/importance_candidates.json`
 
 **形式**:
 
@@ -229,7 +233,7 @@ Phase 2-1 でマークした削除候補列に対して、
      - 対象列をランダムシャッフル
      - シャッフル後の RMSE を計算
      - 「シャッフル後 RMSE - 元 RMSE」を ΔRMSE として記録
-3. 出力: `results/feature_selection/phase2_permutation_results.csv`
+3. 出力: `results/feature_selection/phase2/permutation_results.csv`
 
 **Permutation の方式**:
 
@@ -263,14 +267,14 @@ python src/feature_selection/permutation_importance.py \
   --config-path configs/feature_generation.yaml \
   --preprocess-config configs/preprocess.yaml \
   --data-dir data/raw \
-  --exclude-features configs/feature_selection/tier1_excluded.json \
-  --candidates results/feature_selection/phase2_importance_candidates.json \
-  --out-path results/feature_selection/phase2_permutation_results.csv \
+  --exclude-features configs/feature_selection/tier1/excluded.json \
+  --candidates results/feature_selection/phase2/importance_candidates.json \
+  --out-path results/feature_selection/phase2/permutation_results.csv \
   --n-permutations 5 \
   --random-seed 42
 ```
 
-**出力スキーマ** (`phase2_permutation_results.csv`):
+**出力スキーマ** (`phase2/permutation_results.csv`):
 
 | 列名 | 型 | 説明 |
 |------|-----|------|
@@ -291,7 +295,7 @@ python src/feature_selection/permutation_importance.py \
 **削除確定の基準**:
 
 > **重要**: 以下の閾値は **初期案** であり、固定値ではない。
-> 実際の ΔRMSE 分布（`phase2_permutation_results.csv`）を可視化・確認した上で、
+> 実際の ΔRMSE 分布（`phase2/permutation_results.csv`）を可視化・確認した上で、
 > **最終的な閾値は `phase2_report.md` 内で明示する**。
 
 **初期閾値案**:
@@ -305,7 +309,7 @@ python src/feature_selection/permutation_importance.py \
 
 **出力**:
 
-1. 削除確定列リスト: `configs/feature_selection/tier2_excluded.json`
+1. 削除確定列リスト: `configs/feature_selection/tier2/excluded.json`
    - Phase 1 の除外リスト + Phase 2-2 の削除確定列
 2. 分析レポート: `docs/feature_selection/phase2_report.md`
 
@@ -324,7 +328,7 @@ python src/feature_selection/permutation_importance.py \
    - 例: 160列 → 100〜120列（目標）
 
 2. Tier2 で再学習
-   - `evaluate_baseline.py` に `--exclude-features tier2_excluded.json` を指定
+   - `evaluate_baseline.py` に `--exclude-features tier2/excluded.json` を指定
 
 3. Tier1 との比較
 
@@ -351,20 +355,20 @@ python src/feature_selection/permutation_importance.py \
 |----|--------|--------|------|
 | T2-1-1 | Importance 算出スクリプト作成 | `src/feature_selection/compute_importance.py` | - |
 | T2-1-2 | 可視化と候補抽出 | `notebooks/feature_selection/importance_analysis.ipynb` | T2-1-1 |
-| T2-1-3 | 候補リスト出力 | `results/feature_selection/phase2_importance_candidates.json` | T2-1-2 |
+| T2-1-3 | 候補リスト出力 | `results/feature_selection/phase2/importance_candidates.json` | T2-1-2 |
 
 ### Phase 2-2: Permutation Importance
 
 | ID | タスク | 成果物 | 依存 |
 |----|--------|--------|------|
 | T2-2-1 | Permutation スクリプト作成 | `src/feature_selection/permutation_importance.py` | T2-1-3 |
-| T2-2-2 | 結果分析と削除確定 | `configs/feature_selection/tier2_excluded.json` | T2-2-1 |
+| T2-2-2 | 結果分析と削除確定 | `configs/feature_selection/tier2/excluded.json` | T2-2-1 |
 
 ### Tier2 評価
 
 | ID | タスク | 成果物 | 依存 |
 |----|--------|--------|------|
-| T2-3-1 | Tier2 評価 | `results/feature_selection/tier2_evaluation.json` | T2-2-2 |
+| T2-3-1 | Tier2 評価 | `results/feature_selection/tier2/evaluation.json` | T2-2-2 |
 | T2-3-2 | レポート作成 | `docs/feature_selection/phase2_report.md` | T2-3-1 |
 | T2-3-3 | LB 検証（オプション） | `docs/submissions.md` 更新 | T2-3-1 |
 
@@ -383,14 +387,14 @@ python src/feature_selection/permutation_importance.py \
 
 | ファイル | 説明 |
 |----------|------|
-| `results/feature_selection/tier1_importance.csv` | fold 毎の importance |
-| `results/feature_selection/tier1_importance_summary.csv` | importance 集計 |
-| `results/feature_selection/phase2_importance_candidates.json` | 削除候補リスト |
-| `results/feature_selection/phase2_permutation_results.csv` | Permutation 結果 |
-| `configs/feature_selection/tier2_excluded.json` | Tier2 除外リスト |
-| `results/feature_selection/tier2_evaluation.json` | Tier2 評価結果 |
+| `results/feature_selection/tier1/importance.csv` | fold 毎の importance |
+| `results/feature_selection/tier1/importance_summary.csv` | importance 集計 |
+| `results/feature_selection/phase2/importance_candidates.json` | 削除候補リスト |
+| `results/feature_selection/phase2/permutation_results.csv` | Permutation 結果 |
+| `configs/feature_selection/tier2/excluded.json` | Tier2 除外リスト |
+| `results/feature_selection/tier2/evaluation.json` | Tier2 評価結果 |
 
-**`tier2_evaluation.json` スキーマ例**:
+**`tier2/evaluation.json` スキーマ例**:
 
 ```json
 {
@@ -403,7 +407,7 @@ python src/feature_selection/permutation_importance.py \
   "cv_folds": 5,
   "random_seed": 42,
   "created_at": "2025-01-20T12:34:56Z",
-  "exclude_config": "configs/feature_selection/tier2_excluded.json",
+  "exclude_config": "configs/feature_selection/tier2/excluded.json",
   "notes": "Phase 2-2 Permutation 削除後の評価結果"
 }
 ```

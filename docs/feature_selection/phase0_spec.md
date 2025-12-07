@@ -127,14 +127,14 @@ Tier0 ベースラインの再評価と、fold 毎の feature importance 出力�
 2. **Feature Importance 出力**
    - LightGBM の gain/split importance を fold 毎に算出
    - 出力形式: CSV（列: feature_name, importance_gain, importance_split, fold）
-   - 保存先: `results/feature_selection/tier0_importance.csv`
+   - 保存先: `results/feature_selection/tier0/importance.csv`
 
 3. **集計統計**
    - 各特徴量について:
      - 平均重要度（gain/split）
      - 標準偏差（fold 間のばらつき）
      - 最小・最大値
-   - 保存先: `results/feature_selection/tier0_importance_summary.csv`
+   - 保存先: `results/feature_selection/tier0/importance_summary.csv`
 
 #### インターフェース
 
@@ -156,9 +156,9 @@ python src/feature_selection/evaluate_baseline.py \
 
 | ファイル | 内容 |
 |----------|------|
-| `tier0_evaluation.json` | OOF 指標サマリ |
+| `tier0/evaluation.json` | OOF 指標サマリ |
 | `tier0_importance.csv` | fold 毎の importance 詳細 |
-| `tier0_importance_summary.csv` | importance 集計統計 |
+| `tier0/importance_summary.csv` | importance 集計統計 |
 | `tier0_fold_logs.csv` | fold 毎の RMSE/MSR |
 
 #### コード構造
@@ -202,9 +202,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 #### 成果物
 - `src/feature_selection/__init__.py`
 - `src/feature_selection/evaluate_baseline.py`
-- `results/feature_selection/tier0_evaluation.json`
-- `results/feature_selection/tier0_importance.csv`
-- `results/feature_selection/tier0_importance_summary.csv`
+- `results/feature_selection/tier0/evaluation.json`
+- `results/feature_selection/tier0/importance.csv`
+- `results/feature_selection/tier0/importance_summary.csv`
 
 ---
 
@@ -230,9 +230,9 @@ src/
 
 results/
 └── feature_selection/
-    ├── tier0_evaluation.json
+    ├── tier0/evaluation.json
     ├── tier0_importance.csv
-    ├── tier0_importance_summary.csv
+    ├── tier0/importance_summary.csv
     └── tier0_fold_logs.csv
 ```
 
@@ -244,7 +244,7 @@ results/
 - [x] `artifacts/tier0/feature_list.json` が正しい形式で出力されている
 - [ ] `artifacts/tier0/inference_bundle.pkl` が生成されている（データ必要）
 - [x] `src/feature_selection/evaluate_baseline.py` が動作する
-- [ ] `results/feature_selection/tier0_importance.csv` が出力されている（データ必要）
+- [ ] `results/feature_selection/tier0/importance.csv` が出力されている（データ必要）
 - [ ] OOF RMSE が 0.012134 前後で再現されている（データ必要）
 
 > **Note**: 完全な評価とテストには `data/raw/train.csv` と `data/raw/test.csv` が必要です。

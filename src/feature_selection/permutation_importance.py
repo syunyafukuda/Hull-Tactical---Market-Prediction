@@ -103,7 +103,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     ap.add_argument(
         "--out-path",
         type=str,
-        default="results/feature_selection/phase2_permutation_results.csv",
+        default="results/feature_selection/phase2/permutation_results.csv",
         help="Output CSV path for permutation results",
     )
     ap.add_argument(

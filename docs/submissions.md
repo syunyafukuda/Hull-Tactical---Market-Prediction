@@ -812,7 +812,7 @@ OOF評価・LB評価の両方で性能維持を確認し、Phase 1を採用確�
   - 低分散・高欠損・高相関の3種フィルタを適用
   - 高相関フィルタで大半（408列）を削除
 - **実装**: `src/feature_selection/` 配下に評価・フィルタ・推論スクリプトを追加
-- **設定**: `configs/feature_selection/tier1_excluded.json` に417列の除外リストを保存
+- **設定**: `configs/feature_selection/tier1/excluded.json` に417列の除外リストを保存
 
 ### 判定理由
 

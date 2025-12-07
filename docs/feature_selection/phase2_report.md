@@ -25,15 +25,15 @@ python src/feature_selection/compute_importance.py \
   --config-path configs/feature_generation.yaml \
   --preprocess-config configs/preprocess.yaml \
   --data-dir data/raw \
-  --exclude-features configs/feature_selection/tier1_excluded.json \
+  --exclude-features configs/feature_selection/tier1/excluded.json \
   --out-dir results/feature_selection \
   --n-splits 5
 ```
 
 ### 出力ファイル
 
-- `results/feature_selection/tier1_importance.csv` - fold 毎の importance
-- `results/feature_selection/tier1_importance_summary.csv` - 集計統計
+- `results/feature_selection/tier1/importance.csv` - fold 毎の importance
+- `results/feature_selection/tier1/importance_summary.csv` - 集計統計
 
 ### 重要度分布の分析
 
@@ -53,7 +53,7 @@ python src/feature_selection/compute_importance.py \
 **結果**:
 - 候補数: [実行後に記入] 列
 - 候補率: [実行後に記入] %
-- 出力: `results/feature_selection/phase2_importance_candidates.json`
+- 出力: `results/feature_selection/phase2/importance_candidates.json`
 
 **候補の内訳**:
 - SU1 特徴: [実行後に記入] 列
@@ -71,9 +71,9 @@ python src/feature_selection/permutation_importance.py \
   --config-path configs/feature_generation.yaml \
   --preprocess-config configs/preprocess.yaml \
   --data-dir data/raw \
-  --exclude-features configs/feature_selection/tier1_excluded.json \
-  --candidates results/feature_selection/phase2_importance_candidates.json \
-  --out-path results/feature_selection/phase2_permutation_results.csv \
+  --exclude-features configs/feature_selection/tier1/excluded.json \
+  --candidates results/feature_selection/phase2/importance_candidates.json \
+  --out-path results/feature_selection/phase2/permutation_results.csv \
   --n-permutations 5 \
   --random-seed 42 \
   --n-splits 5
@@ -81,7 +81,7 @@ python src/feature_selection/permutation_importance.py \
 
 ### 出力ファイル
 
-- `results/feature_selection/phase2_permutation_results.csv`
+- `results/feature_selection/phase2/permutation_results.csv`
 
 ### Permutation 結果の分析
 
@@ -117,11 +117,11 @@ python src/feature_selection/permutation_importance.py \
 ### 除外リスト作成
 
 **入力**:
-- `configs/feature_selection/tier1_excluded.json` (Phase 1 除外リスト)
-- `results/feature_selection/phase2_permutation_results.csv` (Phase 2-2 削除確定列)
+- `configs/feature_selection/tier1/excluded.json` (Phase 1 除外リスト)
+- `results/feature_selection/phase2/permutation_results.csv` (Phase 2-2 削除確定列)
 
 **出力**:
-- `configs/feature_selection/tier2_excluded.json`
+- `configs/feature_selection/tier2/excluded.json`
 
 **内容**:
 - Tier1 除外: [実行後に記入] 列
@@ -140,7 +140,7 @@ python src/feature_selection/evaluate_baseline.py \
   --config-path configs/feature_generation.yaml \
   --preprocess-config configs/preprocess.yaml \
   --data-dir data/raw \
-  --exclude-features configs/feature_selection/tier2_excluded.json \
+  --exclude-features configs/feature_selection/tier2/excluded.json \
   --out-dir results/feature_selection \
   --artifacts-dir artifacts/tier2 \
   --n-splits 5
@@ -148,7 +148,7 @@ python src/feature_selection/evaluate_baseline.py \
 
 ### 出力ファイル
 
-- `results/feature_selection/tier2_evaluation.json`
+- `results/feature_selection/tier2/evaluation.json`
 - `results/feature_selection/tier2_fold_logs.csv`
 - `results/feature_selection/tier2_importance.csv`
 - `results/feature_selection/tier2_importance_summary.csv`
@@ -223,12 +223,12 @@ python src/feature_selection/evaluate_baseline.py \
 
 | ファイル | 説明 |
 |----------|------|
-| `results/feature_selection/tier1_importance.csv` | fold 毎の importance |
-| `results/feature_selection/tier1_importance_summary.csv` | importance 集計 |
-| `results/feature_selection/phase2_importance_candidates.json` | 削除候補リスト |
-| `results/feature_selection/phase2_permutation_results.csv` | Permutation 結果 |
-| `configs/feature_selection/tier2_excluded.json` | Tier2 除外リスト |
-| `results/feature_selection/tier2_evaluation.json` | Tier2 評価結果 |
+| `results/feature_selection/tier1/importance.csv` | fold 毎の importance |
+| `results/feature_selection/tier1/importance_summary.csv` | importance 集計 |
+| `results/feature_selection/phase2/importance_candidates.json` | 削除候補リスト |
+| `results/feature_selection/phase2/permutation_results.csv` | Permutation 結果 |
+| `configs/feature_selection/tier2/excluded.json` | Tier2 除外リスト |
+| `results/feature_selection/tier2/evaluation.json` | Tier2 評価結果 |
 | `results/feature_selection/tier2_fold_logs.csv` | Tier2 Fold 別ログ |
 | `docs/feature_selection/phase2_report.md` | 本レポート |
 | `notebooks/feature_selection/importance_analysis.ipynb` | 重要度分析ノートブック |

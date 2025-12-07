@@ -125,7 +125,7 @@ python src/feature_selection/filter_trivial_phase1.py \
   --config-path configs/tier0_snapshot/feature_generation.yaml \
   --preprocess-config configs/tier0_snapshot/preprocess.yaml \
   --data-dir data/raw \
-  --out-path results/feature_selection/phase1_filter_candidates.json \
+  --out-path results/feature_selection/phase2/importance_candidates.json \
   --variance-threshold 1e-10 \
   --missing-threshold 0.99 \
   --correlation-threshold 0.999
@@ -178,15 +178,15 @@ Tier0 特徴量に対してフィルタを実行し、削除候補を特定
 #### 作業内容
 
 1. `filter_trivial_phase1.py` を実行
-2. 削除候補リストを `results/feature_selection/phase1_filter_candidates.json` に出力
+2. 削除候補リストを `results/feature_selection/phase2/importance_candidates.json` に出力
 3. 削除候補の内訳を確認（カテゴリ別の件数）
 
 #### 入力
 - `artifacts/tier0/feature_list.json`
-- `results/feature_selection/tier0_importance_summary.csv`（相関判定時の importance 参照用）
+- `results/feature_selection/tier0/importance_summary.csv`（相関判定時の importance 参照用）
 
 #### 出力
-- `results/feature_selection/phase1_filter_candidates.json`
+- `results/feature_selection/phase2/importance_candidates.json`
 
 #### 成果物
 - 削除候補リスト（JSON）
@@ -225,11 +225,11 @@ python src/feature_selection/evaluate_baseline.py \
   --preprocess-config configs/tier0_snapshot/preprocess.yaml \
   --data-dir data/raw \
   --out-dir results/feature_selection \
-  --exclude-features results/feature_selection/phase1_filter_candidates.json
+  --exclude-features results/feature_selection/phase2/importance_candidates.json
 ```
 
 #### 成果物
-- `results/feature_selection/tier1_evaluation.json`
+- `results/feature_selection/tier1/evaluation.json`
 - `docs/feature_selection/phase1_report.md`（結果レポート）
 
 ---
@@ -245,10 +245,10 @@ src/
 
 results/
 └── feature_selection/
-    ├── tier0_evaluation.json         # Phase 0 で作成済み
-    ├── tier0_importance_summary.csv  # Phase 0 で作成済み
-    ├── phase1_filter_candidates.json # T1-2 で出力
-    └── tier1_evaluation.json         # T1-3 で出力
+    ├── tier0/evaluation.json         # Phase 0 で作成済み
+    ├── tier0/importance_summary.csv  # Phase 0 で作成済み
+    ├── phase2/importance_candidates.json # T1-2 で出力
+    └── tier1/evaluation.json         # T1-3 で出力
 
 docs/
 └── feature_selection/
@@ -264,7 +264,7 @@ docs/
 
 - [ ] `src/feature_selection/filter_trivial_phase1.py` が動作する
 - [ ] 3種類のフィルタ（分散/欠損率/相関）が正しく動作する
-- [ ] `phase1_filter_candidates.json` が正しい形式で出力される
+- [ ] `phase2/importance_candidates.json` が正しい形式で出力される
 - [ ] Tier0 vs Tier1 の比較評価が実行できる
 - [ ] 結果が `phase1_report.md` に記録される
 
@@ -283,7 +283,7 @@ docs/
 
 1. **相関判定の順序**
    - 相関ペアのうち、importance が低い方を削除候補とする
-   - `tier0_importance_summary.csv` の `mean_gain` を参照
+   - `tier0/importance_summary.csv` の `mean_gain` を参照
 
 2. **前処理後の値で判定**
    - 分散・欠損率は Imputer 適用後の値で判定

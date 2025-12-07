@@ -148,7 +148,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--exclude-features",
         type=str,
         default=None,
-        help="Path to JSON file containing features to exclude (e.g., tier1_excluded.json)",
+        help="Path to JSON file containing features to exclude (e.g., tier1/excluded.json)",
     )
     return ap.parse_args(argv)
 

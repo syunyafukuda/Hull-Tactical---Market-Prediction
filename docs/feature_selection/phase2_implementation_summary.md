@@ -65,8 +65,8 @@ All required components have been implemented, tested, and documented:
 - Stable low importance (std_gain < median)
 
 **Output**:
-- `tier1_importance.csv` - Fold-level importance
-- `tier1_importance_summary.csv` - Aggregated statistics
+- `tier1/importance.csv` - Fold-level importance
+- `tier1/importance_summary.csv` - Aggregated statistics
 
 ### Phase 2-2: Permutation Importance (permutation_importance.py)
 
@@ -83,7 +83,7 @@ All required components have been implemented, tested, and documented:
 - std_delta_rmse < 1e-5 (configurable)
 
 **Output**:
-- `phase2_permutation_results.csv` - ΔRMSE per feature
+- `phase2/permutation_results.csv` - ΔRMSE per feature
 
 ### Interactive Analysis (importance_analysis.ipynb)
 
@@ -97,7 +97,7 @@ All required components have been implemented, tested, and documented:
 - JSON generation
 
 **Output**:
-- `phase2_importance_candidates.json`
+- `phase2/importance_candidates.json`
 
 ## Performance Characteristics
 
@@ -120,15 +120,15 @@ All required components have been implemented, tested, and documented:
 
 ```
 1. compute_importance.py
-   ↓ (generates tier1_importance_summary.csv)
+   ↓ (generates tier1/importance_summary.csv)
 2. importance_analysis.ipynb
-   ↓ (generates phase2_importance_candidates.json)
+   ↓ (generates phase2/importance_candidates.json)
 3. permutation_importance.py
-   ↓ (generates phase2_permutation_results.csv)
+   ↓ (generates phase2/permutation_results.csv)
 4. Manual analysis & decision
-   ↓ (creates tier2_excluded.json)
-5. evaluate_baseline.py --exclude-features tier2_excluded.json
-   ↓ (generates tier2_evaluation.json)
+   ↓ (creates tier2/excluded.json)
+5. evaluate_baseline.py --exclude-features tier2/excluded.json
+   ↓ (generates tier2/evaluation.json)
 6. Document results in phase2_report.md
    ↓
 7. Adoption decision
@@ -153,13 +153,13 @@ docs/feature_selection/
 └── phase2_report.md             # Results template
 
 results/feature_selection/
-├── tier1_importance.csv         # (to be generated)
-├── tier1_importance_summary.csv # (to be generated)
-├── phase2_importance_candidates.json # (to be generated)
-└── phase2_permutation_results.csv    # (to be generated)
+├── tier1/importance.csv         # (to be generated)
+├── tier1/importance_summary.csv # (to be generated)
+├── phase2/importance_candidates.json # (to be generated)
+└── phase2/permutation_results.csv    # (to be generated)
 
 configs/feature_selection/
-└── tier2_excluded.json          # (to be generated)
+└── tier2/excluded.json          # (to be generated)
 ```
 
 ## Key Design Decisions
@@ -202,7 +202,7 @@ To be verified during execution:
 1. Run `compute_importance.py` with actual data
 2. Execute `importance_analysis.ipynb`
 3. Run `permutation_importance.py`
-4. Create `tier2_excluded.json`
+4. Create `tier2/excluded.json`
 5. Evaluate Tier2 performance
 6. Complete `phase2_report.md`
 7. Make adoption decision

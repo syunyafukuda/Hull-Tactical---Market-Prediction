@@ -14,19 +14,24 @@ This directory contains scripts for evaluating and filtering features through mu
 - `evaluate_baseline.py`: Main evaluation script for Tier0/Tier1 baselines
 - `filter_trivial_phase1.py`: Statistical feature filtering script
 
-### Phase 0 Results (in `results/feature_selection/`)
+### Phase 0 Results (in `results/feature_selection/tier0/`)
 
-- `tier0_evaluation.json`: OOF metrics summary
-- `tier0_importance.csv`: Fold-wise feature importance
-- `tier0_importance_summary.csv`: Aggregated importance statistics
-- `tier0_fold_logs.csv`: Fold-wise RMSE/MSR logs
+- `evaluation.json`: OOF metrics summary
+- `importance.csv`: Fold-wise feature importance
+- `importance_summary.csv`: Aggregated importance statistics
+- `fold_logs.csv`: Fold-wise RMSE/MSR logs
 
-### Phase 1 Results (in `results/feature_selection/`)
+### Phase 1 Results (in `results/feature_selection/tier1/`)
 
-- `phase1_filter_candidates.json`: Features marked for removal
-- `tier1_evaluation.json`: OOF metrics after filtering
-- `tier1_importance_summary.csv`: Aggregated importance after filtering
-- `tier1_fold_logs.csv`: Fold-wise logs after filtering
+- `evaluation.json`: OOF metrics after filtering
+- `importance.csv`: Fold-wise feature importance after filtering
+- `importance_summary.csv`: Aggregated importance after filtering
+- `fold_logs.csv`: Fold-wise logs after filtering
+
+### Phase 2 Results (in `results/feature_selection/phase2/`)
+
+- `importance_candidates.json`: Features marked for removal
+- `permutation_results.csv`: Permutation importance results
 
 ---
 
@@ -78,8 +83,8 @@ python src/feature_selection/filter_trivial_phase1.py \
   --config-path configs/tier0_snapshot/feature_generation.yaml \
   --preprocess-config configs/tier0_snapshot/preprocess.yaml \
   --data-dir data/raw \
-  --out-path results/feature_selection/phase1_filter_candidates.json \
-  --importance-path results/feature_selection/tier0_importance_summary.csv \
+  --out-path results/feature_selection/phase2/importance_candidates.json \
+  --importance-path results/feature_selection/tier0/importance_summary.csv \
   --variance-threshold 1e-10 \
   --missing-threshold 0.99 \
   --correlation-threshold 0.999
@@ -131,7 +136,7 @@ python src/feature_selection/evaluate_baseline.py \
   --preprocess-config configs/tier0_snapshot/preprocess.yaml \
   --data-dir data/raw \
   --out-dir results/feature_selection \
-  --exclude-features results/feature_selection/phase1_filter_candidates.json
+  --exclude-features results/feature_selection/phase2/importance_candidates.json
 ```
 
 This will:
@@ -159,7 +164,7 @@ Compare Tier0 (baseline) vs Tier1 (filtered):
 
 ## Output Format Reference
 
-### tier0_evaluation.json / tier1_evaluation.json
+### evaluation.json (tier0/tier1/tier2)
 
 ```json
 {
@@ -174,7 +179,7 @@ Compare Tier0 (baseline) vs Tier1 (filtered):
 }
 ```
 
-### tier0_importance.csv / tier1_importance.csv
+### importance.csv (tier0/tier1)
 
 ```csv
 feature_name,importance_gain,importance_split,fold
@@ -183,7 +188,7 @@ M2,0.0089,32,1
 ...
 ```
 
-### tier0_importance_summary.csv / tier1_importance_summary.csv
+### importance_summary.csv (tier0/tier1)
 
 ```csv
 feature_name,mean_gain,std_gain,min_gain,max_gain,mean_split,std_split,min_split,max_split
@@ -191,7 +196,7 @@ M1,0.0120,0.0015,0.0098,0.0145,42.0,5.2,35,50
 ...
 ```
 
-### tier0_fold_logs.csv / tier1_fold_logs.csv
+### fold_logs.csv (tier0/tier1)
 
 ```csv
 fold,train_size,val_size,rmse,msr,msr_down,best_mult,best_lo,best_hi

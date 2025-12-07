@@ -103,10 +103,10 @@ Phase 5: 最終評価とアーティファクト整理
 | `artifacts/tier0/feature_list.json` | 特徴量リスト（568列） |
 | `artifacts/tier0/model_meta.json` | モデルパラメータ・評価結果 |
 | `artifacts/tier0/inference_bundle.pkl` | 学習済みパイプライン |
-| `results/feature_selection/tier0_evaluation.json` | OOF 評価結果 |
-| `results/feature_selection/tier0_importance.csv` | fold毎の importance |
-| `results/feature_selection/tier0_importance_summary.csv` | importance 集計 |
-| `results/feature_selection/tier0_fold_logs.csv` | fold毎の RMSE/MSR |
+| `results/feature_selection/tier0/evaluation.json` | OOF 評価結果 |
+| `results/feature_selection/tier0/importance.csv` | fold毎の importance |
+| `results/feature_selection/tier0/importance_summary.csv` | importance 集計 |
+| `results/feature_selection/tier0/fold_logs.csv` | fold毎の RMSE/MSR |
 
 ### 仕様書
 - `docs/feature_selection/phase0_spec.md`
@@ -135,7 +135,7 @@ Phase 5: 最終評価とアーティファクト整理
   - 出力: 削除候補リスト（JSON）
 
 - [ ] **T1-2**: Tier0 に対してフィルタ適用
-  - 削除候補を `results/feature_selection/phase1_filter_candidates.json` に出力
+  - 削除候補を `results/feature_selection/phase2/importance_candidates.json` に出力
 
 - [ ] **T1-3**: フィルタ後の評価
   - Tier0 → Tier1 の Sharpe/RMSE 比較
@@ -170,7 +170,7 @@ Phase 5: 最終評価とアーティファクト整理
   - 下位 20-30% を「Tier1 削除候補」としてマーク
 
 - [ ] **T2-1-3**: 候補リスト出力
-  - `results/feature_selection/phase2_importance_candidates.json`
+  - `results/feature_selection/phase2/importance_candidates.json`
 
 ### Phase 2-2: Permutation Importance（Sharpe ベース）
 
@@ -190,7 +190,7 @@ Phase 5: 最終評価とアーティファクト整理
   - 対象: Phase 2-1 で抽出した候補列のみ（計算コスト削減）
 
 - [ ] **T2-2-2**: 結果分析と最終候補確定
-  - `results/feature_selection/phase2_permutation_results.csv`
+  - `results/feature_selection/phase2/permutation_results.csv`
 
 ---
 
@@ -305,9 +305,21 @@ notebooks/
 
 results/
 └── feature_selection/
-    ├── phase1_filter_candidates.json
-    ├── phase2_importance_candidates.json
-    ├── phase2_permutation_results.csv
+    ├── tier0/
+    │   ├── evaluation.json
+    │   ├── importance.csv
+    │   ├── importance_summary.csv
+    │   └── fold_logs.csv
+    ├── tier1/
+    │   ├── evaluation.json
+    │   ├── importance.csv
+    │   ├── importance_summary.csv
+    │   └── fold_logs.csv
+    ├── tier2/
+    │   └── evaluation.json
+    ├── phase2/
+    │   ├── importance_candidates.json
+    │   └── permutation_results.csv
     └── phase3_removal_set.json
 
 artifacts/
