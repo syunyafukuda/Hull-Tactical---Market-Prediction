@@ -41,8 +41,12 @@ GitHub Codespaces を開発環境とし、パッケージ管理は **[uv](https:
 │  ├─ preprocess.yaml             # 各グループの採択ポリシー・ハイパーパラメータ設定を集約。
 │  ├─ feature_generation.yaml     # 特徴量生成（SU1/SU5）の設定。
 │  └─ feature_selection/          # 特徴量選定フェーズ別設定。
-│      ├─ tier0_baseline.json     # Tier0ベースライン評価結果（577列, OOF RMSE 0.012134）。
-│      └─ tier1_excluded.json     # Tier1で除外する特徴量リスト（417列）。
+│      ├─ tier0/
+│      │   └─ baseline.json       # Tier0ベースライン評価結果（577列, OOF RMSE 0.012134）。
+│      ├─ tier1/
+│      │   └─ excluded.json       # Tier1で除外する特徴量リスト（417列）。
+│      └─ tier2/
+│          └─ excluded.json       # Tier2で追加除外する特徴量リスト（予定）。
 ├─ notebooks/                     # Kaggle Private Notebook と同期する検証ノート・EDA ノート。
 ├─ tests/                         # Pytest による単体/統合テスト。`tests/preprocess/<group>/` で各ポリシーを検証。
 ├─ data/                          # Kaggle 公式データの配置場所（Git 管理外）。`raw/`, `interim/`, `processed/` などを区分。
@@ -477,10 +481,33 @@ MSR-proxy の成果物は、scikit-learn のバージョン依存で `joblib.loa
 
 ```
 configs/feature_selection/
-├── tier0_baseline.json     # Tier0評価結果（ベースライン）
-├── tier1_excluded.json     # Phase1で除外する特徴量リスト
-├── tier2_excluded.json     # Phase2で追加除外する特徴量リスト（予定）
-└── ...
+├── tier0/
+│   └── baseline.json       # Tier0評価結果（ベースライン）
+├── tier1/
+│   └── excluded.json       # Phase1で除外する特徴量リスト
+└── tier2/
+    └── excluded.json       # Phase2で追加除外する特徴量リスト（予定）
+```
+
+### 結果ファイル構成
+
+```
+results/feature_selection/
+├── tier0/
+│   ├── evaluation.json     # Tier0 OOF評価結果
+│   ├── importance.csv      # fold毎のimportance
+│   ├── importance_summary.csv
+│   └── fold_logs.csv
+├── tier1/
+│   ├── evaluation.json     # Tier1 OOF評価結果
+│   ├── importance.csv
+│   ├── importance_summary.csv
+│   └── fold_logs.csv
+├── tier2/
+│   └── evaluation.json     # Tier2 OOF評価結果（予定）
+└── phase2/
+    ├── importance_candidates.json  # 削除候補リスト
+    └── permutation_results.csv     # Permutation結果
 ```
 
 ### 運用フロー

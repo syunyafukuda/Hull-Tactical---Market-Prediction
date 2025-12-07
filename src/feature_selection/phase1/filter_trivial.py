@@ -78,7 +78,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     ap.add_argument(
         "--out-path",
         type=str,
-        default="results/feature_selection/phase1_filter_candidates.json",
+        default="results/feature_selection/phase2/importance_candidates.json",
         help="Output path for candidate list JSON",
     )
     ap.add_argument(

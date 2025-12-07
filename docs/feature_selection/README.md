@@ -91,7 +91,7 @@ Phase 5: 最終評価とアーティファクト整理
   - 評価関数: `scripts/utils_msr.py` の既存実装を使用
 
 - [x] **T0-3**: ベースライン評価スクリプト作成
-  - `src/feature_selection/evaluate_baseline.py`
+  - `src/feature_selection/common/evaluate_baseline.py`
   - fold 毎の importance 出力機能を含む
 
 ### 成果物
@@ -103,10 +103,10 @@ Phase 5: 最終評価とアーティファクト整理
 | `artifacts/tier0/feature_list.json` | 特徴量リスト（568列） |
 | `artifacts/tier0/model_meta.json` | モデルパラメータ・評価結果 |
 | `artifacts/tier0/inference_bundle.pkl` | 学習済みパイプライン |
-| `results/feature_selection/tier0_evaluation.json` | OOF 評価結果 |
-| `results/feature_selection/tier0_importance.csv` | fold毎の importance |
-| `results/feature_selection/tier0_importance_summary.csv` | importance 集計 |
-| `results/feature_selection/tier0_fold_logs.csv` | fold毎の RMSE/MSR |
+| `results/feature_selection/tier0/evaluation.json` | OOF 評価結果 |
+| `results/feature_selection/tier0/importance.csv` | fold毎の importance |
+| `results/feature_selection/tier0/importance_summary.csv` | importance 集計 |
+| `results/feature_selection/tier0/fold_logs.csv` | fold毎の RMSE/MSR |
 
 ### 仕様書
 - `docs/feature_selection/phase0_spec.md`
@@ -135,7 +135,7 @@ Phase 5: 最終評価とアーティファクト整理
   - 出力: 削除候補リスト（JSON）
 
 - [ ] **T1-2**: Tier0 に対してフィルタ適用
-  - 削除候補を `results/feature_selection/phase1_filter_candidates.json` に出力
+  - 削除候補を `results/feature_selection/phase2/importance_candidates.json` に出力
 
 - [ ] **T1-3**: フィルタ後の評価
   - Tier0 → Tier1 の Sharpe/RMSE 比較
@@ -161,7 +161,7 @@ Phase 5: 最終評価とアーティファクト整理
 #### タスク
 
 - [ ] **T2-1-1**: Importance 算出スクリプト作成
-  - `src/feature_selection/compute_importance.py`
+  - `src/feature_selection/phase2/compute_importance.py`
   - 出力: fold 毎の gain/split importance（CSV）
 
 - [ ] **T2-1-2**: 可視化と候補抽出
@@ -170,7 +170,7 @@ Phase 5: 最終評価とアーティファクト整理
   - 下位 20-30% を「Tier1 削除候補」としてマーク
 
 - [ ] **T2-1-3**: 候補リスト出力
-  - `results/feature_selection/phase2_importance_candidates.json`
+  - `results/feature_selection/phase2/importance_candidates.json`
 
 ### Phase 2-2: Permutation Importance（Sharpe ベース）
 
@@ -185,12 +185,12 @@ Phase 5: 最終評価とアーティファクト整理
 #### タスク
 
 - [ ] **T2-2-1**: Permutation スクリプト作成
-  - `src/feature_selection/permutation_importance.py`
+  - `src/feature_selection/phase2/permutation_importance.py`
   - 指標: MSR (Sharpe ベース)
   - 対象: Phase 2-1 で抽出した候補列のみ（計算コスト削減）
 
 - [ ] **T2-2-2**: 結果分析と最終候補確定
-  - `results/feature_selection/phase2_permutation_results.csv`
+  - `results/feature_selection/phase2/permutation_results.csv`
 
 ---
 
@@ -291,12 +291,24 @@ dev (現行)
 src/
 └── feature_selection/
     ├── __init__.py
-    ├── evaluate_baseline.py      # Phase 0: ベースライン評価
-    ├── filter_trivial.py         # Phase 1: フィルタベース除去
-    ├── compute_importance.py     # Phase 2-1: LGBM importance
-    ├── permutation_importance.py # Phase 2-2: Permutation importance
-    ├── correlation_clustering.py # Phase 3: 相関クラスタリング
-    └── block_pca.py              # Phase 4: ブロック PCA
+    ├── README.md
+    ├── common/                       # 共通ユーティリティ
+    │   ├── __init__.py
+    │   └── evaluate_baseline.py      # Tier評価共通
+    ├── phase1/                       # Phase 1: フィルタベース
+    │   ├── __init__.py
+    │   └── filter_trivial.py         # 統計フィルタ
+    ├── phase2/                       # Phase 2: モデルベース重要度
+    │   ├── __init__.py
+    │   ├── compute_importance.py     # LGBM importance
+    │   └── permutation_importance.py # Permutation importance
+    ├── phase3/                       # Phase 3: 相関クラスタリング（予定）
+    │   └── correlation_clustering.py
+    ├── phase4/                       # Phase 4: ブロック PCA（予定）
+    │   └── block_pca.py
+    └── inference/                    # 推論
+        ├── __init__.py
+        └── predict_tier.py
 
 notebooks/
 └── feature_selection/
@@ -305,9 +317,21 @@ notebooks/
 
 results/
 └── feature_selection/
-    ├── phase1_filter_candidates.json
-    ├── phase2_importance_candidates.json
-    ├── phase2_permutation_results.csv
+    ├── tier0/
+    │   ├── evaluation.json
+    │   ├── importance.csv
+    │   ├── importance_summary.csv
+    │   └── fold_logs.csv
+    ├── tier1/
+    │   ├── evaluation.json
+    │   ├── importance.csv
+    │   ├── importance_summary.csv
+    │   └── fold_logs.csv
+    ├── tier2/
+    │   └── evaluation.json
+    ├── phase2/
+    │   ├── importance_candidates.json
+    │   └── permutation_results.csv
     └── phase3_removal_set.json
 
 artifacts/

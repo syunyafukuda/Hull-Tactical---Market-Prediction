@@ -812,7 +812,7 @@ OOF評価・LB評価の両方で性能維持を確認し、Phase 1を採用確�
   - 低分散・高欠損・高相関の3種フィルタを適用
   - 高相関フィルタで大半（408列）を削除
 - **実装**: `src/feature_selection/` 配下に評価・フィルタ・推論スクリプトを追加
-- **設定**: `configs/feature_selection/tier1_excluded.json` に417列の除外リストを保存
+- **設定**: `configs/feature_selection/tier1/excluded.json` に417列の除外リストを保存
 
 ### 判定理由
 
@@ -833,3 +833,71 @@ OOF評価・LB評価の両方で性能維持を確認し、Phase 1を採用確�
 1. **72%の列は冗長だった**: 高相関フィルタで大半が削除可能
 2. **OOF微増でもLB維持**: +0.28%のRMSE増加はLBに影響しない
 3. **段階的削減が有効**: Phase分けで安全に特徴量を削減できる
+
+---
+
+## 2025-12-07 Feature Selection Phase 2 (モデル重要度) - **採用確定✅**
+
+- Commit: bb38da2 (feat/select-tier2)
+- Submit line: fesel (Feature Selection Pipeline)
+- Kaggle Notebook: Private (notebooks/submit/fesel.ipynb)
+- LB score: **0.681** (Tier0/Tier1と同一)
+
+### 概要
+
+Tier1（160列）から LGBM gain importance を分析し、低重要度の40列を削除して120列に削減。
+OOF評価・LB評価の両方で性能維持を確認し、Phase 2を採用確定。
+
+### 評価結果
+
+| 指標 | Tier0 | Tier1 | Tier2 | Tier2 vs Tier1 |
+|------|-------|-------|-------|----------------|
+| 特徴量数 | 577 | 160 | **120** | **-40 (-25%)** |
+| OOF RMSE | 0.012134 | 0.012168 | 0.012172 | +0.000004 (+0.03%) |
+| OOF MSR | 0.019929 | 0.019201 | 0.020386 | +0.001185 |
+| **LB Score** | 0.681 | 0.681 | **0.681** | **±0.000** |
+
+### 削除基準
+
+| カテゴリ | 説明 | 削除数 |
+|---------|------|--------|
+| Zero importance | mean_gain = 0（全foldで未使用） | 22列 |
+| Low importance | 0 < mean_gain < Q25（下位25%） | 18列 |
+| **合計** | - | **40列** |
+
+### 削除された特徴量の特徴
+
+- **40列すべてが SU5 Augmented 特徴量**（欠損パターン関連）
+- 生特徴量（M1, E1 など）は1つも削除されていない
+- SU5で生成された欠損パターン特徴量の有効性は限定的であることが判明
+
+### Notes
+
+- **Phase 2-1**: LGBM gain importanceの分析
+  - `results/feature_selection/tier1/importance_summary.csv` から削除候補を抽出
+  - Zero importance（22列）+ Low importance（18列）= 40列を候補に
+- **Phase 2-2**: Permutation Importance
+  - 18列のLow importance特徴量はすべてSU5 Augmented特徴量
+  - 生データに存在しないためPermutationテストは不適用
+  - 全40列を削除確定
+- **設定**: `configs/feature_selection/tier2/excluded.json` に457列の除外リストを保存（Tier1の417列 + Phase2の40列）
+
+### 判定理由
+
+1. **RMSE**: +0.000004（+0.03%）は許容範囲内（判定基準「+0.0001以内」を満たす）
+2. **LB Score**: 0.681（Tier0/Tier1と同一）- LBでの性能劣化なしを確認
+3. **特徴量削減効果**: 160列→120列（-25%）、全体では577列→120列（**-79%**）
+4. **結論**: 削除した40列（SU5 Augmented特徴量）は予測に寄与していなかったことをLBで確認
+
+### 今後の方向性
+
+- **Phase 3**: Permutation Importance による更なる特徴量削減
+  - 120列からさらに50〜80列への削減を目標
+  - 生特徴量を対象にPermutationテストを実施
+- **Phase 4**: 最終LB検証 + 安定性確認
+
+### 学んだ教訓
+
+1. **SU5欠損パターン特徴量の寄与は限定的**: 40列すべてが低重要度
+2. **Zero importance特徴量は安全に削除可能**: 22列は全く使われていなかった
+3. **段階的削減の継続**: Phase 1→2と安全に79%削減を達成

@@ -32,19 +32,19 @@ python src/feature_selection/filter_trivial.py \
   --config-path configs/tier0_snapshot/feature_generation.yaml \
   --preprocess-config configs/tier0_snapshot/preprocess.yaml \
   --data-dir data/raw \
-  --out-path results/feature_selection/phase1_filter_candidates.json \
-  --importance-path results/feature_selection/tier0_importance_summary.csv \
+  --out-path results/feature_selection/phase2/importance_candidates.json \
+  --importance-path results/feature_selection/tier0/importance_summary.csv \
   --variance-threshold 1e-10 \
   --missing-threshold 0.99 \
   --correlation-threshold 0.999
 
 # フィルタ適用後の評価
-python src/feature_selection/evaluate_baseline.py \
+python src/feature_selection/common/evaluate_baseline.py \
   --config-path configs/tier0_snapshot/feature_generation.yaml \
   --preprocess-config configs/tier0_snapshot/preprocess.yaml \
   --data-dir data/raw \
   --out-dir results/feature_selection \
-  --exclude-features results/feature_selection/phase1_filter_candidates.json
+  --exclude-features results/feature_selection/phase2/importance_candidates.json
 ```
 
 ---
@@ -161,11 +161,11 @@ python src/feature_selection/evaluate_baseline.py \
 
 | ファイル | 説明 |
 |----------|------|
-| `results/feature_selection/phase1_filter_candidates.json` | 削除候補リスト |
-| `results/feature_selection/tier1_evaluation.json` | Tier1 評価結果 |
-| `results/feature_selection/tier1_fold_logs.csv` | Tier1 Fold 別ログ |
-| `results/feature_selection/tier1_importance.csv` | Tier1 特徴量重要度 |
-| `results/feature_selection/tier1_importance_summary.csv` | Tier1 重要度サマリー |
+| `results/feature_selection/phase2/importance_candidates.json` | 削除候補リスト |
+| `results/feature_selection/tier1/evaluation.json` | Tier1 評価結果 |
+| `results/feature_selection/tier1/fold_logs.csv` | Tier1 Fold 別ログ |
+| `results/feature_selection/tier1/importance.csv` | Tier1 特徴量重要度 |
+| `results/feature_selection/tier1/importance_summary.csv` | Tier1 重要度サマリー |
 | `docs/feature_selection/phase1_report.md` | 本レポート |
 
 ---
@@ -237,11 +237,11 @@ python src/feature_selection/evaluate_baseline.py \
 
 | ファイル | 説明 |
 |----------|------|
-| `results/feature_selection/phase1_filter_candidates.json` | 削除候補リスト |
-| `results/feature_selection/tier1_evaluation.json` | Tier1 評価結果 |
-| `results/feature_selection/tier1_fold_logs.csv` | Tier1 Fold 別ログ |
-| `results/feature_selection/tier1_importance.csv` | Tier1 特徴量重要度 |
-| `results/feature_selection/tier1_importance_summary.csv` | Tier1 重要度サマリー |
+| `results/feature_selection/phase2/importance_candidates.json` | 削除候補リスト |
+| `results/feature_selection/tier1/evaluation.json` | Tier1 評価結果 |
+| `results/feature_selection/tier1/fold_logs.csv` | Tier1 Fold 別ログ |
+| `results/feature_selection/tier1/importance.csv` | Tier1 特徴量重要度 |
+| `results/feature_selection/tier1/importance_summary.csv` | Tier1 重要度サマリー |
 | `docs/feature_selection/phase1_report.md` | 本レポート |
 
 ---
