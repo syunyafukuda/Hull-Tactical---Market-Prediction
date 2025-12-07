@@ -14,11 +14,9 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
+from typing import Any, List, Sequence
 
-import numpy as np
 import pandas as pd
-from datetime import datetime, timezone
 
 try:
     from lightgbm import LGBMRegressor
@@ -46,7 +44,6 @@ from src.feature_generation.su5.train_su5 import (  # noqa: E402
     load_su5_config,
     load_preprocess_policies,
     infer_train_file,
-    infer_test_file,
     load_table,
     _prepare_features,
     SU5FeatureAugmenter,
@@ -170,7 +167,7 @@ def compute_fold_importance(
     """
     if not hasattr(model, "feature_importances_"):
         # Return empty DataFrame if no importance available
-        return pd.DataFrame(columns=["feature_name", "importance_gain", "importance_split", "fold"])
+        return pd.DataFrame({"feature_name": [], "importance_gain": [], "importance_split": [], "fold": []})
     
     # Get importances
     importance_gain = model.feature_importances_  # default is 'gain'
@@ -289,18 +286,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     
     # Infer data files
     data_dir = Path(args.data_dir)
-    train_path = Path(args.train_file) if args.train_file else infer_train_file(data_dir)
+    train_path = infer_train_file(data_dir, args.train_file)
+    test_path = data_dir / "test.csv"
+    if not test_path.exists():
+        test_path = data_dir / "test.parquet"
     
     print(f"[info] Train file: {train_path}")
+    print(f"[info] Test file: {test_path}")
     
     # Load data
     print("[info] Loading data...")
     train_df = load_table(train_path)
+    test_df = load_table(test_path)
     
     # Prepare features
     print("[info] Preparing features...")
     X_np, y_np, _ = _prepare_features(
         train_df,
+        test_df,
         target_col=args.target_col,
         id_col=args.id_col,
     )
@@ -343,31 +346,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"[info] Remaining features: {len(X_augmented.columns)}")
     
     X_augmented_all = X_augmented
-    y_np_array = y_np.to_numpy().ravel()
     
     # Build pipeline
     print("[info] Building pipeline...")
-    lgbm_params = {
+    model_kwargs = {
         "objective": "regression",
         "metric": "rmse",
         "learning_rate": args.learning_rate,
         "n_estimators": args.n_estimators,
         "num_leaves": args.num_leaves,
-        "min_child_samples": args.min_data_in_leaf,
-        "subsample": args.bagging_fraction,
-        "subsample_freq": args.bagging_freq,
-        "colsample_bytree": args.feature_fraction,
+        "min_data_in_leaf": args.min_data_in_leaf,
+        "feature_fraction": args.feature_fraction,
+        "bagging_fraction": args.bagging_fraction,
+        "bagging_freq": args.bagging_freq,
         "random_state": args.random_state,
+        "n_jobs": -1,
         "verbosity": args.verbosity,
-        "force_col_wise": True,
-        "importance_type": "gain",
     }
     
     core_pipeline_template = build_pipeline(
-        preprocess_policies=preprocess_policies,
-        model_class=LGBMRegressor,
-        model_params=lgbm_params,
+        su1_cfg,
+        su5_cfg,
+        preprocess_policies,
         numeric_fill_value=args.numeric_fill_value,
+        model_kwargs=model_kwargs,
+        random_state=args.random_state,
     )
     
     # Perform CV for importance calculation
@@ -381,8 +384,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         
         X_train = X_augmented_all.iloc[train_idx]
         y_train = y_np.iloc[train_idx]
-        X_valid = X_augmented_all.iloc[val_idx]
-        y_valid = y_np.iloc[val_idx]
         
         # Clone and fit pipeline
         from typing import cast

@@ -16,12 +16,11 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
+from typing import Dict, List, Sequence
 
 import numpy as np
 import pandas as pd
 from sklearn.base import clone
-from sklearn.exceptions import NotFittedError
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.pipeline import Pipeline

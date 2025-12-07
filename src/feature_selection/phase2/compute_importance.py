@@ -14,11 +14,9 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
+from typing import Any, List, Sequence
 
-import numpy as np
 import pandas as pd
-from datetime import datetime, timezone
 
 try:
     from lightgbm import LGBMRegressor
@@ -170,7 +168,7 @@ def compute_fold_importance(
     """
     if not hasattr(model, "feature_importances_"):
         # Return empty DataFrame if no importance available
-        return pd.DataFrame(columns=["feature_name", "importance_gain", "importance_split", "fold"])
+        return pd.DataFrame({"feature_name": [], "importance_gain": [], "importance_split": [], "fold": []})
     
     # Get importances
     importance_gain = model.feature_importances_  # default is 'gain'
@@ -347,7 +345,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"[info] Remaining features: {len(X_augmented.columns)}")
     
     X_augmented_all = X_augmented
-    y_np_array = y_np.to_numpy().ravel()
     
     # Build pipeline
     print("[info] Building pipeline...")
@@ -386,8 +383,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         
         X_train = X_augmented_all.iloc[train_idx]
         y_train = y_np.iloc[train_idx]
-        X_valid = X_augmented_all.iloc[val_idx]
-        y_valid = y_np.iloc[val_idx]
         
         # Clone and fit pipeline
         from typing import cast

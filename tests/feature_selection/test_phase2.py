@@ -6,8 +6,6 @@ import pandas as pd
 import pytest
 from pathlib import Path
 import sys
-import json
-import tempfile
 
 # Add src to path
 TEST_DIR = Path(__file__).resolve().parent
@@ -189,7 +187,8 @@ class TestPermutationImportance:
         # Unimportant feature
         unimportant_feat = np.random.randn(n_samples)
         
-        X = pd.DataFrame({
+        # Create DataFrame (not used in this conceptual test but kept for documentation)
+        _ = pd.DataFrame({
             'important': important_feat,
             'unimportant': unimportant_feat,
         })
