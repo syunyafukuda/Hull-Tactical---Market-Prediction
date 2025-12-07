@@ -31,6 +31,7 @@ except Exception:
     HAS_LGBM = False
 
 from sklearn.base import clone
+from sklearn.exceptions import NotFittedError
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.pipeline import Pipeline
@@ -559,7 +560,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         n_features = len(model_step.feature_importances_)
                         feature_names = [f"feature_{i}" for i in range(n_features)]
                         print(f"[warn][fold {fold_idx}] Preprocess step lacks get_feature_names_out(), using generic names")
-                except Exception as e:
+                except (NotFittedError, AttributeError, TypeError, ValueError) as e:
                     # Fallback: use generic names
                     n_features = len(model_step.feature_importances_)
                     feature_names = [f"feature_{i}" for i in range(n_features)]
@@ -643,7 +644,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if preprocess_step is not None and hasattr(preprocess_step, "get_feature_names_out"):
         try:
             model_feature_names = list(preprocess_step.get_feature_names_out())
-        except Exception:
+        except (NotFittedError, AttributeError, TypeError, ValueError):
+            # If get_feature_names_out() fails (e.g., step not fitted or incompatible),
+            # keep model_feature_names as empty list. This is acceptable since it's
+            # optional metadata for the inference bundle.
             pass
     
     # Create inference bundle that includes augmenter
