@@ -645,6 +645,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             model_feature_names = list(preprocess_step.get_feature_names_out())
         except Exception:
+            # If get_feature_names_out() fails (e.g., step not fitted or incompatible),
+            # keep model_feature_names as empty list. This is acceptable since it's
+            # optional metadata for the inference bundle.
             pass
     
     # Create inference bundle that includes augmenter
