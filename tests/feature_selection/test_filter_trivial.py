@@ -14,7 +14,7 @@ TEST_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = TEST_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.feature_selection.filter_trivial import (  # noqa: E402
+from feature_selection.filter_trivial_phase1 import (  # noqa: E402
     find_low_variance_features,
     find_high_missing_features,
     find_high_correlation_features,

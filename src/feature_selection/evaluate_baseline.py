@@ -103,8 +103,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     ap.add_argument(
         "--artifacts-dir",
         type=str,
-        default="artifacts/tier0",
-        help="Directory for tier0 artifacts (inference_bundle.pkl, feature_list.json, model_meta.json)",
+        default="artifacts/tier1",
+        help="Directory for tier artifacts (inference_bundle.pkl, feature_list.json, model_meta.json)",
     )
     ap.add_argument(
         "--target-col",
