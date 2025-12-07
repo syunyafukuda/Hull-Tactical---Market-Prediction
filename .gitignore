@@ -22,15 +22,8 @@ uv.lock.bak
 *.log
 logs/
 artifacts/
-# Exception: include tier0 metadata files for baseline tracking
-!artifacts/tier0/
-!artifacts/tier0/*.json
 outputs/
 results/
-# Exception: include tier0 evaluation results for baseline documentation
-!results/feature_selection/
-!results/feature_selection/tier0_*.json
-!results/feature_selection/tier0_*.csv
 
 # Data (local only; never commit)
 data/

@@ -38,7 +38,11 @@ GitHub Codespaces を開発環境とし、パッケージ管理は **[uv](https:
 ├─ artifacts/                     # 学習済み成果物の書き出し先。`Preprocessing_<group>/` 以下にモデル・メタデータ・submission を置く（Git 管理外）。
 ├─ docs/                          # `preprocessing.md`, `submissions.md` などの運用ドキュメント。
 ├─ configs/
-│  └─ preprocess.yaml             # 各グループの採択ポリシー・ハイパーパラメータ設定を集約。
+│  ├─ preprocess.yaml             # 各グループの採択ポリシー・ハイパーパラメータ設定を集約。
+│  ├─ feature_generation.yaml     # 特徴量生成（SU1/SU5）の設定。
+│  └─ feature_selection/          # 特徴量選定フェーズ別設定。
+│      ├─ tier0_baseline.json     # Tier0ベースライン評価結果（577列, OOF RMSE 0.012134）。
+│      └─ tier1_excluded.json     # Tier1で除外する特徴量リスト（417列）。
 ├─ notebooks/                     # Kaggle Private Notebook と同期する検証ノート・EDA ノート。
 ├─ tests/                         # Pytest による単体/統合テスト。`tests/preprocess/<group>/` で各ポリシーを検証。
 ├─ data/                          # Kaggle 公式データの配置場所（Git 管理外）。`raw/`, `interim/`, `processed/` などを区分。
@@ -450,4 +454,52 @@ MSR-proxy の成果物は、scikit-learn のバージョン依存で `joblib.loa
 - その後に `lightgbm==4.6.0`, `joblib`, `pyarrow`, `polars`, `pandas` をインストール
 
 詳細は `docs/submissions.md` の 2025-10-12 エントリに Notebook のサンプル断片を記載しています。
+
+---
+
+## 特徴量選定（Feature Selection）
+
+### 概要
+
+577列の全特徴量から段階的に不要な列を削減し、モデル性能を維持しながらシンプルな特徴量セットを構築します。
+
+### フェーズ構成
+
+| Phase | 手法 | 目的 |
+|-------|------|------|
+| Phase 0 | - | Tier0ベースライン凍結（577列） |
+| Phase 1 | 統計フィルタ | 低分散・高欠損・高相関列の除去 |
+| Phase 2 | モデル重要度 | LGBM importance → Permutation |
+| Phase 3 | グルーピング | 相関クラスタからの代表選出 |
+| Phase 4 | 最終検証 | LB評価 + 安定性確認 |
+
+### 設定ファイル構成
+
+```
+configs/feature_selection/
+├── tier0_baseline.json     # Tier0評価結果（ベースライン）
+├── tier1_excluded.json     # Phase1で除外する特徴量リスト
+├── tier2_excluded.json     # Phase2で追加除外する特徴量リスト（予定）
+└── ...
+```
+
+### 運用フロー
+
+1. **ベース設定は固定**: `configs/feature_generation.yaml`, `configs/preprocess.yaml` は変更しない
+2. **フェーズ別除外リスト**: `configs/feature_selection/tierN_excluded.json` で管理
+3. **評価**: 各フェーズで除外リストを適用してOOF評価
+4. **採用判定**: RMSE劣化が許容範囲内（+0.0001以内）なら次のTierへ
+
+### 現在の状態
+
+| Tier | 特徴量数 | OOF RMSE | OOF MSR | 状態 |
+|------|----------|----------|---------|------|
+| Tier0 | 577 | 0.012134 | 0.019929 | ベースライン |
+| Tier1 | 160 | 0.012168 | 0.019201 | Phase1完了（LB検証待ち） |
+
+### 関連ドキュメント
+
+- 詳細仕様: `docs/feature_selection/README.md`
+- Phase別レポート: `docs/feature_selection/phase1_report.md`
+- 実装: `src/feature_selection/`
 

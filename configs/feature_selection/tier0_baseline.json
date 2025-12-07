@@ -1,0 +1,10 @@
+{
+  "oof_rmse": 0.012133643870735554,
+  "oof_coverage": 0.8331479421579533,
+  "oof_msr": 0.019928744973981227,
+  "oof_msr_down": 0.03031831470228047,
+  "oof_best_mult": 1.5,
+  "oof_best_lo": 0.8,
+  "oof_best_hi": 1.1,
+  "fold_count": 5
+}
