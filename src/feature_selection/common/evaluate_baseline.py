@@ -585,6 +585,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Determine output file prefix based on whether features were excluded
     file_prefix = "tier1" if args.exclude_features else "tier0"
     
+    # Save OOF predictions
+    oof_df = pd.DataFrame({
+        "row_id": train_df[args.id_col].values,
+        "target": y_np_array,
+        "oof_pred": oof_pred,
+    })
+    oof_path = out_dir / f"{file_prefix}_oof_predictions.csv"
+    oof_df.to_csv(oof_path, index=False)
+    print(f"[ok] saved OOF predictions: {oof_path}")
+    
     # Save evaluation results
     evaluation_path = out_dir / f"{file_prefix}_evaluation.json"
     with evaluation_path.open("w", encoding="utf-8") as fh:
