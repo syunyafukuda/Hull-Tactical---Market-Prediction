@@ -193,8 +193,22 @@ python src/feature_selection/common/evaluate_baseline.py \
 ### 採用後の作業
 
 1. ✅ Tier2 を新しいベースラインとして採用
-2. Tier2 でのモデル提出、LBスコア確認
-3. Phase 3（相関クラスタリング）へ進むか検討
+2. ✅ Tier2 でのモデル提出、LBスコア確認
+3. Phase 3（Permutation Importance）へ進む
+
+### LB 提出結果
+
+| Tier | 特徴量数 | OOF RMSE | LB Score |
+|------|---------|----------|----------|
+| Tier0 | 577 | 0.012134 | 0.681 |
+| Tier1 | 160 | 0.012168 | 0.681 |
+| **Tier2** | **120** | 0.012172 | **0.681** |
+
+**結論**:
+- LB Score が Tier0/Tier1 と同一（0.681）
+- Phase 2 で削除した40特徴量は予測性能に寄与していない
+- **Phase 2 採用確定**、Tier2（120特徴量）を新しいベースラインとする
+- **Phase 3 実装へ進む**：Permutation Importanceによる更なる特徴量削減
 
 ---
 
