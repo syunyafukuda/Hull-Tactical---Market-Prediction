@@ -73,7 +73,7 @@ Sharpe コンペ固有の難しさとは独立な領域であり、リスクの�
 ### T1-1: フィルタスクリプト作成
 
 #### ファイル
-- `src/feature_selection/filter_trivial.py`
+- `src/feature_selection/filter_trivial_phase1.py`
 
 #### 機能要件
 
@@ -121,7 +121,7 @@ Sharpe コンペ固有の難しさとは独立な領域であり、リスクの�
 #### CLI インターフェース
 
 ```bash
-python src/feature_selection/filter_trivial.py \
+python src/feature_selection/filter_trivial_phase1.py \
   --config-path configs/tier0_snapshot/feature_generation.yaml \
   --preprocess-config configs/tier0_snapshot/preprocess.yaml \
   --data-dir data/raw \
@@ -134,7 +134,7 @@ python src/feature_selection/filter_trivial.py \
 #### コード構造
 
 ```python
-# src/feature_selection/filter_trivial.py
+# src/feature_selection/filter_trivial_phase1.py
 
 def parse_args() -> argparse.Namespace:
     """CLI 引数パース"""
@@ -166,7 +166,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 ```
 
 #### 成果物
-- `src/feature_selection/filter_trivial.py`
+- `src/feature_selection/filter_trivial_phase1.py`
 
 ---
 
@@ -177,7 +177,7 @@ Tier0 特徴量に対してフィルタを実行し、削除候補を特定
 
 #### 作業内容
 
-1. `filter_trivial.py` を実行
+1. `filter_trivial_phase1.py` を実行
 2. 削除候補リストを `results/feature_selection/phase1_filter_candidates.json` に出力
 3. 削除候補の内訳を確認（カテゴリ別の件数）
 
@@ -241,7 +241,7 @@ src/
 └── feature_selection/
     ├── __init__.py
     ├── evaluate_baseline.py      # Phase 0 で作成済み
-    └── filter_trivial.py         # T1-1 で新規作成
+    └── filter_trivial_phase1.py  # T1-1 で新規作成
 
 results/
 └── feature_selection/
@@ -262,7 +262,7 @@ docs/
 
 ## 受け入れ条件
 
-- [ ] `src/feature_selection/filter_trivial.py` が動作する
+- [ ] `src/feature_selection/filter_trivial_phase1.py` が動作する
 - [ ] 3種類のフィルタ（分散/欠損率/相関）が正しく動作する
 - [ ] `phase1_filter_candidates.json` が正しい形式で出力される
 - [ ] Tier0 vs Tier1 の比較評価が実行できる
