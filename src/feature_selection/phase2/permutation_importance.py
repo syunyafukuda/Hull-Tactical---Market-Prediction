@@ -225,18 +225,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     
     # Infer data files
     data_dir = Path(args.data_dir)
-    train_path = Path(args.train_file) if args.train_file else infer_train_file(data_dir)
+    train_path = infer_train_file(data_dir, args.train_file)
+    test_path = infer_test_file(data_dir, None)
     
     print(f"[info] Train file: {train_path}")
     
     # Load data
     print("[info] Loading data...")
     train_df = load_table(train_path)
+    test_df = load_table(test_path)
     
     # Prepare features
     print("[info] Preparing features...")
     X_np, y_np, _ = _prepare_features(
         train_df,
+        test_df,
         target_col=args.target_col,
         id_col=args.id_col,
     )
@@ -279,26 +282,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     
     # Build pipeline
     print("[info] Building pipeline...")
-    lgbm_params = {
+    model_kwargs = {
         "objective": "regression",
         "metric": "rmse",
         "learning_rate": args.learning_rate,
         "n_estimators": args.n_estimators,
         "num_leaves": args.num_leaves,
-        "min_child_samples": args.min_data_in_leaf,
-        "subsample": args.bagging_fraction,
-        "subsample_freq": args.bagging_freq,
-        "colsample_bytree": args.feature_fraction,
+        "min_data_in_leaf": args.min_data_in_leaf,
+        "feature_fraction": args.feature_fraction,
+        "bagging_fraction": args.bagging_fraction,
+        "bagging_freq": args.bagging_freq,
         "random_state": args.random_seed,
+        "n_jobs": -1,
         "verbosity": args.verbosity,
-        "force_col_wise": True,
     }
     
     core_pipeline_template = build_pipeline(
-        preprocess_policies=preprocess_policies,
-        model_class=LGBMRegressor,
-        model_params=lgbm_params,
+        su1_cfg,
+        su5_cfg,
+        preprocess_policies,
         numeric_fill_value=args.numeric_fill_value,
+        model_kwargs=model_kwargs,
+        random_state=args.random_seed,
     )
     
     # Perform CV with permutation importance
