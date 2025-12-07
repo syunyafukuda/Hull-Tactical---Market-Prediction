@@ -638,7 +638,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     final_pipeline.fit(X_augmented_all, y_np)
     
     # Get model feature names after preprocessing
-    model_step = final_pipeline.named_steps.get("model")
     preprocess_step = final_pipeline.named_steps.get("preprocess")
     model_feature_names = []
     if preprocess_step is not None and hasattr(preprocess_step, "get_feature_names_out"):
