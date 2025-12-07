@@ -73,7 +73,7 @@ Sharpe コンペ固有の難しさとは独立な領域であり、リスクの�
 ### T1-1: フィルタスクリプト作成
 
 #### ファイル
-- `src/feature_selection/filter_trivial_phase1.py`
+- `src/feature_selection/phase1/filter_trivial.py`
 
 #### 機能要件
 
@@ -121,7 +121,7 @@ Sharpe コンペ固有の難しさとは独立な領域であり、リスクの�
 #### CLI インターフェース
 
 ```bash
-python src/feature_selection/filter_trivial_phase1.py \
+python src/feature_selection/phase1/filter_trivial.py \
   --config-path configs/tier0_snapshot/feature_generation.yaml \
   --preprocess-config configs/tier0_snapshot/preprocess.yaml \
   --data-dir data/raw \
@@ -134,7 +134,7 @@ python src/feature_selection/filter_trivial_phase1.py \
 #### コード構造
 
 ```python
-# src/feature_selection/filter_trivial_phase1.py
+# src/feature_selection/phase1/filter_trivial.py
 
 def parse_args() -> argparse.Namespace:
     """CLI 引数パース"""
@@ -166,7 +166,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 ```
 
 #### 成果物
-- `src/feature_selection/filter_trivial_phase1.py`
+- `src/feature_selection/phase1/filter_trivial.py`
 
 ---
 
@@ -220,7 +220,7 @@ Tier0 特徴量に対してフィルタを実行し、削除候補を特定
 
 ```bash
 # 評価スクリプトに除外リストを渡すオプションを追加
-python src/feature_selection/evaluate_baseline.py \
+python src/feature_selection/common/evaluate_baseline.py \
   --config-path configs/tier0_snapshot/feature_generation.yaml \
   --preprocess-config configs/tier0_snapshot/preprocess.yaml \
   --data-dir data/raw \
@@ -262,7 +262,7 @@ docs/
 
 ## 受け入れ条件
 
-- [ ] `src/feature_selection/filter_trivial_phase1.py` が動作する
+- [ ] `src/feature_selection/phase1/filter_trivial.py` が動作する
 - [ ] 3種類のフィルタ（分散/欠損率/相関）が正しく動作する
 - [ ] `phase2/importance_candidates.json` が正しい形式で出力される
 - [ ] Tier0 vs Tier1 の比較評価が実行できる

@@ -115,7 +115,7 @@
 Tier0 ベースラインの再評価と、fold 毎の feature importance 出力を行うスクリプトを作成する。
 
 #### ファイル
-- `src/feature_selection/evaluate_baseline.py`
+- `src/feature_selection/common/evaluate_baseline.py`
 
 #### 機能要件
 
@@ -140,7 +140,7 @@ Tier0 ベースラインの再評価と、fold 毎の feature importance 出力�
 
 ```bash
 # 基本実行
-python src/feature_selection/evaluate_baseline.py \
+python src/feature_selection/common/evaluate_baseline.py \
   --config-path configs/tier0_snapshot/feature_generation.yaml \
   --preprocess-config configs/tier0_snapshot/preprocess.yaml \
   --data-dir data/raw \
@@ -164,7 +164,7 @@ python src/feature_selection/evaluate_baseline.py \
 #### コード構造
 
 ```python
-# src/feature_selection/evaluate_baseline.py
+# src/feature_selection/common/evaluate_baseline.py
 
 def parse_args() -> argparse.Namespace:
     """CLI 引数パース"""
@@ -201,7 +201,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 #### 成果物
 - `src/feature_selection/__init__.py`
-- `src/feature_selection/evaluate_baseline.py`
+- `src/feature_selection/common/evaluate_baseline.py`
 - `results/feature_selection/tier0/evaluation.json`
 - `results/feature_selection/tier0/importance.csv`
 - `results/feature_selection/tier0/importance_summary.csv`
@@ -243,7 +243,7 @@ results/
 - [x] `configs/tier0_snapshot/` に設定ファイルがコピーされている
 - [x] `artifacts/tier0/feature_list.json` が正しい形式で出力されている
 - [ ] `artifacts/tier0/inference_bundle.pkl` が生成されている（データ必要）
-- [x] `src/feature_selection/evaluate_baseline.py` が動作する
+- [x] `src/feature_selection/common/evaluate_baseline.py` が動作する
 - [ ] `results/feature_selection/tier0/importance.csv` が出力されている（データ必要）
 - [ ] OOF RMSE が 0.012134 前後で再現されている（データ必要）
 

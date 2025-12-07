@@ -6,13 +6,28 @@ This directory contains scripts for evaluating and filtering features through mu
 
 - **Phase 0**: Tier0 Baseline Evaluation (SU1 + SU5 + Brushup)
 - **Phase 1**: Filter-based Feature Selection (statistical filtering)
+- **Phase 2**: Model-based Importance Selection (LGBM + Permutation)
 
-## Files
+## Directory Structure
 
-### Scripts
-
-- `evaluate_baseline.py`: Main evaluation script for Tier0/Tier1 baselines
-- `filter_trivial_phase1.py`: Statistical feature filtering script
+```
+src/feature_selection/
+├── __init__.py
+├── README.md
+├── common/                       # Shared utilities
+│   ├── __init__.py
+│   └── evaluate_baseline.py      # Tier evaluation (all phases)
+├── phase1/                       # Phase 1: Filter-based
+│   ├── __init__.py
+│   └── filter_trivial.py         # Statistical filtering
+├── phase2/                       # Phase 2: Model-based importance
+│   ├── __init__.py
+│   ├── compute_importance.py     # LGBM importance (Phase 2-1)
+│   └── permutation_importance.py # Permutation importance (Phase 2-2)
+└── inference/                    # Inference utilities
+    ├── __init__.py
+    └── predict_tier.py           # Tier prediction
+```
 
 ### Phase 0 Results (in `results/feature_selection/tier0/`)
 
@@ -42,7 +57,7 @@ This directory contains scripts for evaluating and filtering features through mu
 #### Basic Execution
 
 ```bash
-python src/feature_selection/evaluate_baseline.py \
+python src/feature_selection/common/evaluate_baseline.py \
   --config-path configs/tier0_snapshot/feature_generation.yaml \
   --preprocess-config configs/tier0_snapshot/preprocess.yaml \
   --data-dir data/raw \
@@ -52,7 +67,7 @@ python src/feature_selection/evaluate_baseline.py \
 #### With Custom Parameters
 
 ```bash
-python src/feature_selection/evaluate_baseline.py \
+python src/feature_selection/common/evaluate_baseline.py \
   --config-path configs/tier0_snapshot/feature_generation.yaml \
   --preprocess-config configs/tier0_snapshot/preprocess.yaml \
   --data-dir data/raw \
@@ -79,7 +94,7 @@ When run with the Tier0 configuration:
 Use `filter_trivial_phase1.py` to identify features that should be excluded based on statistical criteria:
 
 ```bash
-python src/feature_selection/filter_trivial_phase1.py \
+python src/feature_selection/phase1/filter_trivial.py \
   --config-path configs/tier0_snapshot/feature_generation.yaml \
   --preprocess-config configs/tier0_snapshot/preprocess.yaml \
   --data-dir data/raw \
@@ -131,7 +146,7 @@ python src/feature_selection/filter_trivial_phase1.py \
 Use `evaluate_baseline.py` with the `--exclude-features` flag to evaluate performance after filtering:
 
 ```bash
-python src/feature_selection/evaluate_baseline.py \
+python src/feature_selection/common/evaluate_baseline.py \
   --config-path configs/tier0_snapshot/feature_generation.yaml \
   --preprocess-config configs/tier0_snapshot/preprocess.yaml \
   --data-dir data/raw \

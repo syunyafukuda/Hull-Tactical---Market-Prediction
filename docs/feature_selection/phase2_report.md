@@ -21,7 +21,7 @@ Phase 1 で統計フィルタを適用した Tier1 特徴セット（160列）�
 ### 実行コマンド
 
 ```bash
-python src/feature_selection/compute_importance.py \
+python src/feature_selection/phase2/compute_importance.py \
   --config-path configs/feature_generation.yaml \
   --preprocess-config configs/preprocess.yaml \
   --data-dir data/raw \
@@ -67,7 +67,7 @@ python src/feature_selection/compute_importance.py \
 ### 実行コマンド
 
 ```bash
-python src/feature_selection/permutation_importance.py \
+python src/feature_selection/phase2/permutation_importance.py \
   --config-path configs/feature_generation.yaml \
   --preprocess-config configs/preprocess.yaml \
   --data-dir data/raw \
@@ -136,7 +136,7 @@ python src/feature_selection/permutation_importance.py \
 ### 実行コマンド
 
 ```bash
-python src/feature_selection/evaluate_baseline.py \
+python src/feature_selection/common/evaluate_baseline.py \
   --config-path configs/feature_generation.yaml \
   --preprocess-config configs/preprocess.yaml \
   --data-dir data/raw \

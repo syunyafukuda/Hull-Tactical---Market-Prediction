@@ -14,7 +14,7 @@ TEST_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = TEST_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from src.feature_selection.compute_importance import (  # noqa: E402
+from src.feature_selection.phase2.compute_importance import (  # noqa: E402
     compute_fold_importance,
     aggregate_importance,
 )

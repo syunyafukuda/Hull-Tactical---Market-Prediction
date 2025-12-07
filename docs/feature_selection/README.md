@@ -91,7 +91,7 @@ Phase 5: 最終評価とアーティファクト整理
   - 評価関数: `scripts/utils_msr.py` の既存実装を使用
 
 - [x] **T0-3**: ベースライン評価スクリプト作成
-  - `src/feature_selection/evaluate_baseline.py`
+  - `src/feature_selection/common/evaluate_baseline.py`
   - fold 毎の importance 出力機能を含む
 
 ### 成果物
@@ -161,7 +161,7 @@ Phase 5: 最終評価とアーティファクト整理
 #### タスク
 
 - [ ] **T2-1-1**: Importance 算出スクリプト作成
-  - `src/feature_selection/compute_importance.py`
+  - `src/feature_selection/phase2/compute_importance.py`
   - 出力: fold 毎の gain/split importance（CSV）
 
 - [ ] **T2-1-2**: 可視化と候補抽出
@@ -185,7 +185,7 @@ Phase 5: 最終評価とアーティファクト整理
 #### タスク
 
 - [ ] **T2-2-1**: Permutation スクリプト作成
-  - `src/feature_selection/permutation_importance.py`
+  - `src/feature_selection/phase2/permutation_importance.py`
   - 指標: MSR (Sharpe ベース)
   - 対象: Phase 2-1 で抽出した候補列のみ（計算コスト削減）
 
@@ -291,12 +291,24 @@ dev (現行)
 src/
 └── feature_selection/
     ├── __init__.py
-    ├── evaluate_baseline.py      # Phase 0: ベースライン評価
-    ├── filter_trivial.py         # Phase 1: フィルタベース除去
-    ├── compute_importance.py     # Phase 2-1: LGBM importance
-    ├── permutation_importance.py # Phase 2-2: Permutation importance
-    ├── correlation_clustering.py # Phase 3: 相関クラスタリング
-    └── block_pca.py              # Phase 4: ブロック PCA
+    ├── README.md
+    ├── common/                       # 共通ユーティリティ
+    │   ├── __init__.py
+    │   └── evaluate_baseline.py      # Tier評価共通
+    ├── phase1/                       # Phase 1: フィルタベース
+    │   ├── __init__.py
+    │   └── filter_trivial.py         # 統計フィルタ
+    ├── phase2/                       # Phase 2: モデルベース重要度
+    │   ├── __init__.py
+    │   ├── compute_importance.py     # LGBM importance
+    │   └── permutation_importance.py # Permutation importance
+    ├── phase3/                       # Phase 3: 相関クラスタリング（予定）
+    │   └── correlation_clustering.py
+    ├── phase4/                       # Phase 4: ブロック PCA（予定）
+    │   └── block_pca.py
+    └── inference/                    # 推論
+        ├── __init__.py
+        └── predict_tier.py
 
 notebooks/
 └── feature_selection/

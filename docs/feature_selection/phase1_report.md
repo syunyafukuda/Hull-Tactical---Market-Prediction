@@ -39,7 +39,7 @@ python src/feature_selection/filter_trivial.py \
   --correlation-threshold 0.999
 
 # フィルタ適用後の評価
-python src/feature_selection/evaluate_baseline.py \
+python src/feature_selection/common/evaluate_baseline.py \
   --config-path configs/tier0_snapshot/feature_generation.yaml \
   --preprocess-config configs/tier0_snapshot/preprocess.yaml \
   --data-dir data/raw \

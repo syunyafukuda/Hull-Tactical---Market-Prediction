@@ -80,7 +80,7 @@ LightGBM の gain/split importance を fold ごとに取得し、
 
 #### T2-1-1: Importance 算出スクリプト
 
-**ファイル**: `src/feature_selection/compute_importance.py`
+**ファイル**: `src/feature_selection/phase2/compute_importance.py`
 
 **機能要件**:
 
@@ -119,7 +119,7 @@ LightGBM の gain/split importance を fold ごとに取得し、
 **CLI インターフェース**:
 
 ```bash
-python src/feature_selection/compute_importance.py \
+python src/feature_selection/phase2/compute_importance.py \
   --config-path configs/feature_generation.yaml \
   --preprocess-config configs/preprocess.yaml \
   --data-dir data/raw \
@@ -222,7 +222,7 @@ Phase 2-1 でマークした削除候補列に対して、
 
 #### T2-2-1: Permutation スクリプト
 
-**ファイル**: `src/feature_selection/permutation_importance.py`
+**ファイル**: `src/feature_selection/phase2/permutation_importance.py`
 
 **機能要件**:
 
@@ -263,7 +263,7 @@ for fold_id, (train_idx, val_idx) in enumerate(tscv.split(X)):
 **CLI インターフェース**:
 
 ```bash
-python src/feature_selection/permutation_importance.py \
+python src/feature_selection/phase2/permutation_importance.py \
   --config-path configs/feature_generation.yaml \
   --preprocess-config configs/preprocess.yaml \
   --data-dir data/raw \
@@ -353,7 +353,7 @@ python src/feature_selection/permutation_importance.py \
 
 | ID | タスク | 成果物 | 依存 |
 |----|--------|--------|------|
-| T2-1-1 | Importance 算出スクリプト作成 | `src/feature_selection/compute_importance.py` | - |
+| T2-1-1 | Importance 算出スクリプト作成 | `src/feature_selection/phase2/compute_importance.py` | - |
 | T2-1-2 | 可視化と候補抽出 | `notebooks/feature_selection/importance_analysis.ipynb` | T2-1-1 |
 | T2-1-3 | 候補リスト出力 | `results/feature_selection/phase2/importance_candidates.json` | T2-1-2 |
 
@@ -361,7 +361,7 @@ python src/feature_selection/permutation_importance.py \
 
 | ID | タスク | 成果物 | 依存 |
 |----|--------|--------|------|
-| T2-2-1 | Permutation スクリプト作成 | `src/feature_selection/permutation_importance.py` | T2-1-3 |
+| T2-2-1 | Permutation スクリプト作成 | `src/feature_selection/phase2/permutation_importance.py` | T2-1-3 |
 | T2-2-2 | 結果分析と削除確定 | `configs/feature_selection/tier2/excluded.json` | T2-2-1 |
 
 ### Tier2 評価
@@ -380,8 +380,8 @@ python src/feature_selection/permutation_importance.py \
 
 | ファイル | 説明 |
 |----------|------|
-| `src/feature_selection/compute_importance.py` | LGBM importance 算出 |
-| `src/feature_selection/permutation_importance.py` | Permutation importance 算出 |
+| `src/feature_selection/phase2/compute_importance.py` | LGBM importance 算出 |
+| `src/feature_selection/phase2/permutation_importance.py` | Permutation importance 算出 |
 
 ### 設定・結果
 
@@ -480,4 +480,4 @@ Permutation は列数 × fold 数 × permutation 回数 の計算が必要:
 - `docs/feature_selection/README.md`: 全体計画
 - `docs/feature_selection/phase1_report.md`: Phase 1 結果
 - `scripts/utils_msr.py`: MSR 評価関数
-- `src/feature_selection/evaluate_baseline.py`: 既存の評価スクリプト
+- `src/feature_selection/common/evaluate_baseline.py`: 既存の評価スクリプト
