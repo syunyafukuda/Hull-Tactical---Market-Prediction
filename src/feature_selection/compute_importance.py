@@ -14,7 +14,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, cast
+from typing import Any, Dict, List, Sequence
 
 import numpy as np
 import pandas as pd
@@ -170,7 +170,7 @@ def compute_fold_importance(
     """
     if not hasattr(model, "feature_importances_"):
         # Return empty DataFrame if no importance available
-        return pd.DataFrame(columns=pd.Index(["feature_name", "importance_gain", "importance_split", "fold"]))
+        return pd.DataFrame(columns=["feature_name", "importance_gain", "importance_split", "fold"])
     
     # Get importances
     importance_gain = model.feature_importances_  # default is 'gain'
@@ -290,15 +290,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Infer data files
     data_dir = Path(args.data_dir)
     train_path = Path(args.train_file) if args.train_file else infer_train_file(data_dir)
-    test_path = Path(args.test_file) if args.test_file else infer_test_file(data_dir)
     
     print(f"[info] Train file: {train_path}")
-    print(f"[info] Test file: {test_path}")
     
     # Load data
     print("[info] Loading data...")
     train_df = load_table(train_path)
-    test_df = load_table(test_path)
     
     # Prepare features
     print("[info] Preparing features...")
@@ -388,6 +385,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         y_valid = y_np.iloc[val_idx]
         
         # Clone and fit pipeline
+        from typing import cast
         pipe = cast(Pipeline, clone(core_pipeline_template))
         pipe.fit(X_train, y_train)
         

@@ -16,7 +16,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, cast
+from typing import Any, Dict, List, Sequence
 
 import numpy as np
 import pandas as pd
@@ -33,6 +33,10 @@ try:
 except Exception:
     LGBMRegressor = None
     HAS_LGBM = False
+
+# Default thresholds for decision-making (can be overridden via analysis)
+DEFAULT_MEAN_DELTA_THRESHOLD = 1e-5
+DEFAULT_STD_DELTA_THRESHOLD = 1e-5
 
 THIS_DIR = Path(__file__).resolve().parent
 SRC_ROOT = THIS_DIR.parent
@@ -257,8 +261,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     cols_to_keep = [c for c in cols_before if c not in excluded_features]
     X_augmented = X_augmented[cols_to_keep]
     print(f"[info] Applied Tier1 exclusions: {len(cols_before)} -> {len(X_augmented.columns)} features")
-    
-    # Verify candidate features are present
     available_candidates = [c for c in candidate_features if c in X_augmented.columns]
     missing_candidates = [c for c in candidate_features if c not in X_augmented.columns]
     
@@ -274,7 +276,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
     
     X_augmented_all = X_augmented
-    y_np_array = y_np.to_numpy().ravel()
     
     # Build pipeline
     print("[info] Building pipeline...")
@@ -318,6 +319,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         y_valid = y_np.iloc[val_idx]
         
         # Clone and fit pipeline
+        from typing import cast
         pipe = cast(Pipeline, clone(core_pipeline_template))
         pipe.fit(X_train, y_train)
         
@@ -380,7 +382,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         
         # Determine decision (initial threshold, to be refined in analysis)
         # ΔRMSE ≈ 0 means feature is not important
-        decision = "remove" if abs(mean_delta) < 1e-5 and std_delta < 1e-5 else "keep"
+        # Note: These thresholds are initial suggestions and should be refined based on
+        # the actual distribution of ΔRMSE values
+        decision = "remove" if abs(mean_delta) < DEFAULT_MEAN_DELTA_THRESHOLD and std_delta < DEFAULT_STD_DELTA_THRESHOLD else "keep"
         
         result_row = {
             "feature_name": feature_name,
