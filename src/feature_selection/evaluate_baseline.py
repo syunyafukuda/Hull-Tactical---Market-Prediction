@@ -560,7 +560,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         n_features = len(model_step.feature_importances_)
                         feature_names = [f"feature_{i}" for i in range(n_features)]
                         print(f"[warn][fold {fold_idx}] Preprocess step lacks get_feature_names_out(), using generic names")
-                except Exception as e:
+                except (NotFittedError, AttributeError, TypeError, ValueError) as e:
                     # Fallback: use generic names
                     n_features = len(model_step.feature_importances_)
                     feature_names = [f"feature_{i}" for i in range(n_features)]
