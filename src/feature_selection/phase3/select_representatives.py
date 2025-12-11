@@ -65,16 +65,19 @@ def is_raw_feature(feature_name: str) -> bool:
 def select_cluster_representative(
     cluster_features: List[str],
     importance_df: pd.DataFrame,
+    similarity_ratio: float = 0.01,
 ) -> str:
     """Select representative from cluster based on importance.
     
     Priority:
     1. Maximum mean_gain
-    2. Raw features preferred if importance is similar
+    2. Raw features preferred if importance is similar (within similarity_ratio)
     
     Args:
         cluster_features: List of features in the cluster
         importance_df: DataFrame with feature importance
+        similarity_ratio: Threshold ratio to consider importance "similar".
+            Features within (max_gain * similarity_ratio) of max are candidates.
         
     Returns:
         Name of the selected representative feature
@@ -88,11 +91,26 @@ def select_cluster_representative(
         # If no importance data, just return first feature
         return cluster_features[0]
     
-    # Sort by mean_gain descending
-    cluster_importance = cluster_importance.sort_values(by='mean_gain', ascending=False)
+    # Add is_raw column
+    cluster_importance['is_raw'] = cluster_importance['feature_name'].apply(is_raw_feature)
     
-    # Select the feature with max mean_gain
-    representative = str(cluster_importance.iloc[0]['feature_name'])
+    # Find max gain and define "similar" threshold
+    max_gain = float(cluster_importance['mean_gain'].max())
+    eps = max_gain * similarity_ratio  # Features within 1% are "similar"
+    
+    # Get candidates with similar importance
+    candidates: pd.DataFrame = cluster_importance[
+        cluster_importance['mean_gain'] >= max_gain - eps
+    ].copy()  # type: ignore[reportAssignmentType]
+    
+    # Sort by is_raw (True first) then by mean_gain descending
+    candidates = candidates.sort_values(
+        by=['is_raw', 'mean_gain'],
+        ascending=[False, False]
+    )
+    
+    # Select the best candidate
+    representative = str(candidates.iloc[0]['feature_name'])
     
     return representative
 

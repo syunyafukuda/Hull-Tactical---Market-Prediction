@@ -170,10 +170,14 @@ def generate_phase3_report(
     with open(feature_sets_path, "r") as f:
         feature_sets = json.load(f)
     
-    # Check RMSE if evaluation was run
+    # Check RMSE if evaluation was run (both clustering and evaluation must be enabled)
     rmse_result = None
-    if not skip_evaluation:
-        rmse_result = check_tier3_rmse(tier2_eval_path, tier3_eval_path)
+    if not skip_clustering and not skip_evaluation:
+        try:
+            rmse_result = check_tier3_rmse(tier2_eval_path, tier3_eval_path)
+        except FileNotFoundError:
+            print("Warning: Tier3 evaluation file not found, skipping RMSE check")
+            rmse_result = None
     
     # Generate report
     report_lines = [
@@ -289,6 +293,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Main entry point."""
     args = parse_args(argv)
     
+    # If skip_clustering is True, force skip_evaluation to True as well
+    # (no Tier3 to evaluate without clustering)
+    if args.skip_clustering:
+        args.skip_evaluation = True
+    
     print("=" * 80)
     print("Phase 3 Pipeline Orchestration")
     print("=" * 80)
@@ -303,7 +312,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"Top K: {args.topk}")
     print()
     
-    project_root = PROJECT_ROOT
     phase3_dir = THIS_DIR
     
     # Phase 3-1: Correlation Clustering
@@ -371,6 +379,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         print("\n⏭️  Skipping correlation clustering (--skip-clustering)")
     
+    # Determine recommended feature set based on RMSE evaluation
+    # Default to FS_full if clustering was skipped or Tier3 not acceptable
+    recommended = "FS_full"
+    rmse_check_result = None
+    
+    if not args.skip_clustering and not args.skip_evaluation:
+        # Check if Tier3 meets RMSE criteria
+        try:
+            rmse_check_result = check_tier3_rmse(
+                args.tier2_evaluation,
+                "results/feature_selection/tier3/evaluation.json",
+            )
+            if rmse_check_result["acceptable"]:
+                recommended = "FS_compact"
+                print(f"\n✅ Tier3 RMSE acceptable (delta={rmse_check_result['delta']:+.6f}), recommending FS_compact")
+            else:
+                print(f"\n❌ Tier3 RMSE not acceptable (delta={rmse_check_result['delta']:+.6f}), recommending FS_full")
+        except FileNotFoundError:
+            print("\n⚠️  Tier3 evaluation not found, defaulting to FS_full")
+    elif args.skip_clustering:
+        print("\n⏭️  Clustering skipped, recommending FS_full")
+    
     # Phase 3-4: Create Feature Sets
     ret = run_command(
         [
@@ -382,7 +412,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "--tier3-evaluation", "results/feature_selection/tier3/evaluation.json",
             "--tier2-importance", args.tier2_importance,
             "--topk", str(args.topk),
-            "--recommended", "FS_compact" if not args.skip_clustering else "FS_full",
+            "--recommended", recommended,
             "--out-file", "configs/feature_selection/feature_sets.json",
         ],
         "Phase 3-4: Create Feature Sets Configuration",

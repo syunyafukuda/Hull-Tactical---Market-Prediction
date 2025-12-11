@@ -18,7 +18,7 @@
       "description": "Top 50 features by importance",
       "excluded_json": "configs/feature_selection/tier_topK/excluded.json",
       "n_features": 50,
-      "oof_rmse": null
+      "oof_rmse": 0.012023
     }
   },
   "recommended": "FS_compact"

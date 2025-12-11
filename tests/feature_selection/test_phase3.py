@@ -123,7 +123,7 @@ class TestSelectRepresentatives:
         cluster_features = ['feat_a', 'feat_b', 'feat_c']
         
         importance_df = pd.DataFrame({
-            'feature': ['feat_a', 'feat_b', 'feat_c', 'feat_d'],
+            'feature_name': ['feat_a', 'feat_b', 'feat_c', 'feat_d'],
             'mean_gain': [100.0, 200.0, 50.0, 150.0],
         })
         
@@ -137,7 +137,7 @@ class TestSelectRepresentatives:
         cluster_features = ['feat_x', 'feat_y']
         
         importance_df = pd.DataFrame({
-            'feature': ['feat_a', 'feat_b'],
+            'feature_name': ['feat_a', 'feat_b'],
             'mean_gain': [100.0, 200.0],
         })
         
@@ -151,7 +151,7 @@ class TestSelectRepresentatives:
         cluster_features = ['feat_a']
         
         importance_df = pd.DataFrame({
-            'feature': ['feat_a', 'feat_b'],
+            'feature_name': ['feat_a', 'feat_b'],
             'mean_gain': [100.0, 200.0],
         })
         
@@ -159,6 +159,37 @@ class TestSelectRepresentatives:
         
         # Should return the only feature
         assert representative == 'feat_a'
+
+    def test_select_cluster_representative_raw_feature_preferred(self):
+        """Test that raw features are preferred when importance is similar."""
+        # E1 is a raw feature, 'derived/E1' is not
+        cluster_features = ['derived/E1', 'E1', 'another/feat']
+        
+        importance_df = pd.DataFrame({
+            'feature_name': ['derived/E1', 'E1', 'another/feat'],
+            # E1 and derived/E1 have similar importance (within 1%)
+            'mean_gain': [100.0, 99.5, 50.0],
+        })
+        
+        representative = select_cluster_representative(cluster_features, importance_df)
+        
+        # Should prefer E1 (raw feature) since importance is within 1% of max
+        assert representative == 'E1'
+
+    def test_select_cluster_representative_importance_wins_over_raw(self):
+        """Test that significantly higher importance wins over raw feature preference."""
+        cluster_features = ['derived/E1', 'E1']
+        
+        importance_df = pd.DataFrame({
+            'feature_name': ['derived/E1', 'E1'],
+            # derived/E1 has significantly higher importance (more than 1% difference)
+            'mean_gain': [100.0, 95.0],  # 5% difference
+        })
+        
+        representative = select_cluster_representative(cluster_features, importance_df)
+        
+        # Should select derived/E1 because importance difference is too large
+        assert representative == 'derived/E1'
 
 
 class TestIntegration:
