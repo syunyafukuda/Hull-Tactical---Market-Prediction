@@ -121,10 +121,10 @@ def create_topk_excluded(
     importance_df = importance_df.sort_values('mean_gain', ascending=False)
     
     # Get top K features
-    top_features = set(importance_df.head(topk)['feature'].tolist())
+    top_features = set(importance_df.head(topk)['feature_name'].tolist())
     
     # Get all features that are NOT in top K (these will be excluded)
-    all_features = set(importance_df['feature'].tolist())
+    all_features = set(importance_df['feature_name'].tolist())
     to_exclude = all_features - top_features
     
     # Start with Tier2 exclusions
@@ -133,7 +133,7 @@ def create_topk_excluded(
     # Add features not in top K
     for feature in sorted(to_exclude):
         importance_series = cast(pd.Series, importance_df[
-            importance_df['feature'] == feature
+            importance_df['feature_name'] == feature
         ]['mean_gain'])
         mean_gain = float(importance_series.iloc[0]) if len(importance_series) > 0 else 0.0
         

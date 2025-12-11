@@ -357,7 +357,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             ret = run_command(
                 [
                     sys.executable,
-                    str(project_root / "src/feature_selection/common/evaluate_baseline.py"),
+                    "-m", "src.feature_selection.common.evaluate_baseline",
                     "--config-path", args.config_path,
                     "--preprocess-config", args.preprocess_config,
                     "--data-dir", args.data_dir,

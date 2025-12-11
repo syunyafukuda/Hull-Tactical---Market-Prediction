@@ -81,7 +81,7 @@ def select_cluster_representative(
     """
     # Filter importance for cluster features
     cluster_importance: pd.DataFrame = importance_df[
-        importance_df['feature'].isin(cluster_features)
+        importance_df['feature_name'].isin(cluster_features)
     ].copy()  # type: ignore[reportAssignmentType]
     
     if cluster_importance.empty:
@@ -92,7 +92,7 @@ def select_cluster_representative(
     cluster_importance = cluster_importance.sort_values(by='mean_gain', ascending=False)
     
     # Select the feature with max mean_gain
-    representative = str(cluster_importance.iloc[0]['feature'])
+    representative = str(cluster_importance.iloc[0]['feature_name'])
     
     return representative
 
@@ -143,7 +143,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         
         # Get importance value
         rep_importance = cast(pd.Series, importance_df[
-            importance_df['feature'] == representative
+            importance_df['feature_name'] == representative
         ]['mean_gain'])
         rep_gain = float(rep_importance.iloc[0]) if len(rep_importance) > 0 else 0.0
         
@@ -161,7 +161,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         for feature in features:
             if feature != representative:
                 feat_importance = cast(pd.Series, importance_df[
-                    importance_df['feature'] == feature
+                    importance_df['feature_name'] == feature
                 ]['mean_gain'])
                 feat_gain = float(feat_importance.iloc[0]) if len(feat_importance) > 0 else 0.0
                 
