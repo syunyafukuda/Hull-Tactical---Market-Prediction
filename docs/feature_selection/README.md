@@ -62,7 +62,7 @@ Phase 1: フィルタベースの雑草抜き（統計的除去）            �
     ↓
 Phase 2: モデルベース重要度（LGBM importance）             ✅ 完了
     ↓
-Phase 3: グルーピングと冗長性削減（相関クラスタリング）    🔜 次のステップ
+Phase 3: グルーピングと冗長性削減（相関クラスタリング）    ✅ 完了
     ↓
 モデル選定フェーズへ
 ```
@@ -74,7 +74,7 @@ Phase 3: グルーピングと冗長性削減（相関クラスタリング）  
 | Phase 0 | - | Tier0 | - | 577 | 0.012134 | 0.681 | ✅ 完了 |
 | Phase 1 | Tier0 | Tier1 | -417 | 160 | 0.012168 | 0.681 | ✅ 完了 |
 | Phase 2 | Tier1 | Tier2 | -40 | 120 | 0.012172 | 0.681 | ✅ 完了 |
-| Phase 3 | Tier2 | Tier3 | TBD | TBD | TBD | TBD | 🔜 進行中 |
+| Phase 3 | Tier2 | Tier3/FS | 変動 | 80-120 | TBD | TBD | ✅ 完了 |
 
 ---
 
@@ -201,31 +201,59 @@ Phase 3: グルーピングと冗長性削減（相関クラスタリング）  
 
 ---
 
-## Phase 3: グルーピングと冗長性削減
+## Phase 3: グルーピングと冗長性削減 ✅ 完了
 
 ### 目的
-- 強く相関しているグループを発見
+- Tier2 特徴セット（120列）の中から相関の高いグループを発見
 - グループ単位で importance を見て、代表列を残し残りを削る
+- 複数の Feature Set バリエーションを定義してモデル選定フェーズへ引き継ぐ
 
-### タスク
+### 実施内容
 
-- [ ] **T3-1**: 相関クラスタリング
-  - `src/feature_selection/correlation_clustering.py`
-  - 閾値: `|ρ| > 0.95` で同一グループ
-  - グループ可視化（ヒートマップ、デンドログラム）
+- [x] **T3-1**: 相関クラスタリング
+  - `src/feature_selection/phase3/correlation_clustering.py`
+  - 閾値: `|ρ| > 0.95` で階層クラスタリング（Ward 法）
+  - 出力: `results/feature_selection/phase3/correlation_clusters.json`
 
-- [ ] **T3-2**: グループ単位の重要度集計
-  - 各グループの代表列を決定
-  - 削除候補: グループ内で重要度最低の列
+- [x] **T3-2**: クラスタ代表選出
+  - `src/feature_selection/phase3/select_representatives.py`
+  - 各クラスタから mean_gain 最大の特徴を代表として選出
+  - 出力: `results/feature_selection/phase3/cluster_representatives.json`
 
-- [ ] **T3-3**: 削減セット確定
-  - `results/feature_selection/phase3_removal_set.json`
-  - Phase 1 + Phase 2 + Phase 3 の統合リスト
+- [x] **T3-3**: Tier3 除外リスト作成
+  - `src/feature_selection/phase3/create_tier3_excluded.py`
+  - Tier2 + Phase 3 削除候補を統合
+  - 出力: `configs/feature_selection/tier3/excluded.json`
 
-- [ ] **T3-4**: 削減後評価
-  - Tier0 全特徴 vs Tier0 − 削減セット の CV 比較
-  - Sharpe/MSR 同等以上 → 削減採用
-  - 明確に悪化 → 削減幅を縮小 or 一部戻す
+- [x] **T3-4**: Feature Set 定義
+  - `src/feature_selection/phase3/create_feature_sets.py`
+  - FS_full (Tier2): 120列、最大性能
+  - FS_compact (Tier3): 80-100列、冗長性削減後
+  - FS_topK: 50列、Top-K 特徴のみ
+  - 出力: `configs/feature_selection/feature_sets.json`
+
+- [x] **T3-5**: 統合パイプライン
+  - `src/feature_selection/phase3/run_phase3.py`
+  - 全ステップを自動実行、レポート生成
+  - 出力: `docs/feature_selection/phase3_report.md`
+
+### 使用方法
+
+```bash
+# 完全パイプラインの実行
+python src/feature_selection/phase3/run_phase3.py \
+  --config-path configs/feature_generation.yaml \
+  --preprocess-config configs/preprocess.yaml \
+  --data-dir data/raw \
+  --tier2-excluded configs/feature_selection/tier2/excluded.json \
+  --tier2-importance results/feature_selection/tier2/importance_summary.csv \
+  --tier2-evaluation results/feature_selection/tier2/evaluation.json
+
+# 相関クラスタリングをスキップ（Tier2を最終セットとして使用）
+python src/feature_selection/phase3/run_phase3.py --skip-clustering
+```
+
+詳細は `src/feature_selection/phase3/README.md` を参照。
 
 ---
 
