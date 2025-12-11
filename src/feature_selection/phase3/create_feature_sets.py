@@ -13,7 +13,7 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence, cast
 
 import pandas as pd
 
@@ -132,10 +132,10 @@ def create_topk_excluded(
     
     # Add features not in top K
     for feature in sorted(to_exclude):
-        importance_val = importance_df[
+        importance_series = cast(pd.Series, importance_df[
             importance_df['feature'] == feature
-        ]['mean_gain'].values
-        mean_gain = float(importance_val[0]) if len(importance_val) > 0 else 0.0
+        ]['mean_gain'])
+        mean_gain = float(importance_series.iloc[0]) if len(importance_series) > 0 else 0.0
         
         # Only add if not already in tier2 exclusions
         already_excluded = any(

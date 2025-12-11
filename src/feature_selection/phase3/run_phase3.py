@@ -18,7 +18,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, Sequence
 
 THIS_DIR = Path(__file__).resolve().parent
 SRC_ROOT = THIS_DIR.parents[1]
@@ -201,7 +201,7 @@ def generate_phase3_report(
         report_lines.extend([
             "### Phase 3-1: 相関クラスタリング",
             "",
-            f"- **相関閾値**: 0.95",
+            "- **相関閾値**: 0.95",
             f"- **検出クラスタ数**: {clustering['n_clusters']}",
             f"- **シングルトン特徴数**: {clustering['n_singletons']}",
             "",
@@ -221,8 +221,8 @@ def generate_phase3_report(
             report_lines.extend([
                 "#### RMSE 評価結果",
                 "",
-                f"| Tier | OOF RMSE | Delta |",
-                f"|------|----------|-------|",
+                "| Tier | OOF RMSE | Delta |",
+                "|------|----------|-------|",
                 f"| Tier2 | {rmse_result['tier2_rmse']:.6f} | - |",
                 f"| Tier3 | {rmse_result['tier3_rmse']:.6f} | {rmse_result['delta']:+.6f} |",
                 "",
@@ -276,13 +276,13 @@ def generate_phase3_report(
     ])
     
     # Write report
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
     
-    with open(output_path, "w", encoding="utf-8") as f:
+    with open(output, "w", encoding="utf-8") as f:
         f.write("\n".join(report_lines))
     
-    print(f"\n✅ Phase 3 report written to {output_path}")
+    print(f"\n✅ Phase 3 report written to {output}")
 
 
 def main(argv: Sequence[str] | None = None) -> int:

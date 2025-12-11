@@ -34,6 +34,7 @@ from src.feature_generation.su5.train_su5 import (  # noqa: E402
     load_su5_config,
     load_preprocess_policies,
     infer_train_file,
+    infer_test_file,
     load_table,
     _prepare_features,
 )
@@ -206,24 +207,31 @@ def main(argv: Sequence[str] | None = None) -> int:
     
     # Load training data
     print("Loading training data...")
-    train_file = args.train_file or infer_train_file(args.data_dir)
-    df_train = load_table(train_file)
+    data_dir = Path(args.data_dir)
+    train_file = args.train_file or infer_train_file(data_dir, None)
+    test_file = infer_test_file(data_dir, None)
+    df_train = load_table(Path(train_file) if isinstance(train_file, str) else train_file)
+    df_test = load_table(Path(test_file) if isinstance(test_file, str) else test_file)
     print(f"Loaded {len(df_train)} rows from {train_file}")
     print()
     
     # Build pipeline and transform data
     print("Building preprocessing pipeline...")
-    pipeline = build_pipeline(
-        su1_cfg=su1_cfg,
-        su5_cfg=su5_cfg,
-        preprocess_policies=preprocess_policies,
+    build_pipeline(
+        su1_config=su1_cfg,
+        su5_config=su5_cfg,
+        preprocess_settings=preprocess_policies,
+        numeric_fill_value=0.0,
+        model_kwargs={},
+        random_state=42,
     )
     
     print("Fitting and transforming data...")
-    X_train, y_train = _prepare_features(
+    X_train, y_train, _ = _prepare_features(
         df_train,
+        df_test,
         target_col=args.target_col,
-        pipeline=pipeline,
+        id_col="row_id",
     )
     
     # Filter to Tier2 features (exclude removed features)
@@ -239,7 +247,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     
     # Compute correlation matrix
     print("Computing correlation matrix...")
-    corr_matrix = X_tier2.corr()
+    corr_matrix: pd.DataFrame = X_tier2.corr()  # type: ignore[reportCallIssue]
     print(f"Correlation matrix shape: {corr_matrix.shape}")
     print()
     

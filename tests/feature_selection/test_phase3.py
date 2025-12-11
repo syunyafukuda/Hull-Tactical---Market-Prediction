@@ -1,13 +1,9 @@
 #!/usr/bin/env python
 """Tests for Phase 3 correlation clustering and feature set creation."""
 
-import json
-import numpy as np
 import pandas as pd
-import pytest
 from pathlib import Path
 import sys
-import tempfile
 
 # Add src to path
 TEST_DIR = Path(__file__).resolve().parent
@@ -34,7 +30,7 @@ class TestCorrelationClustering:
             'feat_b': [0.99, 1.0, 0.15],
             'feat_c': [0.1, 0.15, 1.0],
         }
-        corr_matrix = pd.DataFrame(data, index=['feat_a', 'feat_b', 'feat_c'])
+        corr_matrix = pd.DataFrame(data, index=pd.Index(['feat_a', 'feat_b', 'feat_c']))
         
         result = compute_correlation_clusters(corr_matrix, threshold=0.95)
         
@@ -58,7 +54,7 @@ class TestCorrelationClustering:
             'feat_b': [0.0, 1.0, 0.0],
             'feat_c': [0.0, 0.0, 1.0],
         }
-        corr_matrix = pd.DataFrame(data, index=['feat_a', 'feat_b', 'feat_c'])
+        corr_matrix = pd.DataFrame(data, index=pd.Index(['feat_a', 'feat_b', 'feat_c']))
         
         result = compute_correlation_clusters(corr_matrix, threshold=0.95)
         
@@ -75,7 +71,7 @@ class TestCorrelationClustering:
             'feat_b': [0.98, 1.0, 0.96],
             'feat_c': [0.97, 0.96, 1.0],
         }
-        corr_matrix = pd.DataFrame(data, index=['feat_a', 'feat_b', 'feat_c'])
+        corr_matrix = pd.DataFrame(data, index=pd.Index(['feat_a', 'feat_b', 'feat_c']))
         
         result = compute_correlation_clusters(corr_matrix, threshold=0.95)
         
@@ -98,7 +94,7 @@ class TestCorrelationClustering:
             'feat_b': [-0.97, 1.0, -0.12],
             'feat_c': [0.1, -0.12, 1.0],
         }
-        corr_matrix = pd.DataFrame(data, index=['feat_a', 'feat_b', 'feat_c'])
+        corr_matrix = pd.DataFrame(data, index=pd.Index(['feat_a', 'feat_b', 'feat_c']))
         
         result = compute_correlation_clusters(corr_matrix, threshold=0.95)
         
@@ -111,16 +107,16 @@ class TestSelectRepresentatives:
     
     def test_is_raw_feature(self):
         """Test raw feature detection."""
-        assert is_raw_feature('E1') == True
-        assert is_raw_feature('M5') == True
-        assert is_raw_feature('P10') == True
-        assert is_raw_feature('S2') == True
-        assert is_raw_feature('V13') == True
+        assert is_raw_feature('E1')
+        assert is_raw_feature('M5')
+        assert is_raw_feature('P10')
+        assert is_raw_feature('S2')
+        assert is_raw_feature('V13')
         
-        assert is_raw_feature('m/E1') == False
-        assert is_raw_feature('gap_ffill/M1') == False
-        assert is_raw_feature('run_na/E10') == False
-        assert is_raw_feature('co_miss_deg/E1') == False
+        assert not is_raw_feature('m/E1')
+        assert not is_raw_feature('gap_ffill/M1')
+        assert not is_raw_feature('run_na/E10')
+        assert not is_raw_feature('co_miss_deg/E1')
     
     def test_select_cluster_representative_basic(self):
         """Test basic representative selection."""

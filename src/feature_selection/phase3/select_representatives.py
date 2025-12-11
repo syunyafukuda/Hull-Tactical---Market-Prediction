@@ -13,7 +13,7 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
+from typing import List, Sequence, cast
 
 import pandas as pd
 
@@ -80,19 +80,19 @@ def select_cluster_representative(
         Name of the selected representative feature
     """
     # Filter importance for cluster features
-    cluster_importance = importance_df[
+    cluster_importance: pd.DataFrame = importance_df[
         importance_df['feature'].isin(cluster_features)
-    ].copy()
+    ].copy()  # type: ignore[reportAssignmentType]
     
     if cluster_importance.empty:
         # If no importance data, just return first feature
         return cluster_features[0]
     
     # Sort by mean_gain descending
-    cluster_importance = cluster_importance.sort_values('mean_gain', ascending=False)
+    cluster_importance = cluster_importance.sort_values(by='mean_gain', ascending=False)
     
     # Select the feature with max mean_gain
-    representative = cluster_importance.iloc[0]['feature']
+    representative = str(cluster_importance.iloc[0]['feature'])
     
     return representative
 
@@ -142,10 +142,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         representative = select_cluster_representative(features, importance_df)
         
         # Get importance value
-        rep_importance = importance_df[
+        rep_importance = cast(pd.Series, importance_df[
             importance_df['feature'] == representative
-        ]['mean_gain'].values
-        rep_gain = float(rep_importance[0]) if len(rep_importance) > 0 else 0.0
+        ]['mean_gain'])
+        rep_gain = float(rep_importance.iloc[0]) if len(rep_importance) > 0 else 0.0
         
         # Update cluster info
         cluster['representative'] = representative
@@ -160,10 +160,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         # Record features to remove (all except representative)
         for feature in features:
             if feature != representative:
-                feat_importance = importance_df[
+                feat_importance = cast(pd.Series, importance_df[
                     importance_df['feature'] == feature
-                ]['mean_gain'].values
-                feat_gain = float(feat_importance[0]) if len(feat_importance) > 0 else 0.0
+                ]['mean_gain'])
+                feat_gain = float(feat_importance.iloc[0]) if len(feat_importance) > 0 else 0.0
                 
                 to_remove.append({
                     "cluster_id": cluster_id,
