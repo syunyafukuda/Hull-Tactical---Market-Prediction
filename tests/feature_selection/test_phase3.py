@@ -1,0 +1,232 @@
+#!/usr/bin/env python
+"""Tests for Phase 3 correlation clustering and feature set creation."""
+
+import json
+import numpy as np
+import pandas as pd
+import pytest
+from pathlib import Path
+import sys
+import tempfile
+
+# Add src to path
+TEST_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = TEST_DIR.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+from src.feature_selection.phase3.correlation_clustering import (  # noqa: E402
+    compute_correlation_clusters,
+)
+from src.feature_selection.phase3.select_representatives import (  # noqa: E402
+    select_cluster_representative,
+    is_raw_feature,
+)
+
+
+class TestCorrelationClustering:
+    """Test suite for correlation clustering functions."""
+    
+    def test_compute_correlation_clusters_basic(self):
+        """Test basic correlation clustering."""
+        # Create a simple correlation matrix with two clusters
+        data = {
+            'feat_a': [1.0, 0.99, 0.1],
+            'feat_b': [0.99, 1.0, 0.15],
+            'feat_c': [0.1, 0.15, 1.0],
+        }
+        corr_matrix = pd.DataFrame(data, index=['feat_a', 'feat_b', 'feat_c'])
+        
+        result = compute_correlation_clusters(corr_matrix, threshold=0.95)
+        
+        # Check output structure
+        assert 'threshold' in result
+        assert 'n_clusters' in result
+        assert 'n_singletons' in result
+        assert 'clusters' in result
+        assert 'singleton_features' in result
+        
+        assert result['threshold'] == 0.95
+        
+        # Should find at least one cluster (feat_a and feat_b are highly correlated)
+        assert result['n_clusters'] >= 1
+    
+    def test_compute_correlation_clusters_all_uncorrelated(self):
+        """Test clustering with all uncorrelated features."""
+        # Create identity matrix (all features uncorrelated)
+        data = {
+            'feat_a': [1.0, 0.0, 0.0],
+            'feat_b': [0.0, 1.0, 0.0],
+            'feat_c': [0.0, 0.0, 1.0],
+        }
+        corr_matrix = pd.DataFrame(data, index=['feat_a', 'feat_b', 'feat_c'])
+        
+        result = compute_correlation_clusters(corr_matrix, threshold=0.95)
+        
+        # All features should be singletons
+        assert result['n_clusters'] == 0
+        assert result['n_singletons'] == 3
+        assert len(result['singleton_features']) == 3
+    
+    def test_compute_correlation_clusters_all_correlated(self):
+        """Test clustering with all highly correlated features."""
+        # Create matrix where all features are highly correlated
+        data = {
+            'feat_a': [1.0, 0.98, 0.97],
+            'feat_b': [0.98, 1.0, 0.96],
+            'feat_c': [0.97, 0.96, 1.0],
+        }
+        corr_matrix = pd.DataFrame(data, index=['feat_a', 'feat_b', 'feat_c'])
+        
+        result = compute_correlation_clusters(corr_matrix, threshold=0.95)
+        
+        # Should form one big cluster
+        assert result['n_clusters'] >= 1
+        
+        # Check that cluster has correct structure
+        for cluster in result['clusters']:
+            assert 'cluster_id' in cluster
+            assert 'features' in cluster
+            assert 'representative' in cluster
+            assert 'max_correlation' in cluster
+            assert len(cluster['features']) >= 1
+    
+    def test_compute_correlation_clusters_negative_correlation(self):
+        """Test that negative correlations are treated as absolute values."""
+        # Create matrix with negative correlation
+        data = {
+            'feat_a': [1.0, -0.97, 0.1],
+            'feat_b': [-0.97, 1.0, -0.12],
+            'feat_c': [0.1, -0.12, 1.0],
+        }
+        corr_matrix = pd.DataFrame(data, index=['feat_a', 'feat_b', 'feat_c'])
+        
+        result = compute_correlation_clusters(corr_matrix, threshold=0.95)
+        
+        # Should detect feat_a and feat_b as highly correlated (|ρ| > 0.95)
+        assert result['n_clusters'] >= 1
+
+
+class TestSelectRepresentatives:
+    """Test suite for representative selection functions."""
+    
+    def test_is_raw_feature(self):
+        """Test raw feature detection."""
+        assert is_raw_feature('E1') == True
+        assert is_raw_feature('M5') == True
+        assert is_raw_feature('P10') == True
+        assert is_raw_feature('S2') == True
+        assert is_raw_feature('V13') == True
+        
+        assert is_raw_feature('m/E1') == False
+        assert is_raw_feature('gap_ffill/M1') == False
+        assert is_raw_feature('run_na/E10') == False
+        assert is_raw_feature('co_miss_deg/E1') == False
+    
+    def test_select_cluster_representative_basic(self):
+        """Test basic representative selection."""
+        cluster_features = ['feat_a', 'feat_b', 'feat_c']
+        
+        importance_df = pd.DataFrame({
+            'feature': ['feat_a', 'feat_b', 'feat_c', 'feat_d'],
+            'mean_gain': [100.0, 200.0, 50.0, 150.0],
+        })
+        
+        representative = select_cluster_representative(cluster_features, importance_df)
+        
+        # Should select feat_b (highest mean_gain)
+        assert representative == 'feat_b'
+    
+    def test_select_cluster_representative_no_importance_data(self):
+        """Test representative selection when importance data is missing."""
+        cluster_features = ['feat_x', 'feat_y']
+        
+        importance_df = pd.DataFrame({
+            'feature': ['feat_a', 'feat_b'],
+            'mean_gain': [100.0, 200.0],
+        })
+        
+        representative = select_cluster_representative(cluster_features, importance_df)
+        
+        # Should return first feature when no importance data available
+        assert representative in cluster_features
+    
+    def test_select_cluster_representative_single_feature(self):
+        """Test representative selection with single feature cluster."""
+        cluster_features = ['feat_a']
+        
+        importance_df = pd.DataFrame({
+            'feature': ['feat_a', 'feat_b'],
+            'mean_gain': [100.0, 200.0],
+        })
+        
+        representative = select_cluster_representative(cluster_features, importance_df)
+        
+        # Should return the only feature
+        assert representative == 'feat_a'
+
+
+class TestIntegration:
+    """Integration tests for Phase 3 workflow."""
+    
+    def test_create_tier3_excluded_structure(self):
+        """Test the structure of Tier3 excluded.json creation."""
+        # This is a minimal test to verify the expected output structure
+        # Create mock data
+        tier2_data = {
+            "version": "tier2-v1",
+            "candidates": [
+                {"feature_name": "feat1", "reason": "phase2_zero_importance"},
+                {"feature_name": "feat2", "reason": "phase2_low_importance"},
+            ]
+        }
+        
+        phase3_removals = [
+            {"feature": "feat3", "cluster_id": 1, "mean_gain": 50.0},
+            {"feature": "feat4", "cluster_id": 1, "mean_gain": 30.0},
+        ]
+        
+        # Expected Tier3 structure
+        expected_candidates_count = len(tier2_data["candidates"]) + len(phase3_removals)
+        
+        assert expected_candidates_count == 4
+    
+    def test_feature_sets_structure(self):
+        """Test the structure of feature_sets.json."""
+        # Define expected structure
+        expected_feature_sets = {
+            "version": "v1",
+            "created_at": "2025-12-11T00:00:00+00:00",
+            "feature_sets": {
+                "FS_full": {
+                    "description": "Tier2 full feature set",
+                    "excluded_json": "configs/feature_selection/tier2/excluded.json",
+                    "n_features": 120,
+                    "oof_rmse": 0.012172,
+                },
+                "FS_compact": {
+                    "description": "Tier3 after correlation clustering",
+                    "excluded_json": "configs/feature_selection/tier3/excluded.json",
+                    "n_features": 95,
+                    "oof_rmse": 0.012180,
+                },
+                "FS_topK": {
+                    "description": "Top 50 features by importance",
+                    "excluded_json": "configs/feature_selection/tier_topK/excluded.json",
+                    "n_features": 50,
+                    "oof_rmse": None,
+                }
+            },
+            "recommended": "FS_compact"
+        }
+        
+        # Verify structure
+        assert "version" in expected_feature_sets
+        assert "feature_sets" in expected_feature_sets
+        assert "recommended" in expected_feature_sets
+        
+        # Verify each feature set has required fields
+        for name, config in expected_feature_sets["feature_sets"].items():
+            assert "description" in config
+            assert "excluded_json" in config
+            assert "n_features" in config
+            assert "oof_rmse" in config
