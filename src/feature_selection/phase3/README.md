@@ -10,10 +10,10 @@ Phase 3 performs correlation-based clustering on Tier2 features (120 columns) to
 
 ### Core Pipeline Scripts
 
-1. **correlation_clustering.py** - Phase 3-1: Correlation Clustering
-   - Computes correlation matrix for Tier2 features
-   - Performs hierarchical clustering using Ward's method
-   - Identifies groups of highly correlated features (|ρ| > 0.95)
+1. **correlation_clustering.py** - Phase 3-1: Variable Clustering
+   - Performs VarClus (Variable Clustering) algorithm on Tier2 features
+   - Uses PCA-based hierarchical clustering to identify correlated feature groups
+   - More sophisticated than simple correlation thresholding
    - Output: `results/feature_selection/phase3/correlation_clusters.json`
 
 2. **select_representatives.py** - Phase 3-2: Cluster Representative Selection
