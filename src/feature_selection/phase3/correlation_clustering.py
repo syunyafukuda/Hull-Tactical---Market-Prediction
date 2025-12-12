@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-"""Correlation-based clustering for Tier2 features.
+"""Variable clustering for Tier2 features.
 
-This script identifies groups of highly correlated features (|ρ| > 0.95) 
-in the Tier2 feature set using hierarchical clustering and outputs cluster 
-assignments for subsequent representative selection.
+This script identifies groups of correlated features in the Tier2 feature set 
+using the VarClus algorithm (variable clustering based on PCA) and outputs 
+cluster assignments for subsequent representative selection.
 """
 
 from __future__ import annotations
@@ -17,8 +17,7 @@ from typing import Any, Dict, List, Sequence
 
 import numpy as np
 import pandas as pd
-from scipy.cluster.hierarchy import linkage, fcluster
-from scipy.spatial.distance import squareform
+from varclushi import VarClusHi
 
 THIS_DIR = Path(__file__).resolve().parent
 SRC_ROOT = THIS_DIR.parents[1]
@@ -79,7 +78,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--correlation-threshold",
         type=float,
         default=0.95,
-        help="Correlation threshold for clustering (default: 0.95)",
+        help="(Deprecated - not used by VarClus) Correlation threshold for clustering (default: 0.95)",
     )
     ap.add_argument(
         "--out-dir",
@@ -110,36 +109,33 @@ def load_excluded_features(exclude_path: str) -> set[str]:
 
 
 def compute_correlation_clusters(
-    correlation_matrix: pd.DataFrame,
+    X_data: pd.DataFrame,
     threshold: float = 0.95,
 ) -> Dict[str, Any]:
-    """Perform hierarchical clustering based on correlation matrix.
+    """Perform variable clustering using VarClus algorithm.
     
     Args:
-        correlation_matrix: Correlation matrix of features
-        threshold: Correlation threshold for clustering
+        X_data: Feature matrix (DataFrame)
+        threshold: Not used in VarClus (kept for API compatibility)
         
     Returns:
         Dictionary containing cluster assignments and metadata
     """
-    # Convert correlation to distance: distance = 1 - |ρ|
-    distance_matrix = 1 - np.abs(correlation_matrix.values)
+    # Run VarClus algorithm
+    # maxeigval2=1 means split clusters if second eigenvalue > 1
+    # This ensures clusters are homogeneous (features within cluster explain variance well)
+    vc = VarClusHi(X_data, maxeigval2=1, maxclus=None)
+    vc.varclus()
     
-    # Convert to condensed distance matrix for scipy
-    condensed_dist = squareform(distance_matrix, checks=False)
+    # Extract cluster information
+    rsquare_df = vc.rsquare
+    info_df = vc.info
     
-    # Perform hierarchical clustering using Ward's method
-    linkage_matrix = linkage(condensed_dist, method='ward')
-    
-    # Cut dendrogram at distance threshold
-    distance_threshold = 1 - threshold
-    cluster_labels = fcluster(linkage_matrix, distance_threshold, criterion='distance')
-    
-    # Group features by cluster
-    feature_names = correlation_matrix.columns.tolist()
+    # Build clusters dictionary
     clusters_dict: Dict[int, List[str]] = {}
-    
-    for feature, cluster_id in zip(feature_names, cluster_labels):
+    for _, row in rsquare_df.iterrows():
+        cluster_id = int(row['Cluster'])
+        feature = row['Variable']
         if cluster_id not in clusters_dict:
             clusters_dict[cluster_id] = []
         clusters_dict[cluster_id].append(feature)
@@ -148,23 +144,32 @@ def compute_correlation_clusters(
     clusters = []
     singleton_features = []
     
+    # Compute correlation matrix for max_correlation calculation
+    corr_matrix = X_data.corr()
+    
     for cluster_id, features in sorted(clusters_dict.items()):
         if len(features) == 1:
             singleton_features.extend(features)
         else:
             # Calculate max correlation within cluster
-            cluster_corr = correlation_matrix.loc[features, features]
+            cluster_corr = corr_matrix.loc[features, features]
             max_corr = np.abs(cluster_corr.values[np.triu_indices_from(cluster_corr.values, k=1)]).max()
+            
+            # Get VarProp (proportion of variance explained by 1st PC) for this cluster
+            cluster_info = info_df[info_df['Cluster'] == cluster_id]
+            var_prop = float(cluster_info['VarProp'].iloc[0]) if not cluster_info.empty else 0.0
             
             clusters.append({
                 "cluster_id": int(cluster_id),
                 "features": sorted(features),
                 "representative": None,  # Will be filled by select_representatives.py
                 "max_correlation": float(max_corr),
+                "variance_explained": var_prop,  # Additional VarClus metric
             })
     
     return {
-        "threshold": threshold,
+        "method": "VarClus",
+        "maxeigval2": 1,
         "n_clusters": len(clusters),
         "n_singletons": len(singleton_features),
         "clusters": clusters,
@@ -245,17 +250,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Select only Tier2 features
     X_tier2 = X_train[tier2_features]
     
-    # Compute correlation matrix
-    print("Computing correlation matrix...")
-    corr_matrix: pd.DataFrame = X_tier2.corr()  # type: ignore[reportCallIssue]
-    print(f"Correlation matrix shape: {corr_matrix.shape}")
-    print()
-    
-    # Perform clustering
-    print(f"Performing hierarchical clustering (threshold={args.correlation_threshold})...")
+    # Perform VarClus clustering
+    print(f"Performing VarClus variable clustering...")
     clustering_result = compute_correlation_clusters(
-        corr_matrix,
-        threshold=args.correlation_threshold,
+        X_tier2,
+        threshold=args.correlation_threshold,  # Not used by VarClus, kept for compatibility
     )
     
     print(f"Found {clustering_result['n_clusters']} clusters")
@@ -266,9 +265,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if clustering_result['clusters']:
         print("Cluster summary:")
         for cluster in clustering_result['clusters']:
+            var_expl = cluster.get('variance_explained', 0.0)
             print(f"  Cluster {cluster['cluster_id']}: "
                   f"{len(cluster['features'])} features, "
-                  f"max_corr={cluster['max_correlation']:.4f}")
+                  f"max_corr={cluster['max_correlation']:.4f}, "
+                  f"var_explained={var_expl:.4f}")
         print()
     
     # Add metadata
