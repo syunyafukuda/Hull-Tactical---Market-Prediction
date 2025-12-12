@@ -20,7 +20,7 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, cast
+from typing import Any, Dict, List, Sequence
 
 import joblib
 import numpy as np
@@ -50,7 +50,6 @@ for path in (SRC_ROOT, PROJECT_ROOT):
 from src.feature_generation.su5.train_su5 import (  # noqa: E402
     SU5FeatureAugmenter,
     _prepare_features,
-    build_pipeline,
     infer_test_file,
     infer_train_file,
     load_preprocess_policies,
@@ -58,6 +57,11 @@ from src.feature_generation.su5.train_su5 import (  # noqa: E402
     load_su5_config,
     load_table,
 )
+from src.preprocess.M_group.m_group import MGroupImputer  # noqa: E402
+from src.preprocess.E_group.e_group import EGroupImputer  # noqa: E402
+from src.preprocess.I_group.i_group import IGroupImputer  # noqa: E402
+from src.preprocess.P_group.p_group import PGroupImputer  # noqa: E402
+from src.preprocess.S_group.s_group import SGroupImputer  # noqa: E402
 from src.models.common.cv_utils import (  # noqa: E402
     compute_fold_metrics,
     evaluate_oof_predictions,
@@ -154,6 +158,113 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--dry-run", action="store_true", help="Run CV only, no final training"
     )
     return ap.parse_args(argv)
+
+
+def build_xgb_pipeline(
+    su1_config: Any,
+    su5_config: Any,
+    preprocess_settings: Dict[str, Any],
+    *,
+    numeric_fill_value: float,
+    model_kwargs: Dict[str, Any],
+    random_state: int,
+) -> Pipeline:
+    """Build XGBoost pipeline with SU1/SU5 augmenter and preprocessing.
+
+    This is analogous to build_pipeline in train_su5.py but uses XGBRegressor
+    instead of LGBMRegressor.
+    """
+    from sklearn.impute import SimpleImputer
+
+    augmenter = SU5FeatureAugmenter(su1_config, su5_config, fill_value=numeric_fill_value)
+
+    m_cfg = preprocess_settings.get("m_group", {})
+    e_cfg = preprocess_settings.get("e_group", {})
+    i_cfg = preprocess_settings.get("i_group", {})
+    p_cfg = preprocess_settings.get("p_group", {})
+    s_cfg = preprocess_settings.get("s_group", {})
+
+    m_imputer = MGroupImputer(
+        columns=None,
+        policy=str(m_cfg.get("policy", "ffill_bfill")),
+        rolling_window=int(m_cfg.get("rolling_window", 5)),
+        ema_alpha=float(m_cfg.get("ema_alpha", 0.3)),
+        calendar_column=m_cfg.get("calendar_column"),
+        policy_params=m_cfg.get("policy_params", {}),
+        random_state=random_state,
+    )
+    e_imputer = EGroupImputer(
+        columns=None,
+        policy=str(e_cfg.get("policy", "ffill_bfill")),
+        rolling_window=int(e_cfg.get("rolling_window", 5)),
+        ema_alpha=float(e_cfg.get("ema_alpha", 0.3)),
+        calendar_column=e_cfg.get("calendar_column"),
+        policy_params=e_cfg.get("policy_params", {}),
+        random_state=random_state,
+        all_nan_strategy=str(e_cfg.get("all_nan_strategy", "keep_nan")),
+        all_nan_fill=float(e_cfg.get("all_nan_fill", 0.0)),
+    )
+    i_imputer = IGroupImputer(
+        columns=None,
+        policy=str(i_cfg.get("policy", "ffill_bfill")),
+        rolling_window=int(i_cfg.get("rolling_window", 5)),
+        ema_alpha=float(i_cfg.get("ema_alpha", 0.3)),
+        calendar_column=i_cfg.get("calendar_column"),
+        policy_params=i_cfg.get("policy_params", {}),
+        random_state=random_state,
+        clip_quantile_low=float(i_cfg.get("clip_quantile_low", 0.001)),
+        clip_quantile_high=float(i_cfg.get("clip_quantile_high", 0.999)),
+        enable_quantile_clip=bool(i_cfg.get("enable_quantile_clip", True)),
+    )
+    p_imputer = PGroupImputer(
+        columns=None,
+        policy=str(p_cfg.get("policy", "ffill_bfill")),
+        rolling_window=int(p_cfg.get("rolling_window", 5)),
+        ema_alpha=float(p_cfg.get("ema_alpha", 0.3)),
+        calendar_column=p_cfg.get("calendar_column"),
+        policy_params=p_cfg.get("policy_params", {}),
+        random_state=random_state,
+        mad_clip_scale=float(p_cfg.get("mad_clip_scale", 4.0)),
+        mad_clip_min_samples=int(p_cfg.get("mad_clip_min_samples", 25)),
+        enable_mad_clip=bool(p_cfg.get("enable_mad_clip", True)),
+        fallback_quantile_low=float(p_cfg.get("fallback_quantile_low", 0.005)),
+        fallback_quantile_high=float(p_cfg.get("fallback_quantile_high", 0.995)),
+    )
+    s_imputer = SGroupImputer(
+        columns=None,
+        policy=str(s_cfg.get("policy", "ffill_bfill")),
+        rolling_window=int(s_cfg.get("rolling_window", 5)),
+        ema_alpha=float(s_cfg.get("ema_alpha", 0.3)),
+        calendar_column=s_cfg.get("calendar_column"),
+        policy_params=s_cfg.get("policy_params", {}),
+        random_state=random_state,
+        mad_clip_scale=float(s_cfg.get("mad_clip_scale", 4.0)),
+        mad_clip_min_samples=int(s_cfg.get("mad_clip_min_samples", 25)),
+        enable_mad_clip=bool(s_cfg.get("enable_mad_clip", True)),
+        fallback_quantile_low=float(s_cfg.get("fallback_quantile_low", 0.005)),
+        fallback_quantile_high=float(s_cfg.get("fallback_quantile_high", 0.995)),
+    )
+
+    # Preprocessing: SimpleImputer for remaining NaNs
+    # Use SimpleImputer directly to preserve DataFrame feature names
+    final_imputer = SimpleImputer(strategy="constant", fill_value=numeric_fill_value)
+
+    # XGBoost model
+    if not HAS_XGB or XGBRegressor is None:
+        raise RuntimeError("XGBoost is required but not installed. Please install 'xgboost'.")
+    model = XGBRegressor(**model_kwargs)
+
+    steps = [
+        ("augment", augmenter),
+        ("m_imputer", m_imputer),
+        ("e_imputer", e_imputer),
+        ("i_imputer", i_imputer),
+        ("p_imputer", p_imputer),
+        ("s_imputer", s_imputer),
+        ("final_imputer", final_imputer),
+        ("model", model),
+    ]
+    return Pipeline(steps=steps)
 
 
 def sanitize_feature_names(feature_cols: List[str]) -> List[str]:
@@ -273,10 +384,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         "random_state": args.random_state,
         "n_jobs": -1,
         "verbosity": args.verbosity,
+        "early_stopping_rounds": 50,  # XGBoost 2.0+: specify in constructor
     }
 
-    # Build base pipeline
-    base_pipeline = build_pipeline(
+    # Build base pipeline with XGBoost
+    base_pipeline = build_xgb_pipeline(
         su1_config,
         su5_config,
         preprocess_settings,
@@ -329,8 +441,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     sanitized_columns = sanitize_feature_names(original_columns)
     X_augmented_all.columns = sanitized_columns
 
-    # Build core pipeline (without augmenter)
-    core_pipeline_template = cast(Pipeline, Pipeline(base_pipeline.steps[1:]))
+    # Extract imputers from base_pipeline for manual CV preprocessing
+    # base_pipeline.steps: [augment, m_imputer, e_imputer, i_imputer, p_imputer, s_imputer, final_imputer, model]
+    # We need imputer steps (indices 1-6) for preprocessing
+    imputer_step_names = ["m_imputer", "e_imputer", "i_imputer", "p_imputer", "s_imputer", "final_imputer"]
 
     # CV loop
     oof_pred = np.full(len(X_np), np.nan, dtype=float)
@@ -358,29 +472,41 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"[warn][fold {fold_idx}] skipped: val size {len(val_idx)} < min")
             continue
 
-        X_train = X_augmented_all.iloc[train_idx]
+        X_train = X_augmented_all.iloc[train_idx].copy()
         y_train = y_np.iloc[train_idx]
-        X_valid = X_augmented_all.iloc[val_idx]
+        X_valid = X_augmented_all.iloc[val_idx].copy()
         y_valid = y_np.iloc[val_idx]
 
-        # Clone and fit pipeline with early stopping
-        pipe = cast(Pipeline, clone(core_pipeline_template))
-        fit_kwargs: Dict[str, Any] = {}
+        # Manual imputation: fit on train, transform both train and valid
+        # This ensures eval_set has the same preprocessing as training data
+        for step_name in imputer_step_names:
+            imputer = clone(dict(base_pipeline.steps)[step_name])
+            X_train = imputer.fit_transform(X_train)
+            X_valid = imputer.transform(X_valid)
+            # Convert back to DataFrame if numpy array
+            if isinstance(X_train, np.ndarray):
+                X_train = pd.DataFrame(X_train, columns=sanitized_columns)
+            if isinstance(X_valid, np.ndarray):
+                X_valid = pd.DataFrame(X_valid, columns=sanitized_columns)
 
-        # XGBoost early stopping: pass eval_set through pipeline's model__ prefix
-        fit_kwargs["model__eval_set"] = [(X_valid, y_valid)]
-        fit_kwargs["model__early_stopping_rounds"] = 50
-        fit_kwargs["model__verbose"] = False
+        # Clone XGBoost model
+        xgb_model = clone(dict(base_pipeline.steps)["model"])
 
-        pipe.fit(X_train, y_train, **fit_kwargs)
+        # Fit with early stopping
+        xgb_model.fit(
+            X_train,
+            y_train,
+            eval_set=[(X_valid, y_valid)],
+            verbose=False,
+        )
 
         # Predict
-        pred = pipe.predict(X_valid)
+        pred = xgb_model.predict(X_valid)
         pred = _to_1d(pred)
 
         # Compute metrics
         val_rmse = float(math.sqrt(mean_squared_error(y_valid, pred)))
-        train_pred = pipe.predict(X_train)
+        train_pred = xgb_model.predict(X_train)
         train_rmse = float(math.sqrt(mean_squared_error(y_train, _to_1d(train_pred))))
 
         oof_pred[val_idx] = pred
@@ -434,8 +560,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.no_artifacts and not args.dry_run:
         print("[info] Final training on all data...")
 
-        # Retrain on all data
-        final_pipeline = cast(Pipeline, clone(base_pipeline))
+        # Retrain on all data - WITHOUT early_stopping_rounds (no validation set)
+        model_kwargs_final = model_kwargs.copy()
+        model_kwargs_final.pop("early_stopping_rounds", None)
+        final_pipeline = build_xgb_pipeline(
+            su1_config,
+            su5_config,
+            preprocess_settings,
+            numeric_fill_value=args.numeric_fill_value,
+            model_kwargs=model_kwargs_final,
+            random_state=args.random_state,
+        )
         final_pipeline.fit(X_np, y_np)
 
         # Save model
@@ -484,15 +619,25 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         # Generate test predictions and save submission.csv
         print("[info] Generating test predictions...")
-        test_pred = final_pipeline.predict(test_df)
+        # Use only the feature columns that were used in training
+        test_features = test_df[feature_cols].copy()
+        test_pred = final_pipeline.predict(test_features)
         test_pred = _to_1d(test_pred)
 
+        # Build submission DataFrame
         submission_df = pd.DataFrame(
             {
                 args.id_col: test_df[args.id_col] if args.id_col in test_df.columns else np.arange(len(test_pred)),
                 args.target_col: test_pred,
             }
         )
+
+        # Filter to is_scored==True rows only (competition requirement)
+        if "is_scored" in test_df.columns:
+            is_scored_mask = test_df["is_scored"].astype(bool)
+            submission_df = submission_df.loc[is_scored_mask].copy()
+            print(f"[info] Filtered to {len(submission_df)} scored rows")
+
         submission_path = out_dir / "submission.csv"
         submission_df.to_csv(submission_path, index=False)
         print(f"[info] Saved submission to {submission_path}")
