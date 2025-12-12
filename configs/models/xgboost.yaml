@@ -1,0 +1,68 @@
+# XGBoost Model Configuration
+# This configuration defines the default hyperparameters for XGBoost model training.
+# Based on the LGBM baseline with parameters adapted for XGBoost's tree-based approach.
+
+xgboost:
+  # Model objective and tree construction
+  objective: "reg:squarederror"
+  tree_method: "hist"  # histogram-based algorithm for faster training
+  
+  # Tree structure parameters
+  max_depth: 6  # Maximum depth of a tree (LGBM equivalent control)
+  min_child_weight: 32  # Minimum sum of instance weight (corresponds to LGBM's min_data_in_leaf)
+  
+  # Learning parameters
+  learning_rate: 0.05  # Step size shrinkage (eta)
+  n_estimators: 600  # Number of boosting rounds
+  
+  # Sampling parameters
+  subsample: 0.8  # Subsample ratio of training instances (bagging_fraction in LGBM)
+  colsample_bytree: 0.8  # Subsample ratio of columns when constructing each tree (feature_fraction in LGBM)
+  
+  # Regularization
+  reg_alpha: 0.0  # L1 regularization term on weights
+  reg_lambda: 1.0  # L2 regularization term on weights
+  
+  # System parameters
+  random_state: 42
+  n_jobs: -1  # Use all CPU cores
+  verbosity: 0  # Silent mode
+  
+  # Early stopping (applied in training script)
+  early_stopping_rounds: 50
+
+# Feature selection configuration
+feature_selection:
+  tier: "tier3"  # Use FS_compact (116 features)
+  excluded_json: "configs/feature_selection/tier3/excluded.json"
+
+# Cross-validation settings
+cv:
+  n_splits: 5
+  gap: 0  # No gap between train and validation
+  min_val_size: 0
+
+# Data paths
+data:
+  data_dir: "data/raw"
+  train_file: null  # Auto-detect
+  test_file: null  # Auto-detect
+
+# Output configuration
+output:
+  artifacts_dir: "artifacts/models/xgboost"
+  save_artifacts: true
+
+# Success criteria
+success_criteria:
+  oof_rmse_threshold: 0.0125  # Baseline (0.01216) + 3%
+  correlation_vs_lgbm_max: 0.98  # Ensure diversity for ensembling
+
+# Notes
+metadata:
+  baseline_comparison:
+    lgbm_oof_rmse: 0.012164
+    lgbm_lb_score: 0.681
+  created_at: "2025-12-12"
+  purpose: "Provide model diversity for ensemble methods"
+  expected_improvement: "Similar or slightly better RMSE with different error patterns"
