@@ -162,10 +162,6 @@ def generate_phase3_report(
             representatives = json.load(f)
         with open(tier3_excluded_path, "r") as f:
             tier3_excluded = json.load(f)
-    else:
-        clustering = {"n_clusters": 0, "n_singletons": 0}
-        representatives = {"total_removed": 0}
-        tier3_excluded = {"summary": {"total_exclusions": 0}}
     
     with open(feature_sets_path, "r") as f:
         feature_sets = json.load(f)
