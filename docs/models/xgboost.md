@@ -16,6 +16,7 @@
 - ⬜ `artifacts/models/xgboost/oof_predictions.csv`
 - ⬜ `artifacts/models/xgboost/cv_fold_logs.csv`
 - ⬜ `artifacts/models/xgboost/model_meta.json`
+- ⬜ `artifacts/models/xgboost/submission.csv`
 
 **Note**: 成果物は実際のデータで学習実行時に生成されます。テスト環境では検証済み。
 

@@ -17,6 +17,7 @@
 - ⬜ `artifacts/models/catboost/oof_predictions.csv`
 - ⬜ `artifacts/models/catboost/cv_fold_logs.csv`
 - ⬜ `artifacts/models/catboost/model_meta.json`
+- ⬜ `artifacts/models/catboost/submission.csv`
 
 ---
 

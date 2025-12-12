@@ -17,6 +17,7 @@
 - ⬜ `artifacts/models/extratrees/cv_fold_logs.csv`
 - ⬜ `artifacts/models/extratrees/model_meta.json`
 - ⬜ `artifacts/models/extratrees/feature_importances.csv` （特徴量重要度）
+- ⬜ `artifacts/models/extratrees/submission.csv`
 
 ---
 

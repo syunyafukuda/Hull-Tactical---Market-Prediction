@@ -17,6 +17,7 @@
 - ⬜ `artifacts/models/elasticnet/cv_fold_logs.csv`
 - ⬜ `artifacts/models/elasticnet/model_meta.json`
 - ⬜ `artifacts/models/elasticnet/coefficients.csv` （係数出力）
+- ⬜ `artifacts/models/elasticnet/submission.csv`
 
 ---
 

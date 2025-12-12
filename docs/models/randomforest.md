@@ -17,6 +17,7 @@
 - ⬜ `artifacts/models/randomforest/cv_fold_logs.csv`
 - ⬜ `artifacts/models/randomforest/model_meta.json`
 - ⬜ `artifacts/models/randomforest/feature_importances.csv` （特徴量重要度）
+- ⬜ `artifacts/models/randomforest/submission.csv`
 
 ---
 

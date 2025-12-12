@@ -17,6 +17,7 @@
 - ⬜ `artifacts/models/lasso/cv_fold_logs.csv`
 - ⬜ `artifacts/models/lasso/model_meta.json`
 - ⬜ `artifacts/models/lasso/coefficients.csv` （係数出力）
+- ⬜ `artifacts/models/lasso/submission.csv`
 
 ---
 

@@ -17,6 +17,7 @@
 - ⬜ `artifacts/models/ridge/oof_predictions.csv`
 - ⬜ `artifacts/models/ridge/cv_fold_logs.csv`
 - ⬜ `artifacts/models/ridge/model_meta.json`
+- ⬜ `artifacts/models/ridge/submission.csv`
 
 ---
 

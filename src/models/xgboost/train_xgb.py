@@ -482,6 +482,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             json.dump(meta, f, indent=2)
         print(f"[info] Saved metadata to {meta_path}")
 
+        # Generate test predictions and save submission.csv
+        print("[info] Generating test predictions...")
+        test_pred = final_pipeline.predict(test_df)
+        test_pred = _to_1d(test_pred)
+
+        submission_df = pd.DataFrame(
+            {
+                args.id_col: test_df[args.id_col] if args.id_col in test_df.columns else np.arange(len(test_pred)),
+                args.target_col: test_pred,
+            }
+        )
+        submission_path = out_dir / "submission.csv"
+        submission_df.to_csv(submission_path, index=False)
+        print(f"[info] Saved submission to {submission_path}")
+
     return 0
 
 
