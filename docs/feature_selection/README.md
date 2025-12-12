@@ -262,7 +262,7 @@ python src/feature_selection/phase3/run_phase3.py --skip-clustering
 ```
 
 詳細は `src/feature_selection/phase3/README.md` を参照。
-
+実行は終わりました。たーみたーみ
 ---
 
 ## Phase 4: 次元圧縮（PCA 等）- オプション

@@ -7,53 +7,73 @@ GitHub Codespaces を開発環境とし、パッケージ管理は **[uv](https:
 
 ---
 
+## 現在の状態
+
+### ベストスコア
+
+| 項目 | 値 |
+|------|-----|
+| **LB Score** | **0.681** |
+| 特徴セット | FS_compact (116列) |
+| ベースモデル | LightGBM |
+| OOF RMSE | 0.012164 |
+| ブランチ | `dev` |
+
+### フェーズ進捗
+
+```
+[完了] 特徴量生成 (SU1-SU11)
+    └─ SU1 + SU5 を採用 (577列 → LB 0.681)
+        ↓
+[完了] 特徴量選定 (Phase 0-3)
+    └─ 577列 → 116列 に削減 (LB 0.681 維持)
+        ↓
+[進行中] モデル選定フェーズ  ← 現在ここ
+    └─ 8モデルの比較・アンサンブル構築
+```
+
+---
+
 ## プロジェクト構成
 
 ```text
-├─ .devcontainer/                 # Codespaces 用開発コンテナ設定。
-├─ src/                           # コアロジック（共通ユーティリティ + 前処理パイプライン）。
-│  ├─ hull_tactical/              # Notebook や提出ラインから再利用する共通ユーティリティ。
-│  ├─ feature_generation/         # 特徴量生成モジュール（SU1〜SU11）。
-│  │  ├─ su1/                     # SU1（欠損構造一次特徴） - **採用** (LB 0.674)
-│  │  ├─ su2/                     # SU2（二次欠損特徴スイープ） - **非採用** (LB 0.597, 過学習で却下)
-│  │  ├─ su3/                     # SU3（遷移・再出現・時間バイアス） - **非採用** (LB 0.461, コンセプト不適合)
-│  │  ├─ su4/                     # SU4（補完トレース） - **実装済みだが削除決定**（寄与ほぼゼロ）
-│  │  ├─ su5/                     # SU5（共欠損構造特徴） - **現行ベストライン** (LB 0.681) ✅
-│  │  ├─ su6/                     # SU6（欠損軸PCA圧縮候補） - **保留中 / 未実装**
-│  │  ├─ su7/                     # SU7（モメンタム・リバーサル特徴） - **非採用** (OOF改善もLB大幅悪化)
-│  │  ├─ su8/                     # SU8（ボラティリティ・レジーム特徴） - **非採用** (LB 0.624, OOF/LB両方で悪化)
-│  │  ├─ su9/                     # SU9（カレンダー・季節性特徴） - **非採用** (LB 0.679, OOF改善もLB微悪化)
-│  │  ├─ su10/                    # SU10（外部レジーム特徴: SPY） - **非採用** (LB 0.597, -12.3%大幅悪化)
-│  │  └─ su11/                    # SU11（Level-2スタッキング） - **非採用** (LB 0.464, -31.9%大幅悪化, shrinkage問題)
-│  └─ preprocess/                 # 特徴量グループ別に欠損補完・学習・推論を実装。
-│      ├─ E_group/                # E 系特徴量向けパイプライン（train/predict/sweep）。
-│      ├─ I_group/                # I 系特徴量向けパイプライン。
-│      ├─ M_group/                # M 系特徴量向けパイプライン。
-│      ├─ P_group/                # P 系特徴量向けパイプライン。
-│      ├─ S_group/                # S 系特徴量向けパイプライン（2025-10-26 missforest 採択）。
-│      └─ V_group/                # V 系特徴量向けパイプライン（2025-11-01 ffill_bfill/holiday_bridge を検証済み、現行ラインでは未採用）。
-├─ scripts/                       # 提出ラインやユーティリティの CLI。`simple_baseline/`, `MSR-proxy/`, S/M/E/I/P グループ共通の補助スクリプトを収録。
-├─ results/
-│  └─ ablation/                   # グループ別スイープ結果（CSV/JSON）。`E_group/`, `I_group/`, `M_group/`, `P_group/`, `S_group/` の比較ログが入る。
-├─ artifacts/                     # 学習済み成果物の書き出し先。`Preprocessing_<group>/` 以下にモデル・メタデータ・submission を置く（Git 管理外）。
-├─ docs/                          # `preprocessing.md`, `submissions.md` などの運用ドキュメント。
+├─ .devcontainer/                 # Codespaces 用開発コンテナ設定
+├─ src/
+│  ├─ hull_tactical/              # 共通ユーティリティ
+│  ├─ feature_generation/         # 特徴量生成モジュール
+│  │  ├─ su1/                     # SU1 (欠損構造一次特徴) ✅ 採用
+│  │  ├─ su5/                     # SU5 (共欠損構造特徴) ✅ 採用
+│  │  └─ su2-su11/                # その他SU (非採用)
+│  ├─ feature_selection/          # 特徴量選定モジュール
+│  ├─ models/                     # モデル実装 (8種類)
+│  │  ├─ common/                  # CV・特徴量ロード共通モジュール
+│  │  ├─ lgbm/                    # LightGBM ✅ ベースライン
+│  │  ├─ xgboost/                 # XGBoost (実装予定)
+│  │  ├─ catboost/                # CatBoost (実装予定)
+│  │  ├─ extratrees/              # ExtraTrees (実装予定)
+│  │  ├─ randomforest/            # RandomForest (実装予定)
+│  │  ├─ ridge/                   # Ridge (実装予定)
+│  │  ├─ lasso/                   # Lasso (実装予定)
+│  │  └─ elasticnet/              # ElasticNet (実装予定)
+│  └─ preprocess/                 # 特徴量グループ別欠損補完
+├─ scripts/                       # CLI・ユーティリティ
 ├─ configs/
-│  ├─ preprocess.yaml             # 各グループの採択ポリシー・ハイパーパラメータ設定を集約。
-│  ├─ feature_generation.yaml     # 特徴量生成（SU1/SU5）の設定。
-│  └─ feature_selection/          # 特徴量選定フェーズ別設定。
-│      ├─ tier0/
-│      │   └─ baseline.json       # Tier0ベースライン評価結果（577列, OOF RMSE 0.012134）。
-│      ├─ tier1/
-│      │   └─ excluded.json       # Tier1で除外する特徴量リスト（417列）。
-│      └─ tier2/
-│          └─ excluded.json       # Tier2で追加除外する特徴量リスト（予定）。
-├─ notebooks/                     # Kaggle Private Notebook と同期する検証ノート・EDA ノート。
-├─ tests/                         # Pytest による単体/統合テスト。`tests/preprocess/<group>/` で各ポリシーを検証。
-├─ data/                          # Kaggle 公式データの配置場所（Git 管理外）。`raw/`, `interim/`, `processed/` などを区分。
-├─ main.py                        # ワークスペース用エントリポイント（雛形）。
-├─ pyproject.toml                 # uv による依存・各種ツール設定。
-├─ uv.lock                        # 依存関係のロックファイル。
-└─ README.md                      # 本ドキュメント。
+│  ├─ preprocess.yaml             # 前処理設定
+│  ├─ feature_generation.yaml     # 特徴量生成設定
+│  ├─ feature_selection/          # 特徴量選定設定 (tier0-3)
+│  └─ models/                     # モデル設定 (YAML)
+├─ artifacts/                     # 学習済み成果物 (Git管理外)
+│  ├─ tier0-3/                    # 特徴量選定の中間成果物
+│  └─ models/                     # モデル別成果物
+├─ docs/
+│  ├─ feature_generation/         # SU1-SU11 仕様書
+│  ├─ feature_selection/          # 特徴量選定レポート
+│  └─ models/                     # モデル選定仕様書
+├─ notebooks/                     # Kaggle提出用ノートブック
+├─ tests/                         # Pytest テスト
+├─ data/                          # Kaggleデータ (Git管理外)
+├─ pyproject.toml                 # uv 依存設定
+└─ README.md                      # 本ドキュメント
 ```
 
 ---
@@ -64,469 +84,224 @@ GitHub Codespaces を開発環境とし、パッケージ管理は **[uv](https:
 - **パッケージ管理**: [uv](https://github.com/astral-sh/uv)  
 - **Python**: 3.11  
 
-### よく使うコマンド
-
-依存関係を追加:
+### クイックスタート
 
 ```bash
-uv add パッケージ名
-```
-
-環境を再現:
-
-```bash
-uv sync
-```
-
-スクリプト実行（例: simple_baseline / MSR-proxy 提出ライン）:
-
-```bash
-# 依存を同期（初回/更新時）
+# 依存同期
 uv sync
 
-# データ取得（未取得の場合）
+# データ取得
 ./scripts/fetch_data.sh
 
-# 学習（成果物は artifacts/simple_baseline/ に保存）
-uv run python scripts/simple_baseline/train_simple.py --data-dir data/raw
+# 品質チェック (CI相当)
+./scripts/check_quality.sh
 
-# 推論・提出生成（submission.parquet と submission.csv を artifacts/simple_baseline/ に出力）
-uv run python scripts/simple_baseline/predict_simple.py --data-dir data/raw
-
-# MSR-proxy ライン（MSR/vMSR プロキシ最適化）
-# 学習（成果物は artifacts/MSR-proxy/ に保存）
-uv run python scripts/MSR-proxy/train_msr_proxy.py --data-dir data/raw --out-dir artifacts/MSR-proxy
-
-# 推論・提出生成（submission.parquet / submission.csv を出力）
-uv run python scripts/MSR-proxy/predict_msr_proxy.py --data-dir data/raw --artifacts-dir artifacts/MSR-proxy
+# LGBM 学習
+python -m src.models.lgbm.train_lgbm
 ```
 
-品質チェック（CI相当）:
+### 重要な制約
+
+- **numpy==1.26.4 固定**: Kaggle環境との互換性のため変更禁止
+- **sklearn互換性**: Kaggle Dataset に wheel を同梱し `--no-index` でインストール
+
+---
+
+## 特徴量生成フェーズ (完了)
+
+### 採用ライン
+
+| ライン | LB Score | 特徴量数 | 状態 |
+|--------|----------|---------|------|
+| **SU1 + SU5** | **0.681** | 577 | ✅ 採用 |
+| SU1 のみ | 0.674 | 462 | ベースライン |
+
+### 非採用ライン
+
+| ライン | LB Score | 非採用理由 |
+|--------|----------|-----------|
+| SU2 | 0.597 | 過学習 (特徴量爆発) |
+| SU3 | 0.461 | コンセプト不適合 |
+| SU7 | 0.476 | OOF改善もLB大幅悪化 |
+| SU8 | 0.624 | OOF/LB両方で悪化 |
+| SU9 | 0.679 | OOF改善もLB微悪化 |
+| SU10 | 0.597 | 外部データ時間ミスマッチ |
+| SU11 | 0.464 | shrinkage問題 (-31.9%) |
+
+詳細: `docs/feature_generation/README.md`
+
+---
+
+## 特徴量選定フェーズ (完了)
+
+### 結果サマリー
+
+| Phase | 手法 | 残列数 | OOF RMSE | LB Score |
+|-------|------|--------|----------|----------|
+| Phase 0 | ベースライン凍結 | 577 | 0.012134 | 0.681 |
+| Phase 1 | 統計フィルタ | 160 | 0.012168 | 0.681 |
+| Phase 2 | モデル重要度 | 120 | 0.012172 | 0.681 |
+| **Phase 3** | 相関クラスタリング | **116** | 0.012164 | **0.681** |
+
+### 採用Feature Set
+
+| セット名 | 列数 | LB Score | 状態 |
+|---------|------|----------|------|
+| **FS_compact** | 116 | 0.681 | ✅ 採用 |
+| FS_full | 577 | 0.681 | 非採用 (冗長) |
+| FS_topK | 50 | 0.589 | 非採用 (過学習) |
+
+**結論**: 577列 → 116列 (-80%) で LB スコアを維持。FS_compact を最終特徴セットとして固定。
+
+詳細: `docs/feature_selection/README.md`
+
+---
+
+## モデル選定フェーズ (進行中)
+
+### 戦略
+
+FS_compact (116列) を固定し、8種類のモデルを同一CV設定で比較。
+アンサンブルに向けた候補モデルを選定する。
+
+### モデル候補
+
+| カテゴリ | モデル | 仕様書 | 実装 | OOF RMSE | 予測相関 (期待) |
+|----------|--------|--------|------|----------|-----------------|
+| **勾配ブースティング** | LGBM | - | ✅ | 0.01216 | - (ベースライン) |
+| 勾配ブースティング | XGBoost | ✅ | ⬜ | - | 0.95-0.98 |
+| 勾配ブースティング | CatBoost | ✅ | ⬜ | - | 0.92-0.96 |
+| **バギング系ツリー** | ExtraTrees | ✅ | ⬜ | - | 0.85-0.92 |
+| バギング系ツリー | RandomForest | ✅ | ⬜ | - | 0.85-0.92 |
+| **線形モデル** | Ridge | ✅ | ⬜ | - | 0.70-0.85 |
+| 線形モデル | Lasso | ✅ | ⬜ | - | 0.70-0.85 |
+| 線形モデル | ElasticNet | ✅ | ⬜ | - | 0.70-0.85 |
+
+### 成功基準
+
+- OOF RMSE ≤ 0.013 (線形モデルは ≤ 0.015)
+- 予測相関 (vs LGBM) < 0.95 (アンサンブル効果の見込み)
+- LB Score ≥ 0.68
+
+### 次のステップ
+
+1. XGBoost / CatBoost 実装・OOF評価
+2. バギング系 (ExtraTrees / RandomForest) 実装
+3. 線形モデル (Ridge / Lasso / ElasticNet) 実装
+4. 予測相関分析・アンサンブル構築
+
+詳細: `docs/models/README.md`
+
+---
+
+## データ運用
+
+### 取得手順
+
+```bash
+# 自動取得スクリプト
+./scripts/fetch_data.sh
+
+# または手動
+kaggle competitions download -c hull-tactical-market-prediction -p data/raw
+unzip -o data/raw/hull-tactical-market-prediction.zip -d data/raw
+```
+
+### Git管理ポリシー
+
+```gitignore
+data/       # 競技データ
+artifacts/  # 学習済み成果物
+```
+
+データと成果物はコミットしません。再現は「スクリプトで毎回ダウンロード」で行います。
+
+---
+
+## 品質チェック
+
+プッシュ前に必ず実行:
 
 ```bash
 ./scripts/check_quality.sh
 ```
 
-Jupyter起動:
-
-```bash
-uv run jupyter notebook
-```
-
-### Kaggle API
-
-Kaggle API を利用してデータ取得や提出を自動化できます。
-事前に ~/.kaggle/kaggle.json を配置済みであることが前提です。
-
-例: コンペ一覧表示
-
-```bash
-kaggle competitions list
-```
-
-### アーティファクトの一時配布（HTTP サーバ）
-
-スイープ後の `model_pre_*.pkl` など容量の大きい成果物を Codespaces からローカルへダウンロードしたい場合、Python の簡易 HTTP サーバを利用すると再現性が高いです。
-
-1. 共有したい成果物ディレクトリに移動
-
-  ```bash
-  cd /workspaces/Hull-Tactical---Market-Prediction/artifacts/Preprocessing_S/missforest
-  ```
-
-2. 一時 HTTP サーバを起動（他のポリシーでもディレクトリを切り替えるだけで可）
-
-  ```bash
-  python -m http.server 8000
-  ```
-
-  起動するとターミナルに `Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...` が表示されます。Codespaces の場合は Port Forwarding で 8000 番を開放し、ブラウザから `https://<codespace-url>-8000.app.github.dev/` にアクセスするとファイル一覧が表示され、クリックでダウンロードできます。
-
-3. 転送が完了したら `Ctrl+C` でサーバを終了してください。必要に応じて `python -m http.server <port>` でポート番号を変えることも可能です。
-
-この手順を README に記載しておくことで、今後も同じ操作で成果物の取得が再現できます。
-
----
-
-### numpy バージョン固定ポリシー
-
-- 依存管理は `uv` で統一し、`numpy==1.26.4` を必須バージョンとします。
-- 理由: Kaggle（Python 3.11, numpy 1.26.4）と整合させ、`joblib` が生成する `MT19937` BitGenerator を安全にロードするため。異なる numpy 版で学習した pickle は Kaggle 上でロードに失敗します。
-- 運用: 依存を追加・更新する際は `pyproject.toml` の numpy 行を変更せず、`uv lock --python 3.11` → `uv sync --python 3.11` でロックファイルを再生成します。
-- 手元で numpy バージョンを変更した場合は、SU 系成果物・前処理バンドルを全て再生成する必要があります。原則として numpy のバージョン変更は禁止です。
-
----
-
-## 品質チェック（CI相当）
-
-ローカルでCIと同等のチェックを実行するためのスクリプトを用意しています。プッシュ前に必ず実行してください。
-
-- スクリプト: `scripts/check_quality.sh`
-- 実行内容:
-  - Ruff: Lint/フォーマットチェック（`uv run ruff check .`）
-  - Pyright: 型チェック（`uv run pyright`）
-  - Pytest: ユニットテスト＋カバレッジ（`uv run pytest --cov=src --cov-report=term-missing`）
-
-実行方法:
-
-```bash
-chmod +x scripts/check_quality.sh  # 初回のみ
-./scripts/check_quality.sh
-```
-
-すべてのチェックが通らない場合は、コミットやプッシュ前に修正してください。
+実行内容:
+- **Ruff**: Lint / フォーマット
+- **Pyright**: 型チェック
+- **Pytest**: ユニットテスト
 
 ---
 
 ## コミットメッセージ規約
 
-このプロジェクトでは、Conventional Commits に準拠したコミットメッセージを使用します。
-
-公式: [Conventional Commits v1.0.0 日本語版](https://www.conventionalcommits.org/ja/v1.0.0/)
-
-フォーマット:
+[Conventional Commits](https://www.conventionalcommits.org/ja/v1.0.0/) に準拠:
 
 ```text
 <type>(<scope>): <subject>
 ```
 
-- type: 変更の種類
-  - feat: 新機能
-  - fix: バグ修正
-  - docs: ドキュメント
-  - style: コードスタイル変更（空白やフォーマットなど）
-  - refactor: リファクタリング
-  - test: テスト追加・修正
-  - chore: ビルド・設定・依存関係更新
-- scope: 影響範囲（任意、例: api, db, ui）
-- subject: 簡潔な説明（小文字始まり、末尾ピリオドなし）
-
-例:
-
-```text
-feat(api): add prediction endpoint
-fix(db): handle null values in loader
-docs(readme): add commit message guideline
-style: run ruff formatting
-refactor: extract feature engineering module
-test(scripts): add unit tests for trainer
-chore: bump dependencies and update lockfile
-```
+| type | 用途 |
+|------|------|
+| feat | 新機能 |
+| fix | バグ修正 |
+| docs | ドキュメント |
+| refactor | リファクタリング |
+| test | テスト |
+| chore | 設定・依存更新 |
 
 ---
 
-## データ運用ポリシー（EDA）
+## ブランチ戦略
 
-結論: 競技データは Kaggle API で取得し、一切 Git に入れません。`data/` 配下でローカル管理し、再現は「スクリプトで毎回ダウンロード」。Codespaces への手動アップロードは非推奨です。評価用ファイルも同様の扱いです。
+| ブランチ | 用途 |
+|---------|------|
+| `main` | 安定ブランチ |
+| `dev` | 統合用ブランチ |
+| `feat/*` | 機能開発 |
+| `exp/*` | モデル実験 |
 
-### 最短手順（手動）
+小さく早くマージし、不要になったら削除します。
 
-```bash
-# 1) ディレクトリ設計
-mkdir -p data/raw data/interim data/processed data/external artifacts
+---
 
-# 2) 競技データをKaggle APIで取得
-kaggle competitions download -c hull-tactical-market-prediction -p data/raw
+## Kaggle提出
 
-# 3) 展開
-unzip -o data/raw/hull-tactical-market-prediction.zip -d data/raw
-```
-
-以後、常にこの手順で再現できます。アップデートが出ても同様に取り直せます。
-
-### 自動化スクリプト（Git管理）
-
-- `scripts/fetch_data.sh`
-
-```bash
-./scripts/fetch_data.sh
-```
-
-初回のみ実行権限付与:
-
-```bash
-chmod +x scripts/fetch_data.sh
-```
-
-ダウンロード先: `data/raw/`
-
-### .gitignore
-
-データと成果物はコミットしません（ノートとコードのみをPRに載せる）。
-
-```gitignore
-data/
-artifacts/
-```
-
-補足: CI とローカルの品質チェックには誤コミット防止のガードがあり、`data/` や `artifacts/` 配下のファイルが Git で追跡されているとジョブが失敗します。
-
-### notebooks からの参照例
+### 推論API形式
 
 ```python
-import pandas as pd
+def predict(test: pl.DataFrame) -> float:
+    # 予測ロジック
+    return prediction_value
 
-# 例: 実データのファイル名に合わせて置換してください
-train = pd.read_parquet("data/raw/train.parquet")
-test = pd.read_parquet("data/raw/test.parquet")
-train.info(); train.head()
+DefaultInferenceServer(predict)
 ```
 
-### 提出単位の運用方針（scripts / artifacts）
+### 注意点
 
-提出（Submit）単位で「コード」と「成果物」をディレクトリ分割します。
-
-- コード: `scripts/<submit_name>/...`
-  - 例: `scripts/simple_baseline/train_simple.py`, `scripts/simple_baseline/predict_simple.py`
-- 成果物: `artifacts/<submit_name>/...`
-  - 例: `artifacts/simple_baseline/model_simple.pkl`, `artifacts/simple_baseline/model_meta.json`, `artifacts/simple_baseline/cv_simple.json`
-
-この方針により、複数の提出ライン（ベースライン/改良版/アブレーションなど）を並行管理できます。コードと成果物の対応が明確になり、切り替えが容易です。Git には引き続き成果物は含めません。
-
-- D 系特徴量（列プレフィクス `D`）は train/test ともに欠損が確認されておらず、追加の補完処理は不要です。パイプラインでは監視ログのみで十分です。
-
-#### SU5 (共欠損構造特徴) の注意点
-
-- 依存: SU1をベースとし、共欠損ペアの特徴量（co_miss_now, co_miss_rollrate, co_miss_deg）を追加します。
-- 成果物: `inference_bundle.pkl` (2.1GB)、`model_meta.json`、`feature_list.json`
-- Kaggle Dataset: sklearn 1.7.2 wheel を同梱し、`--no-index` で導入します。
-- 推論: Notebookは自動でartifactを検出します（`/kaggle/input/<dataset>/inference_bundle.pkl`）。
-- 互換性: numpy 1.26.4 で学習・推論を統一（MT19937 BitGenerator互換性）。
-
-#### simple_baseline の注意点
-
-- 依存: LightGBM を使用します。`uv sync` で自動導入されますが、環境によっては `uv add lightgbm` が必要な場合があります。
-- 特徴量: 学習時に `forward_returns` / `risk_free_rate` / `market_forward_excess_returns` から shift(1) で `lagged_*` を生成し、元列は除外します。train/test の共通列のみを採用します。
-- 進捗/ログ: 学習中に LightGBM の評価ログと進捗（iteration/%）を表示し、学習後はある程度のステップごとに RMSE を追試算してログ出力します。
-- 再現性: 重要度が高い場合は `--seed` を LightGBM 側パラメータに追加する等で固定可能です（現状は `random_state=42` を指定）。
-- 出力: 提出ファイルは `artifacts/simple_baseline/submission.parquet` と `artifacts/simple_baseline/submission.csv` に保存されます（CSVはデフォルト有効、`--no-csv` で抑止）。
-
----
-
-## ローカルから Kaggle ノートブックで Submit する再現手順
-
-以下は simple_baseline を例に、ローカル学習→Kaggle Notebook 提出までの、再現可能な最短手順です。
-
-1. ローカルで学習・成果物作成
-
-- 依存同期: `uv sync`
-- データ取得: `./scripts/fetch_data.sh`
-- 学習実行: `uv run python scripts/simple_baseline/train_simple.py --data-dir data/raw`
-  - 成果物が `artifacts/simple_baseline/` に出力されます:
-    - `model_simple.pkl`
-    - `model_meta.json`
-
-1. Kaggle Private Dataset を作成（成果物と互換 Wheel を格納）
-
-- 上記 2 つの成果物を 1 つの Dataset にまとめます（例: 名前を「simple-baseline」）。
-- 互換性のため、scikit-learn の Wheel を同 Dataset に置くとオフラインでも確実にインストールできます（例: `scikit_learn-1.7.2-...whl`）。
-  - Notebook 冒頭で `!pip install --no-index /kaggle/input/simple-baseline/<wheel>.whl` を実行。
-  - 必要に応じて `lightgbm`, `joblib`, `pyarrow`, `pandas`, `numpy`, `polars` を `!pip install -q ...` で補います。
-
-1. Notebook 実装（推論 API 形式）
-
-- Dataset を Notebook にアタッチし、下記を実装します。
-  - 成果物読込: `pipe = joblib.load('/kaggle/input/simple-baseline/model_simple.pkl')`
-  - メタ読込: `meta = json.load(open('/kaggle/input/simple-baseline/model_meta.json'))`
-  - 特徴量整形: 学習時の `meta["feature_columns"]` を基準に「列順」「欠損補完（数値=NaN, カテゴリ='missing'）」を再現
-  - 評価 API: `predict(test: pl.DataFrame) -> float` を定義し、`DefaultInferenceServer(predict)` で起動
-    - 採点はこの関数の戻り値（単一 float）で行われます
-  - 任意のローカル検証セル: `submission.parquet` / `submission.csv` を書き出して形式を確認（採点時には使われません）
-
-1. Submit（インターネット OFF 推奨）
-
-- Notebook を実行・Complete し、そのまま Submit します。
-- `predict()` の戻り値仕様を満たしていれば、採点環境で自動評価されます。
-
-注意点（落とし穴）
-
-- 必須: `predict(test: pl.DataFrame) -> float` と `DefaultInferenceServer` のセル。
-- 戻り値はスカラ float。配列や DataFrame を返すとエラーになります。
-- 特徴量整形はローカル推論と同一に。`meta["feature_columns"]` を基準に列を揃え、欠損補完の型（数値/カテゴリ）を一致させます。
-- scikit-learn などライブラリのバージョン差異に注意。Wheel を Dataset に同梱し `--no-index` でその版を入れると安全です。
-- `submission.parquet`/`csv` の生成は任意（Notebook では API 呼び出しがスコアリングの本体）。ただし、形式検証には有用です。
-
-### 評価用ファイルの扱い
-
-競技ページの評価用（推論対象）も同じzipに含まれます。APIで取得した中身を `data/raw/` にそのまま保持します。ブランチには入れません。管理は「取得スクリプト＋READMEに手順記載」で十分です。
-
-提出ノートブックでは `/kaggle/input/hull-tactical-market-prediction/...` を参照します。生データは自作 Dataset 化せず、規約上の再配布を避けます。
-
-### ブランチ運用
-
-- `eda/*` ブランチではノート・コードのみをコミット。`data/` はローカル専用。
-- 有用な関数や前処理は `src/` へ昇格し、`dev` → `main` にマージ。
-- 提出用の前処理・推論は学習済み成果物を Kaggle Private Dataset（自作）に載せ、入力は公式データを使用。
-
-### Makefile（任意）
-
-```makefile
-.PHONY: data
-data:
-  ./scripts/fetch_data.sh
-```
-
-実行は `make data`。
-
----
-
-## ブランチ戦略（最小実務形）
-
-- main: 安定ブランチ。学習・推論が常に動く状態を維持します。
-- dev: 統合用ブランチ。複数作業の一時的な受け皿。
-- `eda/<topic>`: EDA用の短命ブランチ（例: `eda/target-dist`）。
-- `feat/<feature>` / `exp/<model>`: 特徴量追加やモデル実験用の短命ブランチ。
-
-ブランチは原則維持しません。長生きブランチは劣化（conflict・差分肥大・責務曖昧化）の温床になります。小さく早くマージし、不要になったら削除します。
-
----
-
-## 現在のベストスコアと SU ライン採否状況
-
-| ライン / Submit 単位 | LB Score (Public) | 特徴量数 | OOF RMSE | 状態 |
-|----------------------|-------------------|---------|----------|------|
-| **SU5 (Policy1)**    | **0.681**         | 567 (94+368+105) | 0.012139 | **✅ 採用（現行ベスト）** |
-| SU1                  | 0.674             | 462 (94+368)     | 0.012120 | ベースライン（採用） |
-| SU9 (Calendar)       | 0.679             | 567+16           | 0.012041 | ❌ 非採用（OOF改善もLB微悪化） |
-| SU8                  | 0.624             | 567+11 (SU5+SU8) | 0.012230 | ❌ 非採用（OOFでもLBでも悪化） |
-| SU2                  | 0.597             | 1397 (94+368+935)| 0.012230 | ❌ 非採用（過学習） |
-| SU10 (SPY Regime)    | 0.597             | 567+14           | 0.012270 | ❌ 非採用（外部データ時間ミスマッチ） |
-| SU7 (case_c/case_d)  | 0.476 / 0.469     | +SU7 96〜144列   | ≈0.01205 | ❌ 非採用（OOF改善も LB 大幅悪化） |
-| **SU11 (Stacking)**  | **0.464**         | Level-2 Ridge    | 0.010997 | ❌ 非採用（shrinkage問題, -31.9%悪化） |
-| SU3                  | 0.461             | 444 (368+76)     | 0.011418 | ❌ 非採用（コンセプト不適合） |
-| Preprocessing P (mice) | 0.625           | -                | -        | 採用 |
-| Preprocessing I (ridge_stack) | 0.623   | -                | -        | 採用 |
-| Preprocessing M      | 0.629             | -                | -        | 採用 |
-| MSR-proxy            | 0.610             | -                | 0.012410 | 参考ライン |
-| simple_baseline      | 0.554             | -                | -        | 初期ベースライン |
-
-- **現在のベストスコア**: SU5 Policy1 (LB 0.681) - SU1 から +0.007 改善。
-- SU7〜SU11 はすべて LB スコアが悪化しており、**ベースライン (SU1+SU5) が最適解**と判断。
-- SU11（Level-2 Stacking）は OOF RMSE で 9.4% 改善したが、Ridge の shrinkage により
-  予測分散が 97% 縮小し、ベッティングシグナルが消失。LB では -31.9% の大幅悪化。
-
-より詳細なスコア推移や判断理由は `docs/submissions.md` と
-各 SU の仕様書（例: `docs/feature_generation/SU7.md`, `docs/feature_generation/SU8.md`）を参照してください。
-
----
-
-### SU5 Implementation (2025-11-23) ✅ 正式採用
-
-**採用構成**: Policy1 (top_k=10, windows=[5])
-
-- LB Score: **0.681** (従来最高: SU1の0.674から+0.007改善)
-- 特徴量: 共欠損構造特徴105列（co_miss_now, co_miss_rollrate, co_miss_deg）
-- OOF RMSE: 0.012139
-- Artifacts: `artifacts/SU5/policy1_top10_w5/`
+- 戻り値はスカラ float（配列やDataFrameは不可）
+- scikit-learn 互換性のため wheel を Dataset に同梱
+- `meta["feature_columns"]` を基準に列順・欠損補完を再現
 
 詳細: `docs/submissions.md`
 
 ---
 
-## テスト方針（Submitラインを増やす場合）
+## ドキュメント構成
 
-結論: 各Submitラインで `scripts/<experiment>/` を増やしてOK。ただしテストは「共通インターフェース」を対象に統一します。
-
-- 共通インターフェース（例）
-  - 学習: `train_model(data_dir: str | None, target_col: str, id_col: str, sample_rows: int | None = 500) -> Pipeline`
-  - 推論: `generate_submission(model, test_df: pd.DataFrame, id_col: str = "date_id", pred_col: str = "prediction", meta: dict | None = None) -> pd.DataFrame`
-  - これらを各ラインの `train_simple.py` / `predict_simple.py` に実装（軽量版でOK）
-
-- 最小テスト例
-  - `tests/test_pipeline_simple_baseline.py` は simple_baseline の軽量APIを使って、
-    - ダミーデータで学習が走るか
-    - 提出形式（id, prediction列、行数一致）が満たされるか
-    を検証します。
-
-- 追加ラインの流れ
-  1) `scripts/<new_exp>/train_simple.py` と `predict_simple.py` を作成
-  2) 上記の共通APIを実装
-  3) tests に `<new_exp>` 用の軽量テストを1本追加（もしくは共通テストに追加）
-  4) `./scripts/check_quality.sh` でCI相当チェック
-
-- 実行時間の工夫
-  - 重い学習はCIで回さず、`@pytest.mark.slow` で分離
-  - 学習APIに `sample_rows` を用意し、CIでは小規模でのみ動作確認
+| パス | 内容 |
+|------|------|
+| `docs/feature_generation/` | SU1-SU11 仕様書・判断根拠 |
+| `docs/feature_selection/` | Phase 0-3 レポート |
+| `docs/models/` | モデル選定戦略・実装仕様書 |
+| `docs/submissions.md` | 提出履歴・スコア推移 |
+| `docs/preprocessing.md` | 前処理パイプライン |
 
 ---
 
-### Kaggle Notebook 依存固定（MSR-proxy 提出ラインの補足）
+## 参考リンク
 
-MSR-proxy の成果物は、scikit-learn のバージョン依存で `joblib.load` 振る舞いが変わる場合があります。Notebook では Private Dataset に 1.7.2 の wheel を同梱し、冒頭で次のように導入してください。
-
-- scikit-learn 1.7.2 を `--no-index --no-deps --force-reinstall` でインストール
-- その後に `lightgbm==4.6.0`, `joblib`, `pyarrow`, `polars`, `pandas` をインストール
-
-詳細は `docs/submissions.md` の 2025-10-12 エントリに Notebook のサンプル断片を記載しています。
-
----
-
-## 特徴量選定（Feature Selection）
-
-### 概要
-
-577列の全特徴量から段階的に不要な列を削減し、モデル性能を維持しながらシンプルな特徴量セットを構築します。
-
-### フェーズ構成
-
-| Phase | 手法 | 目的 |
-|-------|------|------|
-| Phase 0 | - | Tier0ベースライン凍結（577列） |
-| Phase 1 | 統計フィルタ | 低分散・高欠損・高相関列の除去 |
-| Phase 2 | モデル重要度 | LGBM importance → Permutation |
-| Phase 3 | グルーピング | 相関クラスタからの代表選出 |
-| Phase 4 | 最終検証 | LB評価 + 安定性確認 |
-
-### 設定ファイル構成
-
-```
-configs/feature_selection/
-├── tier0/
-│   └── baseline.json       # Tier0評価結果（ベースライン）
-├── tier1/
-│   └── excluded.json       # Phase1で除外する特徴量リスト
-└── tier2/
-    └── excluded.json       # Phase2で追加除外する特徴量リスト（予定）
-```
-
-### 結果ファイル構成
-
-```
-results/feature_selection/
-├── tier0/
-│   ├── evaluation.json     # Tier0 OOF評価結果
-│   ├── importance.csv      # fold毎のimportance
-│   ├── importance_summary.csv
-│   └── fold_logs.csv
-├── tier1/
-│   ├── evaluation.json     # Tier1 OOF評価結果
-│   ├── importance.csv
-│   ├── importance_summary.csv
-│   └── fold_logs.csv
-├── tier2/
-│   └── evaluation.json     # Tier2 OOF評価結果（予定）
-└── phase2/
-    ├── importance_candidates.json  # 削除候補リスト
-    └── permutation_results.csv     # Permutation結果
-```
-
-### 運用フロー
-
-1. **ベース設定は固定**: `configs/feature_generation.yaml`, `configs/preprocess.yaml` は変更しない
-2. **フェーズ別除外リスト**: `configs/feature_selection/tierN_excluded.json` で管理
-3. **評価**: 各フェーズで除外リストを適用してOOF評価
-4. **採用判定**: RMSE劣化が許容範囲内（+0.0001以内）なら次のTierへ
-
-### 現在の状態
-
-| Tier | 特徴量数 | OOF RMSE | LB Score | 状態 |
-|------|----------|----------|----------|------|
-| Tier0 | 577 | 0.012134 | 0.681 | ベースライン |
-| Tier1 | 160 | 0.012168 | 0.681 | ✅ Phase1採用確定 |
-
-### 関連ドキュメント
-
-- 詳細仕様: `docs/feature_selection/README.md`
-- Phase別レポート: `docs/feature_selection/phase1_report.md`
-- 実装: `src/feature_selection/`
+- [Kaggle Competition Page](https://www.kaggle.com/competitions/hull-tactical-market-prediction)
+- [uv Documentation](https://github.com/astral-sh/uv)
+- [Conventional Commits](https://www.conventionalcommits.org/ja/v1.0.0/)
 
