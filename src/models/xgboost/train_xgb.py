@@ -422,6 +422,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     print("[info] Generating augmented features...")
     X_augmented_all = su5_prefit.transform(X_np, fold_indices=fold_indices_full)
 
+    # Capture augmented columns before tier exclusion for feature_list.json
+    augmented_columns_before_exclusion = X_augmented_all.columns.tolist()
+    
+    # Identify SU1/SU5 generated columns
+    su1_generated_columns = [c for c in augmented_columns_before_exclusion if c not in feature_cols]
+    # Note: SU5 columns would be identified separately if SU5 adds distinct columns
+    # For now, all generated columns are attributed to SU1
+    su5_generated_columns: List[str] = []  # SU5 currently doesn't add new columns in this pipeline
+
     # Apply feature exclusion based on tier
     if not args.no_feature_exclusion:
         print(f"[info] Applying {args.feature_tier} feature exclusion...")
@@ -611,11 +620,56 @@ def main(argv: Sequence[str] | None = None) -> int:
             "gap": args.gap,
             "hyperparameters": model_kwargs,
             "created_at": datetime.now(timezone.utc).isoformat(),
+            # Fields required for Kaggle submission notebook
+            "id_col": args.id_col,
+            "target_col": args.target_col,
+            "oof_best_params": {
+                "mult": 1.0,
+                "lo": 0.9,
+                "hi": 1.1,
+            },
         }
         meta_path = out_dir / "model_meta.json"
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
         print(f"[info] Saved metadata to {meta_path}")
+
+        # Save feature_list.json for Kaggle submission
+        # Get git commit/branch info
+        try:
+            import subprocess
+            git_commit = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], 
+                cwd=str(PROJECT_ROOT),
+                stderr=subprocess.DEVNULL
+            ).decode().strip()
+            git_branch = subprocess.check_output(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=str(PROJECT_ROOT),
+                stderr=subprocess.DEVNULL
+            ).decode().strip()
+        except Exception:
+            git_commit = "unknown"
+            git_branch = "unknown"
+
+        # Model input columns are the final columns after tier exclusion
+        model_input_columns = original_columns  # These are pre-sanitization names
+        
+        feature_list = {
+            "version": f"xgboost-{args.feature_tier}-v1",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "pipeline_input_columns": sorted(feature_cols),
+            "su1_generated_columns": sorted([c for c in su1_generated_columns if c in model_input_columns]),
+            "su5_generated_columns": sorted([c for c in su5_generated_columns if c in model_input_columns]),
+            "model_input_columns": model_input_columns,
+            "total_feature_count": len(model_input_columns),
+            "source_commit": git_commit,
+            "source_branch": git_branch,
+        }
+        feature_list_path = out_dir / "feature_list.json"
+        with open(feature_list_path, "w", encoding="utf-8") as f:
+            json.dump(feature_list, f, indent=2)
+        print(f"[info] Saved feature list to {feature_list_path}")
 
         # Generate test predictions and save submission.csv
         print("[info] Generating test predictions...")
