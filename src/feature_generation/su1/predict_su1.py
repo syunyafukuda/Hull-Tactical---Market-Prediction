@@ -19,18 +19,17 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib
 import json
 import sys
-import hashlib
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 import joblib
 import numpy as np
 import pandas as pd
-
 
 THIS_DIR = Path(__file__).resolve().parent
 SRC_ROOT = THIS_DIR.parents[1]
@@ -106,13 +105,16 @@ def _ensure_numpy_bitgenerator_aliases() -> None:
 _ensure_numpy_bitgenerator_aliases()
 
 # アンピックル時にクラス解決できるよう、該当トランスフォーマーを先にインポートしておく。
-from preprocess.M_group.m_group import MGroupImputer  # noqa: E402,F401
 from preprocess.E_group.e_group import EGroupImputer  # noqa: E402,F401
 from preprocess.I_group.i_group import IGroupImputer  # noqa: E402,F401
+from preprocess.M_group.m_group import MGroupImputer  # noqa: E402,F401
 from preprocess.P_group.p_group import PGroupImputer  # noqa: E402,F401
 from preprocess.S_group.s_group import SGroupImputer  # noqa: E402,F401
+from src.feature_generation.su1.feature_su1 import (  # noqa: E402,F401
+	SU1Config,
+	SU1FeatureGenerator,
+)
 from src.feature_generation.su1.train_su1 import SU1FeatureAugmenter  # noqa: E402,F401
-from src.feature_generation.su1.feature_su1 import SU1Config, SU1FeatureGenerator  # noqa: E402,F401
 
 
 def infer_test_file(data_dir: Path, explicit: str | None) -> Path:

@@ -2,16 +2,27 @@ from __future__ import annotations
 
 from collections import deque
 from copy import deepcopy
-from typing import Any, Deque, Dict, Hashable, Iterable, List, Mapping, Sequence, Tuple, cast
+from typing import (
+    Any,
+    Deque,
+    Dict,
+    Hashable,
+    Iterable,
+    List,
+    Mapping,
+    Sequence,
+    Tuple,
+    cast,
+)
 
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.experimental import enable_iterative_imputer  # noqa: F401
 from sklearn.impute import IterativeImputer, KNNImputer
 from sklearn.linear_model import Ridge
-from sklearn.ensemble import RandomForestRegressor
 
 try:  # optional dependency
     from statsmodels.tsa.arima.model import ARIMA

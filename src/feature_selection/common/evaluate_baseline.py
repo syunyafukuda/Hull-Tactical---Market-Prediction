@@ -15,13 +15,13 @@ import csv
 import json
 import math
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Sequence, cast
 
+import joblib
 import numpy as np
 import pandas as pd
-import joblib
-from datetime import datetime, timezone
 
 try:
     from lightgbm import LGBMRegressor
@@ -44,20 +44,19 @@ for path in (SRC_ROOT, PROJECT_ROOT):
         sys.path.append(str(path))
 
 # Import from train_su5.py
-from src.feature_generation.su5.train_su5 import (  # noqa: E402
-    build_pipeline,
-    load_su1_config,
-    load_su5_config,
-    load_preprocess_policies,
-    infer_train_file,
-    infer_test_file,
-    load_table,
-    _prepare_features,
-    SU5FeatureAugmenter,
-)
-
 # Import MSR utilities
 from scripts.utils_msr import evaluate_msr_proxy, grid_search_msr  # noqa: E402
+from src.feature_generation.su5.train_su5 import (  # noqa: E402
+    SU5FeatureAugmenter,
+    _prepare_features,
+    build_pipeline,
+    infer_test_file,
+    infer_train_file,
+    load_preprocess_policies,
+    load_su1_config,
+    load_su5_config,
+    load_table,
+)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:

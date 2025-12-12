@@ -14,10 +14,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+import joblib
 import numpy as np
 import pandas as pd
-import joblib
-
 
 THIS_DIR = Path(__file__).resolve().parent
 SRC_ROOT = THIS_DIR.parents[1]
@@ -32,7 +31,10 @@ from src.feature_generation.su5.feature_su5 import (  # noqa: F401, E402
 	SU5FeatureGenerator,
 )
 from src.feature_generation.su5.train_su5 import SU5FeatureAugmenter  # noqa: F401, E402
-from src.feature_generation.su11.feature_su11 import SU11Config, SU11MetaFeatureBuilder  # noqa: E402
+from src.feature_generation.su11.feature_su11 import (  # noqa: E402
+	SU11Config,
+	SU11MetaFeatureBuilder,
+)
 
 
 # ============================================================================

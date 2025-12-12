@@ -22,8 +22,8 @@ import numpy as np
 import pandas as pd
 
 try:
-	from lightgbm import LGBMRegressor  # type: ignore
 	import lightgbm as lgb  # type: ignore
+	from lightgbm import LGBMRegressor  # type: ignore
 	HAS_LGBM = True
 except Exception:
 	LGBMRegressor = None  # type: ignore
@@ -35,8 +35,6 @@ from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.pipeline import Pipeline
 
-
-
 THIS_DIR = Path(__file__).resolve().parent
 SRC_ROOT = THIS_DIR.parents[1]
 PROJECT_ROOT = THIS_DIR.parents[2]
@@ -44,29 +42,29 @@ for path in (SRC_ROOT, PROJECT_ROOT):
 	if str(path) not in sys.path:
 		sys.path.append(str(path))
 
-from src.feature_generation.su4.train_su4 import (  # noqa: E402
-	build_pipeline,
-	load_preprocess_policies,
-	infer_train_file,
-	infer_test_file,
-	load_table,
-	_prepare_features,
-	_initialise_callbacks,
-	_to_1d,
+from scripts.utils_msr import (  # noqa: E402
+	evaluate_msr_proxy,
+	grid_search_msr,
 )
 from src.feature_generation.su1.feature_su1 import (  # noqa: E402
 	load_su1_config,
-)
-from src.feature_generation.su5.feature_su5 import (  # noqa: E402
-	load_su5_config,
 )
 from src.feature_generation.su4.feature_su4 import (  # noqa: E402
 	SU4Config,
 	load_su4_config,
 )
-from scripts.utils_msr import (  # noqa: E402
-	evaluate_msr_proxy,
-	grid_search_msr,
+from src.feature_generation.su4.train_su4 import (  # noqa: E402
+	_initialise_callbacks,
+	_prepare_features,
+	_to_1d,
+	build_pipeline,
+	infer_test_file,
+	infer_train_file,
+	load_preprocess_policies,
+	load_table,
+)
+from src.feature_generation.su5.feature_su5 import (  # noqa: E402
+	load_su5_config,
 )
 
 

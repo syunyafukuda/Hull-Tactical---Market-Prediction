@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 """Tests for Phase 3 correlation clustering and feature set creation."""
 
+import sys
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-import sys
 
 # Add src to path
 TEST_DIR = Path(__file__).resolve().parent
@@ -15,8 +16,8 @@ from src.feature_selection.phase3.correlation_clustering import (  # noqa: E402
     compute_correlation_clusters,
 )
 from src.feature_selection.phase3.select_representatives import (  # noqa: E402
-    select_cluster_representative,
     is_raw_feature,
+    select_cluster_representative,
 )
 
 

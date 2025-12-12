@@ -7,6 +7,7 @@ import argparse
 import json
 import math
 import shlex
+import statistics
 import subprocess
 import sys
 import time
@@ -14,8 +15,6 @@ from datetime import datetime
 from itertools import chain
 from pathlib import Path
 from typing import Any
-import statistics
-
 
 THIS_DIR = Path(__file__).resolve().parent
 TRAIN_SCRIPT = THIS_DIR / "train_pre_m.py"

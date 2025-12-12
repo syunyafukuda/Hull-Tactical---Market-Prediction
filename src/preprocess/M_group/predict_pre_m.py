@@ -14,6 +14,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+
 import joblib
 import numpy as np
 import pandas as pd
@@ -27,8 +28,6 @@ for path in (SRC_ROOT, PROJECT_ROOT):
         sys.path.append(str(path))
 
 from preprocess.M_group.m_group import MGroupImputer  # noqa: F401,E402
-
-
 from scripts.utils_msr import PostProcessParams, to_signal  # noqa: E402
 
 

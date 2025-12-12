@@ -26,21 +26,21 @@ import numpy as np
 import pandas as pd
 
 try:
-    from lightgbm import LGBMRegressor  # type: ignore
     import lightgbm as lgb  # type: ignore
+    from lightgbm import LGBMRegressor  # type: ignore
     HAS_LGBM = True
 except Exception:
     LGBMRegressor = None  # type: ignore
     lgb = None  # type: ignore
     HAS_LGBM = False
 
-from sklearn.metrics import mean_squared_error
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
-from sklearn.model_selection import TimeSeriesSplit
-from sklearn.base import clone
 import joblib
+from sklearn.base import clone
+from sklearn.compose import ColumnTransformer
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder
 
 # ensure project/src roots are importable when executed as a script
 THIS_DIR = Path(__file__).resolve().parent
@@ -50,17 +50,17 @@ for path in (SRC_ROOT, PROJECT_ROOT):
     if str(path) not in sys.path:
         sys.path.append(str(path))
 
-from scripts.utils_msr import (  # noqa: E402
-    PostProcessParams,
-    evaluate_msr_proxy,
-    grid_search_msr,
-)
 from preprocess.E_group.e_group import EGroupImputer  # noqa: E402
 from preprocess.I_group.i_group import IGroupImputer  # noqa: E402
 from preprocess.M_group.m_group import MGroupImputer  # noqa: E402
 from preprocess.P_group.p_group import PGroupImputer  # noqa: E402
 from preprocess.S_group.s_group import SGroupImputer  # noqa: E402
 from preprocess.V_group.v_group import VGroupImputer  # noqa: E402
+from scripts.utils_msr import (  # noqa: E402
+    PostProcessParams,
+    evaluate_msr_proxy,
+    grid_search_msr,
+)
 
 
 def _to_1d_np(pred) -> np.ndarray:
