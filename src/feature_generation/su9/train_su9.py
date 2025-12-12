@@ -28,8 +28,8 @@ import sklearn
 import yaml
 
 try:
-    from lightgbm import LGBMRegressor  # type: ignore
     import lightgbm as lgb  # type: ignore
+    from lightgbm import LGBMRegressor  # type: ignore
 
     HAS_LGBM = True
 except Exception:
@@ -44,7 +44,6 @@ from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
-
 
 THIS_DIR = Path(__file__).resolve().parent
 SRC_ROOT = THIS_DIR.parents[1]

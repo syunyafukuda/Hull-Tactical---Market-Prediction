@@ -9,9 +9,9 @@ import pandas as pd
 import pytest
 
 from src.feature_generation.su10.feature_su10 import (
+    SU10_FEATURE_COLUMNS,
     SU10Config,
     SU10FeatureGenerator,
-    SU10_FEATURE_COLUMNS,
     load_su10_config,
 )
 

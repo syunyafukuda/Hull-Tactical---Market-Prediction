@@ -39,8 +39,8 @@ from sklearn.model_selection import TimeSeriesSplit
 from sklearn.pipeline import Pipeline
 
 try:
-	from lightgbm import LGBMRegressor  # type: ignore
 	import lightgbm as lgb  # type: ignore
+	from lightgbm import LGBMRegressor  # type: ignore
 
 	HAS_LGBM = True
 except Exception:
@@ -57,18 +57,23 @@ for path in (SRC_ROOT, PROJECT_ROOT):
 	if str(path) not in sys.path:
 		sys.path.append(str(path))
 
-from src.feature_generation.su1.feature_su1 import SU1Config, load_su1_config  # noqa: E402
-from src.feature_generation.su3.feature_su3 import SU3Config, load_su3_config  # noqa: E402
-from src.feature_generation.su3.train_su3 import (  # noqa: E402
-	build_pipeline,
-	load_preprocess_policies,
-	_to_1d,
-)
 from scripts.utils_msr import (  # noqa: E402
 	PostProcessParams,
 	evaluate_msr_proxy,
 )
-
+from src.feature_generation.su1.feature_su1 import (  # noqa: E402
+	SU1Config,
+	load_su1_config,
+)
+from src.feature_generation.su3.feature_su3 import (  # noqa: E402
+	SU3Config,
+	load_su3_config,
+)
+from src.feature_generation.su3.train_su3 import (  # noqa: E402
+	_to_1d,
+	build_pipeline,
+	load_preprocess_policies,
+)
 
 # Stage 1: パラメータグリッド定義（代入影響オフ）
 PARAM_GRID = {

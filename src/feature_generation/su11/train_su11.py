@@ -45,12 +45,10 @@ except Exception:
 	LGBMRegressor = None  # type: ignore
 	HAS_LGBM = False
 
+import joblib  # noqa: E402
 from sklearn.linear_model import Ridge  # noqa: E402
 from sklearn.metrics import mean_squared_error  # noqa: E402
 from sklearn.model_selection import TimeSeriesSplit  # noqa: E402
-
-import joblib  # noqa: E402
-
 
 THIS_DIR = Path(__file__).resolve().parent
 SRC_ROOT = THIS_DIR.parents[1]
@@ -63,6 +61,7 @@ from src.feature_generation.su11.feature_su11 import (  # noqa: E402
 	SU11Config,
 	SU11MetaFeatureBuilder,
 )
+
 
 # MSR 計算用ユーティリティ
 def _sharpe_ratio(y_true: np.ndarray, y_pred: np.ndarray, *, eps: float = 1e-8) -> float:
@@ -86,8 +85,12 @@ def _downside_sharpe_ratio(y_true: np.ndarray, y_pred: np.ndarray, *, eps: float
 
 # utils_msr からインポートを試行（あれば上書き）
 try:
-	from scripts.utils_msr import sharpe_ratio as _sharpe_ratio_imported  # type: ignore[import-not-found]
-	from scripts.utils_msr import downside_sharpe_ratio as _downside_sharpe_ratio_imported  # type: ignore[import-not-found]
+	from scripts.utils_msr import (
+		downside_sharpe_ratio as _downside_sharpe_ratio_imported,  # type: ignore[import-not-found]
+	)
+	from scripts.utils_msr import (
+		sharpe_ratio as _sharpe_ratio_imported,  # type: ignore[import-not-found]
+	)
 
 	def _sharpe_ratio(y_true: np.ndarray, y_pred: np.ndarray, *, eps: float = 1e-8) -> float:  # noqa: F811
 		return float(_sharpe_ratio_imported(y_true, y_pred, eps=eps))

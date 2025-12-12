@@ -28,14 +28,14 @@ for path in (SRC_ROOT, PROJECT_ROOT):
 
 # Import from train_su5.py
 from src.feature_generation.su5.train_su5 import (  # noqa: E402
+    _prepare_features,
     build_pipeline,
+    infer_test_file,
+    infer_train_file,
+    load_preprocess_policies,
     load_su1_config,
     load_su5_config,
-    load_preprocess_policies,
-    infer_train_file,
-    infer_test_file,
     load_table,
-    _prepare_features,
 )
 
 

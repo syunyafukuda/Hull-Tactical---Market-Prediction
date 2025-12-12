@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 """Tests for compute_importance.py and permutation_importance.py."""
 
+import sys
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
-from pathlib import Path
-import sys
 
 # Add src to path
 TEST_DIR = Path(__file__).resolve().parent
@@ -13,8 +14,8 @@ PROJECT_ROOT = TEST_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from src.feature_selection.phase2.compute_importance import (  # noqa: E402
-    compute_fold_importance,
     aggregate_importance,
+    compute_fold_importance,
 )
 
 

@@ -15,8 +15,8 @@ import itertools
 import json
 import shutil
 import sys
-from pathlib import Path
 from collections.abc import Mapping as MappingABC
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Sequence, Tuple, cast
 
 import numpy as np
@@ -25,7 +25,6 @@ import yaml
 from sklearn.base import clone
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.pipeline import Pipeline
-
 
 THIS_DIR = Path(__file__).resolve().parent
 SRC_ROOT = THIS_DIR.parents[1]
@@ -39,7 +38,10 @@ from scripts.utils_msr import (  # noqa: E402
 	evaluate_msr_proxy,
 	grid_search_msr,
 )
-from src.feature_generation.su1.feature_su1 import SU1Config, load_su1_config  # noqa: E402
+from src.feature_generation.su1.feature_su1 import (  # noqa: E402
+	SU1Config,
+	load_su1_config,
+)
 from src.feature_generation.su2.feature_su2 import SU2Config  # noqa: E402
 from src.feature_generation.su2.train_su2 import (  # noqa: E402
 	SU2FeatureAugmenter,

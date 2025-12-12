@@ -31,12 +31,12 @@ for path in (SRC_ROOT, PROJECT_ROOT):
         sys.path.append(str(path))
 
 from src.feature_generation.su5.train_su5 import (  # noqa: E402
+    SU5FeatureAugmenter,
+    _prepare_features,
+    infer_train_file,
     load_su1_config,
     load_su5_config,
-    infer_train_file,
     load_table,
-    _prepare_features,
-    SU5FeatureAugmenter,
 )
 
 

@@ -7,7 +7,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.feature_generation.su4.feature_su4 import SU4Config, SU4FeatureGenerator, load_su4_config
+from src.feature_generation.su4.feature_su4 import (
+	SU4Config,
+	SU4FeatureGenerator,
+	load_su4_config,
+)
 
 
 def _build_config() -> SU4Config:

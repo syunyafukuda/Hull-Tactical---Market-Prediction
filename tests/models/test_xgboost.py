@@ -2,9 +2,10 @@
 
 import sys
 from pathlib import Path
-import pytest
+
 import numpy as np
 import pandas as pd
+import pytest
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -12,9 +13,9 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.models.xgboost.train_xgb import (  # noqa: E402
+    _to_1d,
     parse_args,
     sanitize_feature_names,
-    _to_1d,
 )
 
 

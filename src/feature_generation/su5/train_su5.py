@@ -27,18 +27,19 @@ from typing import Any, Dict, Iterable, List, Mapping, Sequence, cast
 
 import numpy as np
 import pandas as pd
-import yaml
 import sklearn
+import yaml
 
 try:
-	from lightgbm import LGBMRegressor  # type: ignore
 	import lightgbm as lgb  # type: ignore
+	from lightgbm import LGBMRegressor  # type: ignore
 	HAS_LGBM = True
 except Exception:
 	LGBMRegressor = None  # type: ignore
 	lgb = None  # type: ignore
 	HAS_LGBM = False
 
+import joblib
 from sklearn.base import BaseEstimator, TransformerMixin, clone
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.impute import SimpleImputer
@@ -46,9 +47,6 @@ from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
-
-import joblib
-
 
 THIS_DIR = Path(__file__).resolve().parent
 SRC_ROOT = THIS_DIR.parents[1]
@@ -123,6 +121,16 @@ def _ensure_numpy_bitgenerator_aliases() -> None:
 
 _ensure_numpy_bitgenerator_aliases()
 
+from preprocess.E_group.e_group import EGroupImputer  # noqa: E402
+from preprocess.I_group.i_group import IGroupImputer  # noqa: E402
+from preprocess.M_group.m_group import MGroupImputer  # noqa: E402
+from preprocess.P_group.p_group import PGroupImputer  # noqa: E402
+from preprocess.S_group.s_group import SGroupImputer  # noqa: E402
+from scripts.utils_msr import (  # noqa: E402
+	PostProcessParams,
+	evaluate_msr_proxy,
+	grid_search_msr,
+)
 from src.feature_generation.su1.feature_su1 import (  # noqa: E402
 	SU1Config,
 	SU1FeatureGenerator,
@@ -132,16 +140,6 @@ from src.feature_generation.su5.feature_su5 import (  # noqa: E402
 	SU5Config,
 	SU5FeatureGenerator,
 	load_su5_config,
-)
-from preprocess.M_group.m_group import MGroupImputer  # noqa: E402
-from preprocess.E_group.e_group import EGroupImputer  # noqa: E402
-from preprocess.I_group.i_group import IGroupImputer  # noqa: E402
-from preprocess.P_group.p_group import PGroupImputer  # noqa: E402
-from preprocess.S_group.s_group import SGroupImputer  # noqa: E402
-from scripts.utils_msr import (  # noqa: E402
-	PostProcessParams,
-	evaluate_msr_proxy,
-	grid_search_msr,
 )
 
 

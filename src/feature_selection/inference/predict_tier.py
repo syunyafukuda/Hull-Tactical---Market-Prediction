@@ -21,7 +21,6 @@ import joblib
 import numpy as np
 import pandas as pd
 
-
 THIS_DIR = Path(__file__).resolve().parent
 SRC_ROOT = THIS_DIR.parents[0]
 PROJECT_ROOT = THIS_DIR.parents[1]

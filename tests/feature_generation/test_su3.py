@@ -392,8 +392,8 @@ def test_su3_dtype() -> None:
 
 def test_su3_feature_augmenter() -> None:
 	"""SU3FeatureAugmenterの基本動作確認。"""
-	from src.feature_generation.su3.feature_su3 import SU3FeatureAugmenter
 	from src.feature_generation.su1.feature_su1 import SU1Config
+	from src.feature_generation.su3.feature_su3 import SU3FeatureAugmenter
 	
 	# SU1設定
 	su1_mapping = {
@@ -455,8 +455,8 @@ def test_su3_feature_augmenter() -> None:
 
 def test_su3_augmenter_with_fold_indices() -> None:
 	"""SU3FeatureAugmenterでfold_indicesが正しく伝播するか確認。"""
-	from src.feature_generation.su3.feature_su3 import SU3FeatureAugmenter
 	from src.feature_generation.su1.feature_su1 import SU1Config
+	from src.feature_generation.su3.feature_su3 import SU3FeatureAugmenter
 	
 	# SU1設定
 	su1_mapping = {
@@ -508,8 +508,8 @@ def test_su3_augmenter_with_fold_indices() -> None:
 
 def test_su3_augmenter_column_count() -> None:
 	"""SU3FeatureAugmenterの特徴量数確認（目標: 約474列）。"""
-	from src.feature_generation.su3.feature_su3 import SU3FeatureAugmenter
 	from src.feature_generation.su1.feature_su1 import SU1Config
+	from src.feature_generation.su3.feature_su3 import SU3FeatureAugmenter
 	
 	# SU1設定（全グループを含む）
 	su1_mapping = {
@@ -586,8 +586,9 @@ def test_su3_augmenter_column_count() -> None:
 
 def _create_test_su1_config_for_sweep():
 	"""スイープテスト用のSU1Configを構築する。"""
-	from src.feature_generation.su1.feature_su1 import SU1Config
 	from pathlib import Path
+
+	from src.feature_generation.su1.feature_su1 import SU1Config
 	mapping = {
 		"id_column": "date_id",
 		"exclude_columns": ["forward_returns", "risk_free_rate", "market_forward_excess_returns"],
@@ -819,11 +820,12 @@ def test_sweep_evaluate_single_config_small_data() -> None:
 
 def test_sweep_save_results() -> None:
 	"""結果保存機能の確認。"""
-	from src.feature_generation.su3.sweep_oof import save_results
-	import json
 	import csv
+	import json
 	import tempfile
 	from pathlib import Path
+
+	from src.feature_generation.su3.sweep_oof import save_results
 	
 	results = [
 		{

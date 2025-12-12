@@ -14,9 +14,10 @@ import argparse
 import json
 import sys
 from pathlib import Path
-import pandas as pd
-import numpy as np
+
 import joblib
+import numpy as np
+import pandas as pd
 
 # ensure project root on sys.path for `scripts.utils_msr`
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
