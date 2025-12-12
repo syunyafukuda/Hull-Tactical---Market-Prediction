@@ -17,7 +17,10 @@
 - ⬜ `artifacts/models/catboost/oof_predictions.csv`
 - ⬜ `artifacts/models/catboost/cv_fold_logs.csv`
 - ⬜ `artifacts/models/catboost/model_meta.json`
+- ⬜ `artifacts/models/catboost/feature_list.json`
 - ⬜ `artifacts/models/catboost/submission.csv`
+
+**Note**: 出力仕様の詳細は [README.md](README.md#成果物出力仕様kaggle-nb用) を参照。
 
 ---
 

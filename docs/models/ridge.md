@@ -17,7 +17,10 @@
 - ⬜ `artifacts/models/ridge/oof_predictions.csv`
 - ⬜ `artifacts/models/ridge/cv_fold_logs.csv`
 - ⬜ `artifacts/models/ridge/model_meta.json`
+- ⬜ `artifacts/models/ridge/feature_list.json`
 - ⬜ `artifacts/models/ridge/submission.csv`
+
+**Note**: 出力仕様の詳細は [README.md](README.md#成果物出力仕様kaggle-nb用) を参照。
 
 ---
 

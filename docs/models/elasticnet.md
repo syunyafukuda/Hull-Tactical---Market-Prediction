@@ -16,8 +16,11 @@
 - ⬜ `artifacts/models/elasticnet/oof_predictions.csv`
 - ⬜ `artifacts/models/elasticnet/cv_fold_logs.csv`
 - ⬜ `artifacts/models/elasticnet/model_meta.json`
+- ⬜ `artifacts/models/elasticnet/feature_list.json`
 - ⬜ `artifacts/models/elasticnet/coefficients.csv` （係数出力）
 - ⬜ `artifacts/models/elasticnet/submission.csv`
+
+**Note**: 出力仕様の詳細は [README.md](README.md#成果物出力仕様kaggle-nb用) を参照。
 
 ---
 

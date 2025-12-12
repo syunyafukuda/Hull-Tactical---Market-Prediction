@@ -16,8 +16,11 @@
 - ⬜ `artifacts/models/randomforest/oof_predictions.csv`
 - ⬜ `artifacts/models/randomforest/cv_fold_logs.csv`
 - ⬜ `artifacts/models/randomforest/model_meta.json`
+- ⬜ `artifacts/models/randomforest/feature_list.json`
 - ⬜ `artifacts/models/randomforest/feature_importances.csv` （特徴量重要度）
 - ⬜ `artifacts/models/randomforest/submission.csv`
+
+**Note**: 出力仕様の詳細は [README.md](README.md#成果物出力仕様kaggle-nb用) を参照。
 
 ---
 

@@ -16,8 +16,11 @@
 - ⬜ `artifacts/models/extratrees/oof_predictions.csv`
 - ⬜ `artifacts/models/extratrees/cv_fold_logs.csv`
 - ⬜ `artifacts/models/extratrees/model_meta.json`
+- ⬜ `artifacts/models/extratrees/feature_list.json`
 - ⬜ `artifacts/models/extratrees/feature_importances.csv` （特徴量重要度）
 - ⬜ `artifacts/models/extratrees/submission.csv`
+
+**Note**: 出力仕様の詳細は [README.md](README.md#成果物出力仕様kaggle-nb用) を参照。
 
 ---
 

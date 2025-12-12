@@ -16,8 +16,11 @@
 - ⬜ `artifacts/models/lasso/oof_predictions.csv`
 - ⬜ `artifacts/models/lasso/cv_fold_logs.csv`
 - ⬜ `artifacts/models/lasso/model_meta.json`
+- ⬜ `artifacts/models/lasso/feature_list.json`
 - ⬜ `artifacts/models/lasso/coefficients.csv` （係数出力）
 - ⬜ `artifacts/models/lasso/submission.csv`
+
+**Note**: 出力仕様の詳細は [README.md](README.md#成果物出力仕様kaggle-nb用) を参照。
 
 ---
 

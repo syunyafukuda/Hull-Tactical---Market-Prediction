@@ -12,13 +12,15 @@
 - ✅ Unit tests: `tests/models/test_xgboost.py`
 
 ### 成果物（実行時生成）
-- ⬜ `artifacts/models/xgboost/inference_bundle.pkl`
-- ⬜ `artifacts/models/xgboost/oof_predictions.csv`
-- ⬜ `artifacts/models/xgboost/cv_fold_logs.csv`
-- ⬜ `artifacts/models/xgboost/model_meta.json`
-- ⬜ `artifacts/models/xgboost/submission.csv`
+- ✅ `artifacts/models/xgboost/inference_bundle.pkl`
+- ✅ `artifacts/models/xgboost/oof_predictions.csv`
+- ✅ `artifacts/models/xgboost/cv_fold_logs.csv`
+- ✅ `artifacts/models/xgboost/model_meta.json`
+- ✅ `artifacts/models/xgboost/feature_list.json`
+- ✅ `artifacts/models/xgboost/submission.csv`
 
-**Note**: 成果物は実際のデータで学習実行時に生成されます。テスト環境では検証済み。
+**Note**: 成果物は実際のデータで学習実行時に生成されます。
+出力仕様の詳細は [README.md](README.md#成果物出力仕様kaggle-nb用) を参照。
 
 ---
 

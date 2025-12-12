@@ -263,10 +263,13 @@ configs/models/
 
 artifacts/models/
 ├── lgbm/                      # ✅ 成果物あり
-│   ├── inference_bundle.pkl
-│   ├── oof_predictions.csv
-│   └── model_meta.json
-├── xgboost/
+│   ├── inference_bundle.pkl   # モデル + 前処理パイプライン
+│   ├── oof_predictions.csv    # OOF予測値
+│   ├── cv_fold_logs.csv       # フォールドごとのメトリクス
+│   ├── model_meta.json        # メタデータ（id_col, target_col, oof_best_params含む）
+│   ├── feature_list.json      # 特徴量リスト（Kaggle NB用）
+│   └── submission.csv         # テスト予測（signal形式）
+├── xgboost/                   # ✅ 成果物あり
 ├── catboost/
 ├── extratrees/                # 新規
 ├── randomforest/              # 新規
@@ -333,6 +336,84 @@ docs/models/
 | 組み合わせ | OOF RMSE | LB Score | 状態 |
 |-----------|----------|----------|------|
 | - | - | - | 未着手 |
+
+---
+
+## 成果物出力仕様（Kaggle NB用）
+
+全モデルで共通の成果物フォーマットを使用し、Kaggle Notebookでの推論に必要な情報を出力する。
+
+### model_meta.json スキーマ
+
+```json
+{
+  "model_type": "xgboost",
+  "feature_tier": "tier3",
+  "n_features": 116,
+  "oof_rmse": 0.011091,
+  "oof_msr": 0.039917,
+  "n_splits": 5,
+  "gap": 0,
+  "hyperparameters": { ... },
+  "created_at": "2025-12-12T19:32:40.937939+00:00",
+  "id_col": "date_id",
+  "target_col": "market_forward_excess_returns",
+  "oof_best_params": {
+    "mult": 1.0,
+    "lo": 0.9,
+    "hi": 1.1
+  }
+}
+```
+
+**必須フィールド（Kaggle NB用）**:
+- `id_col`: ID列名（Kaggle NBでprediction取得時に使用）
+- `target_col`: 目的変数列名（参照用）
+- `oof_best_params`: signal変換パラメータ
+  - `mult`: 予測値に掛ける係数（デフォルト1.0）
+  - `lo`, `hi`: クリッピング範囲（デフォルト0.9〜1.1）
+
+### feature_list.json スキーマ
+
+```json
+{
+  "version": "xgboost-tier3-v1",
+  "created_at": "2025-12-12T19:32:40.944155+00:00",
+  "pipeline_input_columns": ["D1", "D2", ...],
+  "su1_generated_columns": ["run_na/E1", "run_obs/E1", ...],
+  "su5_generated_columns": [],
+  "model_input_columns": ["D1", "D2", ..., "run_na/E1", ...],
+  "total_feature_count": 116,
+  "source_commit": "a55f8e8...",
+  "source_branch": "feat/model-xgboost"
+}
+```
+
+**フィールド説明**:
+- `pipeline_input_columns`: パイプラインへの入力特徴量（生データの94列）
+- `su1_generated_columns`: SU1で生成された特徴量（run_na/*, run_obs/*, avg_run_na/*）
+- `su5_generated_columns`: SU5で生成された特徴量（現在は空）
+- `model_input_columns`: tier除外後の最終特徴量リスト
+- `total_feature_count`: 最終特徴量数
+
+### submission.csv フォーマット
+
+```csv
+date_id,prediction
+8980,1.00021046416077
+8981,0.99721418204717
+...
+```
+
+**Signal変換**:
+```python
+# 生予測値をsignal形式に変換
+signal_pred = np.clip(raw_pred * mult + 1.0, lo, hi)
+```
+
+- `is_scored == True` の行のみを含める
+- 列名は `prediction` （target_col名ではない）
+- 値は ~1.0 を中心とした signal 形式（0.9〜1.1の範囲）
 
 ---
 
