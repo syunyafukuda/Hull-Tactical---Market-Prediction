@@ -16,6 +16,7 @@
 - ⬜ `artifacts/models/extratrees/oof_predictions.csv`
 - ⬜ `artifacts/models/extratrees/cv_fold_logs.csv`
 - ⬜ `artifacts/models/extratrees/model_meta.json`
+- ⬜ `artifacts/models/extratrees/feature_importances.csv` （特徴量重要度）
 
 ---
 
@@ -102,6 +103,12 @@ extratrees_params = {
 | 予測の揺れ | 穏やか | 急峻 |
 | 過学習傾向 | 低い | 中程度 |
 | スケーリング | 不要 | 不要 |
+
+> **📌 RandomForestとの役割分担**
+>
+> ExtraTreesは「よりランダムでバリアンス高め」、RandomForestは「もう少し落ち着いたランダム性」という特徴があります。
+> アンサンブル観点では、ExtraTreesは「変な揺れ方」をさせたいときに採用します。
+> **まずExtraTreesを試し、RandomForestはOOF RMSEと相関を見て採否を決定**する方針です。
 
 ---
 
@@ -476,6 +483,12 @@ def test_extratrees_cv_pipeline(sample_train_data: pd.DataFrame) -> None:
 | **主指標** | OOF RMSE | ≤ 0.0130 | LGBM（0.01216）より多少劣っても許容 |
 | 補助 | 予測相関（vs LGBM） | < 0.92 | アンサンブル多様性の確保 |
 | 補助 | OOF MSR | > 0（監視のみ） | トレード観点での健全性確認 |
+
+> **📌 アンサンブル候補としての判断基準**
+>
+> 意思決定はRMSEで行い、MSRと相関は補助的な診断指標とします。
+> **RMSEは多少悪くても（≤ 0.0130）、多様性（相関 < 0.92）が確保できればアンサンブル候補として残す**方針です。
+> ExtraTreesは「GBDTとは異なる揺れ方」を期待したモデルであり、精度よりも多様性を重視します。
 
 ### 5.2 定性基準
 

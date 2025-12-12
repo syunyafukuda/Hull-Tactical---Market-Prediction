@@ -16,6 +16,7 @@
 - ⬜ `artifacts/models/randomforest/oof_predictions.csv`
 - ⬜ `artifacts/models/randomforest/cv_fold_logs.csv`
 - ⬜ `artifacts/models/randomforest/model_meta.json`
+- ⬜ `artifacts/models/randomforest/feature_importances.csv` （特徴量重要度）
 
 ---
 
@@ -103,6 +104,12 @@ randomforest_params = {
 | 計算コスト | やや高い | 低い |
 | バリアンス | やや低い | 高い |
 | バイアス | やや高い | 低い |
+
+> **📌 アンサンブル観点での使い分け**
+>
+> - **ExtraTrees優先**: まずExtraTreesを実装・評価
+> - **RandomForest**: ExtraTreesの結果を見てから採否を決定
+> - **両者の相関が高い場合**（> 0.95）: より良いRMSEを示す方のみをアンサンブルに採用
 
 ---
 
@@ -452,6 +459,15 @@ class TestRandomForestPipeline:
 | **主指標** | OOF RMSE | ≤ 0.0130 | LGBM（0.01216）より多少劣っても許容 |
 | 補助 | 予測相関（vs LGBM） | < 0.92 | アンサンブル多様性の確保 |
 | 補助 | OOF MSR | > 0（監視のみ） | トレード観点での健全性確認 |
+| 参考 | OOB R² | 記録 | ブートストラップ外サンプルでの汎化指標 |
+
+> **📌 アンサンブル候補としての判断基準**
+>
+> 意思決定はRMSEで行い、MSRと相関は補助的な診断指標とします。
+> OOB R²はあくまで補助的指標であり、最終的な意思決定はOOF RMSEで行います。
+>
+> **ExtraTreesとの優先ルール**: まずExtraTreesを試し、RandomForestはOOF RMSEと相関を見て採否を決めます。
+> 両者の相関が高い場合（> 0.95）は、より良いRMSEを示す方のみをアンサンブルに採用することを検討します。
 
 ### 5.2 定性基準
 
