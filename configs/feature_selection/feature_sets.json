@@ -1,0 +1,37 @@
+{
+  "version": "v1",
+  "created_at": "2025-12-11T16:40:43.741788+00:00",
+  "updated_at": "2025-12-12T10:00:00.000000+00:00",
+  "feature_sets": {
+    "FS_full": {
+      "description": "Tier2 full feature set",
+      "excluded_json": "configs/feature_selection/tier2/excluded.json",
+      "n_features": 120,
+      "oof_rmse": 0.012171980558881882,
+      "lb_score": 0.681,
+      "status": "baseline"
+    },
+    "FS_compact": {
+      "description": "Tier3 after correlation clustering",
+      "excluded_json": "configs/feature_selection/tier3/excluded.json",
+      "n_features": 116,
+      "oof_rmse": 0.012163847572820213,
+      "lb_score": 0.681,
+      "status": "adopted"
+    },
+    "FS_topK": {
+      "description": "Top 50 features by importance",
+      "excluded_json": "configs/feature_selection/tier_topK/excluded.json",
+      "n_features": 50,
+      "oof_rmse": 0.012023171742294917,
+      "lb_score": 0.589,
+      "status": "rejected",
+      "rejection_reason": "過学習: OOF最良にもかかわらずLBで-13.5%大幅悪化"
+    }
+  },
+  "recommended": "FS_compact",
+  "lb_validation": {
+    "validated_at": "2025-12-12",
+    "conclusion": "FS_compact採用: LB維持(0.681)かつ特徴量4列削減(120→116)"
+  }
+}
