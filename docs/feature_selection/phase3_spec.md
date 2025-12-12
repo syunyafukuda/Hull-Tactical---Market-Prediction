@@ -70,7 +70,7 @@ Phase 3-4: Feature Set 定義
 
 ---
 
-## Phase 3-1: 相関クラスタリング
+## Phase 3-1: 変数クラスタリング (Variable Clustering)
 
 ### 目的
 
@@ -79,18 +79,20 @@ Tier2（120列）の中に残っている「そこそこ効いているが、互
 
 ### 方法
 
-1. **相関行列の計算**
-   - 前処理後（Imputer + Scaler 適用後）の特徴行列で相関を計算
+1. **VarClus アルゴリズムの適用**
+   - 前処理後（Imputer + Scaler 適用後）の特徴行列を使用
    - Tier2 の 120 列のみを対象
+   - PCA ベースの階層的変数クラスタリングを実施
 
-2. **閾値設定**
-   - Phase 1 より緩い閾値: `|ρ| > 0.95`
-   - 「ほぼ同じ情報」ではなく「かなり似た情報」を捉える
+2. **VarClus の特徴**
+   - 第2固有値が1を超える場合にクラスタを分割
+   - 主成分との相関に基づいて特徴をクラスタに割り当て
+   - 単純な相関閾値よりも統計的に洗練された手法
 
-3. **クラスタリング**
-   - 相関行列を距離に変換: `distance = 1 - |ρ|`
-   - 階層クラスタリング（Ward 法）でグループ化
-   - 閾値でクラスタを切り出し
+3. **クラスタリング結果**
+   - 各クラスタの分散説明率 (VarProp) を計算
+   - クラスタ内の最大相関係数も記録
+   - 単一特徴クラスタ（シングルトン）も識別
 
 ### 出力スキーマ
 
@@ -98,14 +100,16 @@ Tier2（120列）の中に残っている「そこそこ効いているが、互
 
 ```json
 {
-  "threshold": 0.95,
+  "method": "VarClus",
+  "maxeigval2": 1,
   "n_clusters": 15,
   "clusters": [
     {
       "cluster_id": 1,
       "features": ["M1", "M2", "M3"],
       "representative": "M1",
-      "max_correlation": 0.98
+      "max_correlation": 0.98,
+      "variance_explained": 0.85
     },
     ...
   ],
@@ -122,7 +126,7 @@ Tier2（120列）の中に残っている「そこそこ効いているが、互
 - `--preprocess-config`: 前処理設定
 - `--data-dir`: データディレクトリ
 - `--exclude-features`: Tier2 除外リスト
-- `--correlation-threshold`: 相関閾値（デフォルト: 0.95）
+- `--correlation-threshold`: （非推奨、VarClus では未使用）
 - `--out-dir`: 出力先
 
 ---
