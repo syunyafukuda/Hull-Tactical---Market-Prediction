@@ -418,7 +418,9 @@ uv run pyright src/models/catboost/
 
 ---
 
-## 9. 注意事項
+## 9. 注意事項（XGBoost実装から得た共通教訓を含む）
+
+### 9.1 CatBoost固有の注意点
 
 1. **Ordered Boosting**: デフォルトで有効。時系列データに有利だが、学習が遅くなる場合がある。`boosting_type='Plain'`で無効化可能。
 
@@ -426,6 +428,40 @@ uv run pyright src/models/catboost/
 
 3. **モデルサイズ**: CatBoostのモデルファイルは比較的大きくなる傾向がある。
 
-4. **sklearn互換性**: `CatBoostRegressor`はsklearn互換APIを持つが、Pipelineでの使用時に一部制約あり（fit_params の渡し方など）。
+4. **特徴量重要度**: `get_feature_importance()`で取得可能。type='PredictionValuesChange'がLGBMのgainに相当。
 
-5. **特徴量重要度**: `get_feature_importance()`で取得可能。type='PredictionValuesChange'がLGBMのgainに相当。
+### 9.2 Early Stopping と eval_set の前処理（XGBoostと同様）
+
+1. **eval_set の前処理**: CVループでeval_setを使う場合、**パイプライン経由ではなく手動でimputation**を適用する必要がある
+   - パイプラインのfitではeval_setに前処理が適用されない
+   - 解決策: 各imputerをclone()してfit_transform/transformを手動適用
+
+2. **最終モデル学習時のearly_stopping無効化**: 全データで再学習する際は検証セットがないため、`early_stopping_rounds`を**削除**してモデルを再構築
+
+### 9.3 テスト予測時のfeatureフィルタリング
+
+テストデータには学習時に存在しないカラム（`is_scored`, `lagged_*`等）が含まれる場合がある。
+**学習時のfeature_colsのみを抽出**してから予測を実行：
+```python
+test_features = test_df[feature_cols].copy()
+test_pred = final_pipeline.predict(test_features)
+```
+
+### 9.4 submission.csv のシグナル変換
+
+生の予測値（excess returns）ではなく、**競技シグナル形式**に変換して出力：
+```python
+# シグナル変換: pred * mult + 1.0, clipped to [0.9, 1.1]
+signal_mult = 1.0
+signal_pred = np.clip(test_pred * signal_mult + 1.0, 0.9, 1.1)
+
+# カラム名は "prediction"（target変数名ではない）
+submission_df = pd.DataFrame({
+    "date_id": id_values,
+    "prediction": signal_pred,
+})
+```
+
+### 9.5 is_scored フィルタリング
+
+submission.csvには`is_scored==True`の行のみを含める（競技要件）。

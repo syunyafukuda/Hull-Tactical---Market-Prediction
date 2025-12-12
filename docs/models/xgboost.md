@@ -373,15 +373,69 @@ uv run pyright src/models/xgboost/
 
 ---
 
-## 9. 注意事項
+## 9. 注意事項（実装から得た教訓）
 
-1. **Early Stopping**: XGBoostでは`early_stopping_rounds`パラメータを使用。eval_setの指定が必須。
+### 9.1 Early Stopping と eval_set の前処理
 
-2. **特徴量名**: XGBoostは特徴量名に`[`, `]`, `<`を含むと警告が出る。必要に応じてサニタイズ。
+1. **XGBoost 2.0+ API変更**: `early_stopping_rounds`はfit()ではなく**コンストラクタで指定**する必要がある
+   ```python
+   # ✅ 正しい（XGBoost 2.0+）
+   model = XGBRegressor(early_stopping_rounds=50, ...)
+   model.fit(X_train, y_train, eval_set=[(X_valid, y_valid)])
+   
+   # ❌ エラー（XGBoost 2.0+）
+   model.fit(X_train, y_train, early_stopping_rounds=50, eval_set=...)
+   ```
 
-3. **メモリ使用量**: tree_method="hist"を使用することで、GPUなしでも高速化可能。
+2. **eval_set の前処理**: CVループでeval_setを使う場合、**パイプライン経由ではなく手動でimputation**を適用する必要がある
+   - パイプラインのfitではeval_setに前処理が適用されない
+   - 解決策: 各imputerをclone()してfit_transform/transformを手動適用
 
-4. **再現性**: `random_state`を固定しても、マルチスレッド環境では完全な再現性が保証されない場合がある。
+### 9.2 特徴量名のサニタイズ
+
+XGBoostは特徴量名に`[`, `]`, `<`, `>`を含むと警告が出る。`sanitize_feature_names()`でアンダースコアに置換。
+
+### 9.3 テスト予測時のfeatureフィルタリング
+
+テストデータには学習時に存在しないカラム（`is_scored`, `lagged_*`等）が含まれる場合がある。
+**学習時のfeature_colsのみを抽出**してから予測を実行：
+```python
+test_features = test_df[feature_cols].copy()
+test_pred = final_pipeline.predict(test_features)
+```
+
+### 9.4 submission.csv のシグナル変換
+
+生の予測値（excess returns）ではなく、**競技シグナル形式**に変換して出力：
+```python
+# シグナル変換: pred * mult + 1.0, clipped to [0.9, 1.1]
+signal_mult = 1.0
+signal_pred = np.clip(test_pred * signal_mult + 1.0, 0.9, 1.1)
+
+# カラム名は "prediction"（target変数名ではない）
+submission_df = pd.DataFrame({
+    "date_id": id_values,
+    "prediction": signal_pred,
+})
+```
+
+### 9.5 is_scored フィルタリング
+
+submission.csvには`is_scored==True`の行のみを含める（競技要件）。
+
+### 9.6 最終モデル学習時のearly_stopping無効化
+
+全データで再学習する際は検証セットがないため、`early_stopping_rounds`を**削除**してパイプラインを再構築：
+```python
+model_kwargs_final = model_kwargs.copy()
+model_kwargs_final.pop("early_stopping_rounds", None)
+final_pipeline = build_xgb_pipeline(..., model_kwargs=model_kwargs_final)
+```
+
+### 9.7 その他
+
+- **メモリ使用量**: `tree_method="hist"`を使用することで、GPUなしでも高速化可能
+- **再現性**: `random_state`を固定しても、マルチスレッド環境では完全な再現性が保証されない場合がある
 
 ---
 

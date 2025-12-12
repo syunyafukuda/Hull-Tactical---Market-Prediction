@@ -638,3 +638,35 @@ print(nonzero.head(20))
 - [scikit-learn LassoCV](https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LassoCV.html)
 - [Ridge仕様書](ridge.md)
 - [ElasticNet仕様書](elasticnet.md)
+
+---
+
+## 9. 注意事項（XGBoost実装から得た共通教訓）
+
+### 9.1 テスト予測時のfeatureフィルタリング
+
+テストデータには学習時に存在しないカラム（`is_scored`, `lagged_*`等）が含まれる場合がある。
+**学習時のfeature_colsのみを抽出**してから予測を実行：
+```python
+test_features = test_df[feature_cols].copy()
+test_pred = final_pipeline.predict(test_features)
+```
+
+### 9.2 submission.csv のシグナル変換
+
+生の予測値（excess returns）ではなく、**競技シグナル形式**に変換して出力：
+```python
+# シグナル変換: pred * mult + 1.0, clipped to [0.9, 1.1]
+signal_mult = 1.0
+signal_pred = np.clip(test_pred * signal_mult + 1.0, 0.9, 1.1)
+
+# カラム名は "prediction"（target変数名ではない）
+submission_df = pd.DataFrame({
+    "date_id": id_values,
+    "prediction": signal_pred,
+})
+```
+
+### 9.3 is_scored フィルタリング
+
+submission.csvには`is_scored==True`の行のみを含める（競技要件）。
