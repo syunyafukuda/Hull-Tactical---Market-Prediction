@@ -155,6 +155,7 @@ def generate_phase3_report(
 ) -> None:
     """Generate Phase 3 report markdown."""
     # Load data
+    tier3_excluded: Dict[str, Any] | None = None
     if not skip_clustering:
         with open(clustering_path, "r") as f:
             clustering = json.load(f)
@@ -216,7 +217,7 @@ def generate_phase3_report(
             "",
             "### Phase 3-3: Tier3 評価",
             "",
-            f"- **Tier3 除外特徴数**: {tier3_excluded['summary']['total_exclusions']}",
+            f"- **Tier3 除外特徴数**: {tier3_excluded['summary']['total_exclusions'] if tier3_excluded else 'N/A'}",
             "",
         ])
         

@@ -145,7 +145,7 @@ def compute_correlation_clusters(
     clusters_dict: Dict[int, List[str]] = {}
     for _, row in rsquare_df.iterrows():
         cluster_id = int(row['Cluster'])
-        feature = row['Variable']
+        feature = str(row['Variable'])
         if cluster_id not in clusters_dict:
             clusters_dict[cluster_id] = []
         clusters_dict[cluster_id].append(feature)
@@ -166,8 +166,12 @@ def compute_correlation_clusters(
             max_corr = np.abs(cluster_corr.values[np.triu_indices_from(cluster_corr.values, k=1)]).max()
             
             # Get VarProp (proportion of variance explained by 1st PC) for this cluster
-            cluster_info = info_df[info_df['Cluster'] == cluster_id]
-            var_prop = float(cluster_info['VarProp'].iloc[0]) if len(cluster_info) > 0 else 0.0
+            cluster_info_df = info_df[info_df['Cluster'] == cluster_id]
+            if len(cluster_info_df) > 0:
+                assert isinstance(cluster_info_df, pd.DataFrame)
+                var_prop = float(cluster_info_df['VarProp'].iloc[0])
+            else:
+                var_prop = 0.0
             
             clusters.append({
                 "cluster_id": int(cluster_id),
@@ -259,9 +263,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     
     # Select only Tier2 features
     X_tier2 = X_train[tier2_features]
+    assert isinstance(X_tier2, pd.DataFrame)
     
     # Perform VarClus clustering
-    print(f"Performing VarClus variable clustering...")
+    print("Performing VarClus variable clustering...")
     clustering_result = compute_correlation_clusters(
         X_tier2,
         threshold=args.correlation_threshold,  # Not used by VarClus, kept for compatibility
