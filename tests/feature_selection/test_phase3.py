@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Tests for Phase 3 correlation clustering and feature set creation."""
 
+import numpy as np
 import pandas as pd
 from pathlib import Path
 import sys
@@ -25,7 +26,6 @@ class TestCorrelationClustering:
     def test_compute_correlation_clusters_basic(self):
         """Test basic VarClus clustering."""
         # Create sample data with correlated features
-        import numpy as np
         np.random.seed(42)
         n_samples = 100
         
@@ -52,7 +52,6 @@ class TestCorrelationClustering:
     def test_compute_correlation_clusters_all_uncorrelated(self):
         """Test VarClus with uncorrelated features."""
         # Create data with independent features
-        import numpy as np
         np.random.seed(42)
         n_samples = 100
         
@@ -75,7 +74,6 @@ class TestCorrelationClustering:
     def test_compute_correlation_clusters_all_correlated(self):
         """Test VarClus with highly correlated features."""
         # Create data where all features are correlated
-        import numpy as np
         np.random.seed(42)
         n_samples = 100
         
@@ -103,7 +101,6 @@ class TestCorrelationClustering:
     def test_compute_correlation_clusters_negative_correlation(self):
         """Test VarClus with negative correlations."""
         # Create data with negative correlation
-        import numpy as np
         np.random.seed(42)
         n_samples = 100
         

@@ -120,12 +120,22 @@ def compute_correlation_clusters(
         
     Returns:
         Dictionary containing cluster assignments and metadata
+        
+    Raises:
+        ValueError: If VarClus fails to execute (e.g., singular matrix, insufficient data)
     """
-    # Run VarClus algorithm
-    # maxeigval2=1 means split clusters if second eigenvalue > 1
-    # This ensures clusters are homogeneous (features within cluster explain variance well)
-    vc = VarClusHi(X_data, maxeigval2=1, maxclus=None)
-    vc.varclus()
+    try:
+        # Run VarClus algorithm
+        # maxeigval2=1 means split clusters if second eigenvalue > 1
+        # This ensures clusters are homogeneous (features within cluster explain variance well)
+        vc = VarClusHi(X_data, maxeigval2=1, maxclus=None)
+        vc.varclus()
+    except Exception as e:
+        raise ValueError(
+            f"VarClus algorithm failed to execute. This may be due to "
+            f"singular matrices, insufficient data, or highly correlated features. "
+            f"Original error: {str(e)}"
+        ) from e
     
     # Extract cluster information
     rsquare_df = vc.rsquare
@@ -157,7 +167,7 @@ def compute_correlation_clusters(
             
             # Get VarProp (proportion of variance explained by 1st PC) for this cluster
             cluster_info = info_df[info_df['Cluster'] == cluster_id]
-            var_prop = float(cluster_info['VarProp'].iloc[0]) if not cluster_info.empty else 0.0
+            var_prop = float(cluster_info['VarProp'].iloc[0]) if len(cluster_info) > 0 else 0.0
             
             clusters.append({
                 "cluster_id": int(cluster_id),
