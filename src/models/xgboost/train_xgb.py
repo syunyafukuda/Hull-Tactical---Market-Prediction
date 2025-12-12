@@ -624,19 +624,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         test_pred = final_pipeline.predict(test_features)
         test_pred = _to_1d(test_pred)
 
-        # Build submission DataFrame
-        submission_df = pd.DataFrame(
-            {
-                args.id_col: test_df[args.id_col] if args.id_col in test_df.columns else np.arange(len(test_pred)),
-                args.target_col: test_pred,
-            }
-        )
+        # Apply signal transformation: pred * mult + 1.0, clipped to [0.9, 1.1]
+        # This converts excess returns predictions to competition signal format
+        signal_mult = 1.0
+        signal_lo = 0.9
+        signal_hi = 1.1
+        signal_pred = np.clip(test_pred * signal_mult + 1.0, signal_lo, signal_hi)
 
         # Filter to is_scored==True rows only (competition requirement)
         if "is_scored" in test_df.columns:
-            is_scored_mask = test_df["is_scored"].astype(bool)
-            submission_df = submission_df.loc[is_scored_mask].copy()
-            print(f"[info] Filtered to {len(submission_df)} scored rows")
+            is_scored_mask = test_df["is_scored"].astype(bool).values
+            signal_pred_scored = signal_pred[is_scored_mask]
+            id_values = test_df.loc[is_scored_mask, args.id_col].values if args.id_col in test_df.columns else np.arange(len(signal_pred_scored))
+            print(f"[info] Filtered to {len(signal_pred_scored)} scored rows")
+        else:
+            signal_pred_scored = signal_pred
+            id_values = test_df[args.id_col].values if args.id_col in test_df.columns else np.arange(len(signal_pred_scored))
+
+        # Build submission DataFrame with standard column names
+        submission_df = pd.DataFrame(
+            {
+                args.id_col: id_values,
+                "prediction": signal_pred_scored,
+            }
+        )
 
         submission_path = out_dir / "submission.csv"
         submission_df.to_csv(submission_path, index=False)
