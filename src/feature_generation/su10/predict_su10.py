@@ -105,8 +105,8 @@ from src.feature_generation.su5.feature_su5 import (  # noqa: E402,F401
     SU5Config,
     SU5FeatureGenerator,
 )
-from src.feature_generation.su10.train_su10 import (
-    SU10FeatureAugmenter,  # noqa: E402,F401
+from src.feature_generation.su10.train_su10 import (  # noqa: E402,F401
+    SU10FeatureAugmenter,
 )
 
 

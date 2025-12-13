@@ -99,8 +99,8 @@ from preprocess.I_group.i_group import IGroupImputer  # noqa: E402,F401
 from preprocess.M_group.m_group import MGroupImputer  # noqa: E402,F401
 from preprocess.P_group.p_group import PGroupImputer  # noqa: E402,F401
 from preprocess.S_group.s_group import SGroupImputer  # noqa: E402,F401
-from src.feature_generation.su4.feature_su4 import (
-	SU4FeatureAugmenter,  # noqa: E402,F401
+from src.feature_generation.su4.feature_su4 import (  # noqa: E402,F401
+	SU4FeatureAugmenter,
 )
 from src.feature_generation.su4.train_su4 import (  # noqa: E402,F401
 	SU1FeatureAugmenter,

@@ -15,8 +15,8 @@ TEST_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = TEST_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from src.feature_selection.common.evaluate_baseline import (
-    _load_exclude_features,  # noqa: E402
+from src.feature_selection.common.evaluate_baseline import (  # noqa: E402
+    _load_exclude_features,
 )
 from src.feature_selection.phase1.filter_trivial import (  # noqa: E402
     find_high_correlation_features,
