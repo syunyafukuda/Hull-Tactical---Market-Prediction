@@ -55,3 +55,4 @@ tmp*
 *.tmp
 *.swp
 .todo/
+catboost_info/
