@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""Lasso モデルの推論スクリプト。
+"""Lasso model inference script.
 
-学習済みの ``artifacts/models/lasso/inference_bundle.pkl`` を読み込み、指定されたテストデータに
-対して推論を実行し、提出形式の ``submission.csv`` を出力する。
+Loads the trained ``artifacts/models/lasso/inference_bundle.pkl`` and runs inference
+on the specified test data, generating a submission file in the competition format.
 
 Usage:
     python -m src.models.lasso.predict_lasso --artifacts-dir artifacts/models/lasso

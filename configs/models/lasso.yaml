@@ -9,7 +9,7 @@ lasso:
   # Model parameters
   fit_intercept: true  # Fit intercept term
   max_iter: 10000  # Maximum iterations for solver convergence
-  tol: 0.0001  # Tolerance for optimization
+  tol: 1e-4  # Tolerance for optimization
   selection: "cyclic"  # Coordinate descent strategy: cyclic or random
   
   # System parameters
