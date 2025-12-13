@@ -1,0 +1,30 @@
+# Step 5: LGBM + XGBoost + CatBoost Stacking
+# 前提条件: Step 3でCatBoost追加が有効だった場合のみ実施
+
+models:
+  - name: lgbm
+    artifacts_dir: artifacts/models/lgbm
+    oof_file: oof_predictions.csv
+  - name: xgboost
+    artifacts_dir: artifacts/models/xgboost
+    oof_file: oof_predictions.csv
+  - name: catboost
+    artifacts_dir: artifacts/models/catboost
+    oof_file: oof_predictions.csv
+
+blend_method: stacking
+
+stacking:
+  meta_model: ridge
+  alpha: 1.0
+  cv_folds: 5
+
+# 注意:
+# - 過学習リスクが高い
+# - CV設計を慎重に（OOF予測をそのまま使うとリーク）
+
+output:
+  dir: artifacts/ensemble/step5_stacking
+  submission_file: submission.csv
+  oof_file: oof_predictions.csv
+  meta_model_file: meta_model.pkl

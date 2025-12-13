@@ -5,7 +5,7 @@
 ## 概要
 
 Model Selection Phase完了後、**アンサンブルフェーズ**に移行。
-採用候補モデル（LGBM, XGBoost）を組み合わせ、単体モデルを超える予測性能を目指す。
+採用候補モデル（LGBM, XGBoost, CatBoost）を組み合わせ、単体モデルを超える予測性能を目指す。
 
 ## 現状ベースライン
 
@@ -29,7 +29,7 @@ Model Selection Phase完了後、**アンサンブルフェーズ**に移行。
 - 対LGBM相関0.35と低く、理論上は多様性が高い
 - **しかし予測Stdが0.000495とLGBMの9%しかない**
 - 混ぜると全体予測を平坦化するリスク大
-- 試す場合は重みを5-15%程度に抑制
+- 試す場合は重みを10%程度に抑制
 
 ---
 
@@ -37,20 +37,21 @@ Model Selection Phase完了後、**アンサンブルフェーズ**に移行。
 
 ```
 Ensemble Phase
-├── Phase 1: 基本検証（最優先）
-│   └── LGBM + XGBoost 50:50 単純平均 → LB検証
-├── Phase 2: 重み最適化
-│   └── Grid Search で最適重みを探索
-├── Phase 3: CatBoost追加検討
-│   └── 少量（5-15%）追加の効果を検証
-└── Phase 4: 高度なアンサンブル（必要に応じて）
-    ├── Rank Average
-    └── Stacking（慎重に）
+├── Step 1: LGBM + XGBoost（50:50 単純平均）
+│   └── 基本的なアンサンブル効果を確認
+├── Step 2: LGBM + XGBoost（Rank Average）
+│   └── スケール差を吸収した平均
+├── Step 3: LGBM + XGBoost + CatBoost（60:30:10）
+│   └── CatBoost少量追加の効果を検証
+├── Step 4: LGBM + XGBoost + CatBoost（Rank Average）※Step3有効時
+│   └── 3モデルのRank Average
+└── Step 5: LGBM + XGBoost + CatBoost（Stacking）※Step3有効時
+    └── Meta-Learnerによる重み学習
 ```
 
 ---
 
-## Phase 1: 基本検証（最優先）
+## Step 1: LGBM + XGBoost（50:50 単純平均）
 
 ### 目的
 
@@ -69,7 +70,6 @@ OOFでの既存分析結果:
 ### 実装
 
 ```python
-# 単純平均
 pred = (lgbm_pred + xgb_pred) / 2
 ```
 
@@ -79,57 +79,57 @@ pred = (lgbm_pred + xgb_pred) / 2
 
 ### 成果物
 
-- `artifacts/ensemble/phase1/submission.csv`
-- `artifacts/ensemble/phase1/oof_predictions.csv`
+- `artifacts/ensemble/step1_lgbm_xgb_avg/submission.csv`
+- `artifacts/ensemble/step1_lgbm_xgb_avg/oof_predictions.csv`
 
 ---
 
-## Phase 2: 重み最適化
+## Step 2: LGBM + XGBoost（Rank Average）
 
 ### 目的
 
-LGBM/XGBoostの最適重みを探索
+予測値をランク変換してから平均することで、スケール差を吸収
 
-### 手法
+### 実装
 
-**Grid Search**:
 ```python
-weights = [(0.3, 0.7), (0.4, 0.6), (0.5, 0.5), (0.6, 0.4), (0.7, 0.3)]
-for w_lgbm, w_xgb in weights:
-    pred = w_lgbm * lgbm_pred + w_xgb * xgb_pred
-    oof_rmse = compute_rmse(y, pred)
+lgbm_rank = lgbm_pred.rank(pct=True)
+xgb_rank = xgb_pred.rank(pct=True)
+pred_rank = (lgbm_rank + xgb_rank) / 2
+# 必要に応じて元のスケールに変換
 ```
 
-### 既存分析結果
+### 期待効果
 
-| LGBM重み | XGB重み | OOF RMSE |
-|----------|---------|----------|
-| 50% | 50% | **0.011932** ← 最良 |
-| 60% | 40% | 0.011950 |
-| 70% | 30% | 0.011982 |
-
-→ 50:50付近が最適の可能性高い
+- 外れ値の影響軽減
+- 異なるスケールのモデルを公平に統合
 
 ### 成果物
 
-- `artifacts/ensemble/phase2/weight_search.csv`
-- `artifacts/ensemble/phase2/submission.csv`
+- `artifacts/ensemble/step2_lgbm_xgb_rank/submission.csv`
+- `artifacts/ensemble/step2_lgbm_xgb_rank/oof_predictions.csv`
 
 ---
 
-## Phase 3: CatBoost追加検討
+## Step 3: LGBM + XGBoost + CatBoost（60:30:10）
 
 ### 目的
 
-CatBoostを少量追加した場合の効果を検証
+CatBoostを少量（10%）追加した場合の効果を検証
 
-### 試行パターン
+### 重み設定
 
-| パターン | LGBM | XGB | CatBoost |
-|----------|------|-----|----------|
-| A | 45% | 45% | 10% |
-| B | 50% | 40% | 10% |
-| C | 40% | 45% | 15% |
+| モデル | 重み | 理由 |
+|--------|------|------|
+| LGBM | 60% | LB最良（0.681） |
+| XGBoost | 30% | アンサンブル価値高い（相関0.684） |
+| CatBoost | 10% | 予測Stdが極端に小さいため少量に抑制 |
+
+### 実装
+
+```python
+pred = 0.6 * lgbm_pred + 0.3 * xgb_pred + 0.1 * catboost_pred
+```
 
 ### リスク
 
@@ -139,33 +139,69 @@ CatBoostを少量追加した場合の効果を検証
 
 ### 成果物
 
-- `artifacts/ensemble/phase3/catboost_analysis.csv`
-- `artifacts/ensemble/phase3/submission.csv`
+- `artifacts/ensemble/step3_lgbm_xgb_cat/submission.csv`
+- `artifacts/ensemble/step3_lgbm_xgb_cat/oof_predictions.csv`
 
 ---
 
-## Phase 4: 高度なアンサンブル（必要に応じて）
+## Step 4: LGBM + XGBoost + CatBoost（Rank Average）
 
-### 4.1 Rank Average
+### 前提条件
+
+**Step 3でCatBoost追加が有効だった場合のみ実施**
+
+### 目的
+
+3モデルのRank Averageで多様性を最大化
+
+### 実装
 
 ```python
-# 予測値をランク変換してから平均
 lgbm_rank = lgbm_pred.rank(pct=True)
 xgb_rank = xgb_pred.rank(pct=True)
-pred = (lgbm_rank + xgb_rank) / 2
+cat_rank = catboost_pred.rank(pct=True)
+pred_rank = (lgbm_rank + xgb_rank + cat_rank) / 3
 ```
 
-**用途**: スケールの違いを吸収、外れ値の影響軽減
+### 成果物
 
-### 4.2 Stacking
+- `artifacts/ensemble/step4_3model_rank/submission.csv`
+- `artifacts/ensemble/step4_3model_rank/oof_predictions.csv`
+
+---
+
+## Step 5: LGBM + XGBoost + CatBoost（Stacking）
+
+### 前提条件
+
+**Step 3でCatBoost追加が有効だった場合のみ実施**
+
+### 目的
+
+Meta-Learnerで各モデルの最適重みを学習
+
+### 実装
 
 ```python
 # OOF予測を特徴量にしてMeta-Learnerを学習
-meta_features = np.column_stack([lgbm_oof, xgb_oof])
+meta_features = np.column_stack([lgbm_oof, xgb_oof, catboost_oof])
 meta_model = Ridge(alpha=1.0).fit(meta_features, y)
+
+# テスト予測
+test_meta = np.column_stack([lgbm_test, xgb_test, catboost_test])
+pred = meta_model.predict(test_meta)
 ```
 
-**注意**: 過学習リスクが高い。金融データでは特に慎重に。
+### 注意
+
+- **過学習リスクが高い**（金融データでは特に危険）
+- CV設計を慎重に（OOF予測をそのまま使うとリーク）
+
+### 成果物
+
+- `artifacts/ensemble/step5_stacking/submission.csv`
+- `artifacts/ensemble/step5_stacking/oof_predictions.csv`
+- `artifacts/ensemble/step5_stacking/meta_model.pkl`
 
 ---
 
@@ -175,67 +211,78 @@ meta_model = Ridge(alpha=1.0).fit(meta_features, y)
 src/ensemble/
 ├── __init__.py
 ├── blend.py              # 重み付き平均、単純平均
-├── weight_search.py      # Grid Search / 最適化
-├── stacking.py           # Stacking（Phase 4用）
-└── evaluate.py           # OOF評価ユーティリティ
+├── rank_average.py       # Rank Average
+└── stacking.py           # Stacking
 
 configs/ensemble/
-├── phase1.yaml           # Phase 1 設定
-├── phase2.yaml           # Phase 2 設定
-└── phase3.yaml           # Phase 3 設定
+├── step1_lgbm_xgb_avg.yaml
+├── step2_lgbm_xgb_rank.yaml
+├── step3_lgbm_xgb_cat.yaml
+├── step4_3model_rank.yaml
+└── step5_stacking.yaml
 
 artifacts/ensemble/
-├── phase1/
+├── step1_lgbm_xgb_avg/
 │   ├── submission.csv
 │   └── oof_predictions.csv
-├── phase2/
-│   ├── weight_search.csv
-│   └── submission.csv
-└── phase3/
-    ├── catboost_analysis.csv
-    └── submission.csv
+├── step2_lgbm_xgb_rank/
+│   ├── submission.csv
+│   └── oof_predictions.csv
+├── step3_lgbm_xgb_cat/
+│   ├── submission.csv
+│   └── oof_predictions.csv
+├── step4_3model_rank/
+│   ├── submission.csv
+│   └── oof_predictions.csv
+└── step5_stacking/
+    ├── submission.csv
+    ├── oof_predictions.csv
+    └── meta_model.pkl
 
 notebooks/submit/
-└── ensemble_lgbm_xgb.ipynb  # Kaggle提出用
+├── ensemble_step1.ipynb
+├── ensemble_step2.ipynb
+├── ensemble_step3.ipynb
+├── ensemble_step4.ipynb
+└── ensemble_step5.ipynb
 
 tests/ensemble/
 ├── test_blend.py
-└── test_weight_search.py
+├── test_rank_average.py
+└── test_stacking.py
 ```
 
 ---
 
 ## 実行コマンド（予定）
 
-### Phase 1
+### Step 1
 
 ```bash
-# OOF予測のブレンド
 python -m src.ensemble.blend \
-    --models lgbm xgboost \
-    --weights 0.5 0.5 \
-    --out-dir artifacts/ensemble/phase1
+    --config configs/ensemble/step1_lgbm_xgb_avg.yaml \
+    --out-dir artifacts/ensemble/step1_lgbm_xgb_avg
 ```
 
-### Phase 2
+### Step 2
 
 ```bash
-# 重み探索
-python -m src.ensemble.weight_search \
-    --models lgbm xgboost \
-    --out-dir artifacts/ensemble/phase2
+python -m src.ensemble.rank_average \
+    --config configs/ensemble/step2_lgbm_xgb_rank.yaml \
+    --out-dir artifacts/ensemble/step2_lgbm_xgb_rank
 ```
 
 ---
 
 ## 優先度と見積もり
 
-| Phase | 内容 | 優先度 | 見積もり |
-|-------|------|--------|----------|
-| **Phase 1** | LGBM+XGB 50:50 LB検証 | ★★★ | 1-2時間 |
-| Phase 2 | 重み最適化 | ★★☆ | 2-3時間 |
-| Phase 3 | CatBoost追加 | ★☆☆ | 2-3時間 |
-| Phase 4 | 高度なアンサンブル | ★☆☆ | 半日以上 |
+| Step | 内容 | 優先度 | 見積もり | 依存 |
+|------|------|--------|----------|------|
+| **Step 1** | LGBM+XGB 50:50 | ★★★ | 1-2時間 | - |
+| **Step 2** | LGBM+XGB Rank Average | ★★★ | 1-2時間 | - |
+| Step 3 | +CatBoost 10% | ★★☆ | 2時間 | - |
+| Step 4 | 3モデル Rank Average | ★☆☆ | 2時間 | Step 3有効時 |
+| Step 5 | Stacking | ★☆☆ | 半日 | Step 3有効時 |
 
 ---
 

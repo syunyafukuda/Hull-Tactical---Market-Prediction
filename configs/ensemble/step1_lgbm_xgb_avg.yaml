@@ -1,17 +1,18 @@
-# Ensemble Phase 1 configuration
-# LGBM + XGBoost 50:50 simple average
+# Step 1: LGBM + XGBoost 50:50 単純平均
 
 models:
   - name: lgbm
     artifacts_dir: artifacts/models/lgbm
+    oof_file: oof_predictions.csv
     weight: 0.5
   - name: xgboost
     artifacts_dir: artifacts/models/xgboost
+    oof_file: oof_predictions.csv
     weight: 0.5
 
 blend_method: weighted_average
 
 output:
-  dir: artifacts/ensemble/phase1
+  dir: artifacts/ensemble/step1_lgbm_xgb_avg
   submission_file: submission.csv
   oof_file: oof_predictions.csv

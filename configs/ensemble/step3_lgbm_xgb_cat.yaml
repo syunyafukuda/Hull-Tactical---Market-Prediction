@@ -1,0 +1,27 @@
+# Step 3: LGBM + XGBoost + CatBoost (60:30:10)
+
+models:
+  - name: lgbm
+    artifacts_dir: artifacts/models/lgbm
+    oof_file: oof_predictions.csv
+    weight: 0.6
+  - name: xgboost
+    artifacts_dir: artifacts/models/xgboost
+    oof_file: oof_predictions.csv
+    weight: 0.3
+  - name: catboost
+    artifacts_dir: artifacts/models/catboost
+    oof_file: oof_predictions.csv
+    weight: 0.1
+
+blend_method: weighted_average
+
+# CatBoostに関する注意:
+# - 予測Stdが極端に小さい（0.000495、LGBMの9%）
+# - 混ぜると全体予測を平坦化するリスク
+# - OOFで効果確認後にLB検証
+
+output:
+  dir: artifacts/ensemble/step3_lgbm_xgb_cat
+  submission_file: submission.csv
+  oof_file: oof_predictions.csv

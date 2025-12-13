@@ -1,0 +1,16 @@
+# Step 2: LGBM + XGBoost Rank Average
+
+models:
+  - name: lgbm
+    artifacts_dir: artifacts/models/lgbm
+    oof_file: oof_predictions.csv
+  - name: xgboost
+    artifacts_dir: artifacts/models/xgboost
+    oof_file: oof_predictions.csv
+
+blend_method: rank_average
+
+output:
+  dir: artifacts/ensemble/step2_lgbm_xgb_rank
+  submission_file: submission.csv
+  oof_file: oof_predictions.csv
