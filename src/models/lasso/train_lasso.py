@@ -127,7 +127,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--alpha", type=float, default=0.001)
     ap.add_argument("--max-iter", type=int, default=10000)
     ap.add_argument("--tol", type=float, default=1e-4)
-    ap.add_argument("--selection", type=str, default="cyclic", choices=["cyclic", "random"])
+    ap.add_argument(
+        "--selection", type=str, default="cyclic", choices=["cyclic", "random"]
+    )
     ap.add_argument("--random-state", type=int, default=42)
     # Feature selection
     ap.add_argument(
@@ -165,7 +167,9 @@ def build_lasso_pipeline(
     instead of tree-based models. StandardScaler is included for proper
     coefficient interpretation.
     """
-    augmenter = SU5FeatureAugmenter(su1_config, su5_config, fill_value=numeric_fill_value)
+    augmenter = SU5FeatureAugmenter(
+        su1_config, su5_config, fill_value=numeric_fill_value
+    )
 
     m_cfg = preprocess_settings.get("m_group", {})
     e_cfg = preprocess_settings.get("e_group", {})
@@ -385,8 +389,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     augmented_columns_before_exclusion = X_augmented_all.columns.tolist()
 
     # Identify SU1/SU5 generated columns
-    su1_generated_columns = [c for c in augmented_columns_before_exclusion if c not in feature_cols]
-    su5_generated_columns: List[str] = []  # SU5 currently doesn't add new columns in this pipeline
+    su1_generated_columns = [
+        c for c in augmented_columns_before_exclusion if c not in feature_cols
+    ]
+    su5_generated_columns: List[
+        str
+    ] = []  # SU5 currently doesn't add new columns in this pipeline
 
     # Apply feature exclusion based on tier
     if not args.no_feature_exclusion:
@@ -407,7 +415,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # Extract imputers and scaler from base_pipeline for manual CV preprocessing
     # base_pipeline.steps: [augment, m_imputer, e_imputer, i_imputer, p_imputer, s_imputer, final_imputer, scaler, model]
-    imputer_step_names = ["m_imputer", "e_imputer", "i_imputer", "p_imputer", "s_imputer", "final_imputer", "scaler"]
+    imputer_step_names = [
+        "m_imputer",
+        "e_imputer",
+        "i_imputer",
+        "p_imputer",
+        "s_imputer",
+        "final_imputer",
+        "scaler",
+    ]
 
     # CV loop
     oof_pred = np.full(len(X_np), np.nan, dtype=float)
@@ -561,16 +577,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         coefficients = lasso_model_final.coef_
         nonzero_mask = coefficients != 0
         nonzero_count = np.sum(nonzero_mask)
-        
-        coefficients_df = pd.DataFrame({
-            "feature": [original_columns[i] for i in range(len(original_columns)) if nonzero_mask[i]],
-            "coefficient": coefficients[nonzero_mask]
-        }).sort_values("coefficient", key=abs, ascending=False)
-        
+
+        coefficients_df = pd.DataFrame(
+            {
+                "feature": [
+                    original_columns[i]
+                    for i in range(len(original_columns))
+                    if nonzero_mask[i]
+                ],
+                "coefficient": coefficients[nonzero_mask],
+            }
+        ).sort_values("coefficient", key=abs, ascending=False)
+
         coef_path = out_dir / "coefficients.csv"
         coefficients_df.to_csv(coef_path, index=False)
         print(f"[info] Saved coefficients to {coef_path}")
-        print(f"[info] Non-zero coefficients: {nonzero_count} / {len(original_columns)} ({100 * nonzero_count / len(original_columns):.1f}%)")
+        print(
+            f"[info] Non-zero coefficients: {nonzero_count} / {len(original_columns)} ({100 * nonzero_count / len(original_columns):.1f}%)"
+        )
 
         # Save metadata
         meta = {
@@ -604,16 +628,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             import subprocess
 
-            git_commit = subprocess.check_output(
-                ["git", "rev-parse", "HEAD"],
-                cwd=str(PROJECT_ROOT),
-                stderr=subprocess.DEVNULL,
-            ).decode().strip()
-            git_branch = subprocess.check_output(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                cwd=str(PROJECT_ROOT),
-                stderr=subprocess.DEVNULL,
-            ).decode().strip()
+            git_commit = (
+                subprocess.check_output(
+                    ["git", "rev-parse", "HEAD"],
+                    cwd=str(PROJECT_ROOT),
+                    stderr=subprocess.DEVNULL,
+                )
+                .decode()
+                .strip()
+            )
+            git_branch = (
+                subprocess.check_output(
+                    ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                    cwd=str(PROJECT_ROOT),
+                    stderr=subprocess.DEVNULL,
+                )
+                .decode()
+                .strip()
+            )
         except Exception:
             git_commit = "unknown"
             git_branch = "unknown"
@@ -625,8 +657,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             "version": f"lasso-{args.feature_tier}-v1",
             "created_at": datetime.now(timezone.utc).isoformat(),
             "pipeline_input_columns": sorted(feature_cols),
-            "su1_generated_columns": sorted([c for c in su1_generated_columns if c in model_input_columns]),
-            "su5_generated_columns": sorted([c for c in su5_generated_columns if c in model_input_columns]),
+            "su1_generated_columns": sorted(
+                [c for c in su1_generated_columns if c in model_input_columns]
+            ),
+            "su5_generated_columns": sorted(
+                [c for c in su5_generated_columns if c in model_input_columns]
+            ),
             "model_input_columns": model_input_columns,
             "total_feature_count": len(model_input_columns),
             "source_commit": git_commit,
@@ -655,11 +691,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         if "is_scored" in test_df.columns:
             is_scored_mask = test_df["is_scored"].astype(bool).to_numpy()
             signal_pred_scored = signal_pred[is_scored_mask]
-            id_values = test_df.loc[is_scored_mask, args.id_col].to_numpy() if args.id_col in test_df.columns else np.arange(len(signal_pred_scored))
+            id_values = (
+                test_df.loc[is_scored_mask, args.id_col].to_numpy()
+                if args.id_col in test_df.columns
+                else np.arange(len(signal_pred_scored))
+            )
             print(f"[info] Filtered to {len(signal_pred_scored)} scored rows")
         else:
             signal_pred_scored = signal_pred
-            id_values = test_df[args.id_col].to_numpy() if args.id_col in test_df.columns else np.arange(len(signal_pred_scored))
+            id_values = (
+                test_df[args.id_col].to_numpy()
+                if args.id_col in test_df.columns
+                else np.arange(len(signal_pred_scored))
+            )
 
         # Build submission DataFrame with standard column names
         submission_df = pd.DataFrame(

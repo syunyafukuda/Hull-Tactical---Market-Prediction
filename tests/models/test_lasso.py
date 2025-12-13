@@ -218,7 +218,7 @@ class TestPipelineStructure:
 
     def test_pipeline_includes_scaler(self):
         """Test that pipeline construction includes StandardScaler.
-        
+
         Note: This is a conceptual test. The actual pipeline construction
         requires full data loading and configuration, which is tested in
         integration tests.
@@ -226,7 +226,7 @@ class TestPipelineStructure:
         # This test verifies that we have the necessary imports
         from sklearn.preprocessing import StandardScaler  # noqa: F401
         from sklearn.linear_model import Lasso  # noqa: F401
-        
+
         # If imports work, the basic structure is valid
         assert True
 
@@ -239,7 +239,7 @@ class TestPipelineStructure:
         from src.preprocess.P_group.p_group import PGroupImputer  # noqa: F401
         from src.preprocess.S_group.s_group import SGroupImputer  # noqa: F401
         from sklearn.impute import SimpleImputer  # noqa: F401
-        
+
         # If all imports work, preprocessing chain is complete
         assert True
 

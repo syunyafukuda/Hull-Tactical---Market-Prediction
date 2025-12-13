@@ -150,7 +150,9 @@ def _ensure_columns(
         frame[col] = np.nan
     if missing:
         preview = ", ".join(str(col) for col in missing[:5])
-        print(f"[warn] added {len(missing)} placeholder feature columns (preview: {preview})")
+        print(
+            f"[warn] added {len(missing)} placeholder feature columns (preview: {preview})"
+        )
     return frame.reindex(columns=list(columns))
 
 
@@ -170,7 +172,9 @@ def _coerce_numeric_like_columns(frame: pd.DataFrame) -> list[str]:
             converted.append(str(col))
     if converted:
         preview = ", ".join(converted[:5])
-        print(f"[info] coerced {len(converted)} object columns to numeric (preview: {preview})")
+        print(
+            f"[info] coerced {len(converted)} object columns to numeric (preview: {preview})"
+        )
     return converted
 
 
@@ -422,7 +426,8 @@ def main(argv: Iterable[str] | None = None) -> int:
 
     # Ensure required columns
     X_test_source = (
-        working_sorted[pipeline_input_cols].copy() if all(c in working_sorted.columns for c in pipeline_input_cols)
+        working_sorted[pipeline_input_cols].copy()
+        if all(c in working_sorted.columns for c in pipeline_input_cols)
         else working_sorted.drop(columns=["__original_order__"], errors="ignore")
     )
     if not isinstance(X_test_source, pd.DataFrame):
@@ -484,7 +489,9 @@ def main(argv: Iterable[str] | None = None) -> int:
 
     submission_scored = submission_sorted.loc[submission_sorted["__is_scored__"]].copy()
     if submission_scored.empty:
-        raise ValueError("No scored rows found in test data; cannot produce submission.")
+        raise ValueError(
+            "No scored rows found in test data; cannot produce submission."
+        )
 
     submission_scored = submission_scored.sort_values(id_col).reset_index(drop=True)
     if not np.isfinite(submission_scored[pred_col]).all():
@@ -495,7 +502,9 @@ def main(argv: Iterable[str] | None = None) -> int:
         raise ValueError("Duplicate ID values detected in submission output.")
 
     submission_scored[id_col] = submission_scored[id_col].astype("int64", copy=False)
-    submission_scored[pred_col] = submission_scored[pred_col].astype("float32", copy=False)
+    submission_scored[pred_col] = submission_scored[pred_col].astype(
+        "float32", copy=False
+    )
     submission = submission_scored[[id_col, pred_col]]
 
     expected_count = int(np.count_nonzero(scored_mask))
@@ -505,7 +514,9 @@ def main(argv: Iterable[str] | None = None) -> int:
         )
 
     # Write outputs
-    out_parquet = Path(args.out_parquet) if args.out_parquet else art_dir / "submission.parquet"
+    out_parquet = (
+        Path(args.out_parquet) if args.out_parquet else art_dir / "submission.parquet"
+    )
     out_parquet.parent.mkdir(parents=True, exist_ok=True)
     submission.to_parquet(out_parquet, index=False)
     print(f"[ok] wrote {out_parquet} [{len(submission)} rows]")
@@ -518,8 +529,12 @@ def main(argv: Iterable[str] | None = None) -> int:
 
     # Summary
     print("\n[summary] Prediction stats:")
-    print(f"  - Raw prediction: min={prediction.min():.6f}, max={prediction.max():.6f}, mean={prediction.mean():.6f}")
-    print(f"  - Signal: min={signal_prediction.min():.6f}, max={signal_prediction.max():.6f}, mean={signal_prediction.mean():.6f}")
+    print(
+        f"  - Raw prediction: min={prediction.min():.6f}, max={prediction.max():.6f}, mean={prediction.mean():.6f}"
+    )
+    print(
+        f"  - Signal: min={signal_prediction.min():.6f}, max={signal_prediction.max():.6f}, mean={signal_prediction.mean():.6f}"
+    )
     print(f"  - Submission rows: {len(submission)}")
 
     # Print submission preview
