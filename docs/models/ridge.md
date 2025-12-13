@@ -1,16 +1,16 @@
 # Ridge 回帰モデル実装仕様書
 
-最終更新: 2025-12-12
+最終更新: 2025-12-13
 
 ## 実装ステータス
 
-**Status**: ⬜ **未着手**
+**Status**: ✅ **実装完了**
 
-### 実装予定
-- ⬜ `src/models/ridge/train_ridge.py`: 学習スクリプト
-- ⬜ `src/models/ridge/config.py`: ハイパラ設定
-- ⬜ `configs/models/ridge.yaml`: YAML設定ファイル
-- ⬜ Unit tests: `tests/models/test_ridge.py`
+### 実装済み
+- ✅ `src/models/ridge/train_ridge.py`: 学習スクリプト
+- ✅ `src/models/ridge/predict_ridge.py`: 推論スクリプト
+- ✅ `configs/models/ridge.yaml`: YAML設定ファイル
+- ✅ Unit tests: `tests/models/test_ridge.py` (14テスト ALL PASS)
 
 ### 成果物
 - ⬜ `artifacts/models/ridge/inference_bundle.pkl`

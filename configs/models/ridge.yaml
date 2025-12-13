@@ -1,0 +1,62 @@
+# Ridge Regression Model Configuration
+# This configuration defines the default hyperparameters for Ridge regression model training.
+# Ridge is a linear model with L2 regularization, fundamentally different from tree-based models.
+
+ridge:
+  # Regularization strength
+  alpha: 1.0  # L2 regularization parameter (will be tuned via CV)
+  
+  # Model parameters
+  fit_intercept: true
+  solver: "auto"  # Solver selection (auto, svd, cholesky, lsqr, sparse_cg, sag, saga)
+  max_iter: null  # Maximum iterations (null = no limit)
+  tol: 0.0001  # Precision for optimization
+  
+  # System parameters
+  random_state: 42
+  
+  # Alpha tuning configuration
+  alpha_tuning:
+    enabled: true
+    alphas: [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
+    scoring: "neg_mean_squared_error"
+    cv: 5  # CV folds for alpha selection
+
+# Feature selection configuration
+feature_selection:
+  tier: "tier3"  # Use FS_compact (116 features)
+  excluded_json: "configs/feature_selection/tier3/excluded.json"
+
+# Cross-validation settings
+cv:
+  n_splits: 5
+  gap: 0  # No gap between train and validation (same as LGBM)
+  min_val_size: 0
+
+# Data paths
+data:
+  data_dir: "data/raw"
+  train_file: null  # Auto-detect
+  test_file: null  # Auto-detect
+
+# Output configuration
+output:
+  artifacts_dir: "artifacts/models/ridge"
+  save_artifacts: true
+
+# Success criteria
+success_criteria:
+  oof_rmse_threshold: 0.0125  # Baseline (0.01216) + 3%
+  correlation_vs_lgbm_min: 0.3  # Ensure diversity (low correlation = high diversity)
+  correlation_vs_lgbm_max: 0.6
+
+# Notes
+metadata:
+  baseline_comparison:
+    lgbm_oof_rmse: 0.012164
+    lgbm_lb_score: 0.681
+  created_at: "2025-12-13"
+  purpose: "Provide model diversity for ensemble methods via linear model"
+  expected_correlation: "0.3-0.6 with gradient boosting models"
+  key_difference: "Linear model with L2 regularization vs tree-based models"
+  interpretability: "High - coefficients can be analyzed for feature importance"
