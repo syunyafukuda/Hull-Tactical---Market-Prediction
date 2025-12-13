@@ -10,8 +10,3 @@ Key features:
 - Low prediction correlation with gradient boosting models
 - Requires StandardScaler for proper feature scaling
 """
-
-__all__ = [
-    "train_ridge",
-    "predict_ridge",
-]
