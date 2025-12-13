@@ -590,6 +590,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         # Get git commit/branch info
         try:
             import subprocess
+            # First check if we're in a git repository
+            subprocess.check_output(
+                ["git", "rev-parse", "--is-inside-work-tree"],
+                cwd=str(PROJECT_ROOT),
+                stderr=subprocess.DEVNULL
+            )
             git_commit = subprocess.check_output(
                 ["git", "rev-parse", "HEAD"],
                 cwd=str(PROJECT_ROOT),
