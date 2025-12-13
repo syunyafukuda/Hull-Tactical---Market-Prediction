@@ -1,0 +1,29 @@
+# Ensemble Phase 3 configuration
+# CatBoost addition with small weight
+
+models:
+  - name: lgbm
+    artifacts_dir: artifacts/models/lgbm
+  - name: xgboost
+    artifacts_dir: artifacts/models/xgboost
+  - name: catboost
+    artifacts_dir: artifacts/models/catboost
+
+weight_patterns:
+  - name: pattern_a
+    lgbm: 0.45
+    xgboost: 0.45
+    catboost: 0.10
+  - name: pattern_b
+    lgbm: 0.50
+    xgboost: 0.40
+    catboost: 0.10
+  - name: pattern_c
+    lgbm: 0.40
+    xgboost: 0.45
+    catboost: 0.15
+
+output:
+  dir: artifacts/ensemble/phase3
+  analysis_file: catboost_analysis.csv
+  submission_file: submission.csv

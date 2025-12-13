@@ -51,23 +51,27 @@ GitHub Codespaces を開発環境とし、パッケージ管理は **[uv](https:
 │  │  ├─ xgboost/                 # XGBoost ✅ アンサンブル候補
 │  │  ├─ catboost/                # CatBoost ✅ (非採用)
 │  │  ├─ extratrees/              # ExtraTrees ✅ (非採用)
-│  │  ├─ randomforest/            # RandomForest ✅ (試行不要)
-│  │  ├─ ridge/                   # Ridge ✅ (試行不要)
-│  │  ├─ lasso/                   # Lasso ✅ (試行不要)
+│  │  ├─ randomforest/            # RandomForest ✅ (非採用)
+│  │  ├─ ridge/                   # Ridge ✅ (非採用)
+│  │  ├─ lasso/                   # Lasso ✅ (非採用)
 │  │  └─ elasticnet/              # ElasticNet ✅ (非採用)
+│  ├─ ensemble/                   # アンサンブル実装 ← NEW
 │  └─ preprocess/                 # 特徴量グループ別欠損補完
 ├─ scripts/                       # CLI・ユーティリティ
 ├─ configs/
 │  ├─ preprocess.yaml             # 前処理設定
 │  ├─ feature_generation.yaml     # 特徴量生成設定
 │  ├─ feature_selection/          # 特徴量選定設定 (tier0-3)
-│  └─ models/                     # モデル設定 (YAML)
+│  ├─ models/                     # モデル設定 (YAML)
+│  └─ ensemble/                   # アンサンブル設定 ← NEW
 ├─ artifacts/                     # 学習済み成果物 (Git管理外)
 │  ├─ tier0-3/                    # 特徴量選定の中間成果物
-│  └─ models/                     # モデル別成果物
+│  ├─ models/                     # モデル別成果物
+│  └─ ensemble/                   # アンサンブル成果物 ← NEW
 ├─ docs/
 │  ├─ feature_generation/         # SU1-SU11 仕様書
 │  ├─ feature_selection/          # 特徴量選定レポート
+│  ├─ ensemble/                   # アンサンブル仕様書 ← NEW
 │  └─ models/                     # モデル選定仕様書
 ├─ notebooks/                     # Kaggle提出用ノートブック
 ├─ tests/                         # Pytest テスト
@@ -201,14 +205,26 @@ FS_compact (116列) を固定し、8種類のモデルを同一CV設定で比較
 
 **結論**: LGBM + XGBoost 50:50アンサンブルでOOF RMSEが1.91%改善。
 
-### 次のステップ
-
-1. ~~XGBoost / CatBoost 実装・OOF評価~~ ✅ 完了
-2. ~~バギング系 (ExtraTrees / RandomForest) 実装~~ ✅ 完了（非採用）
-3. ~~線形モデル (Ridge / Lasso / ElasticNet) 実装~~ ✅ 完了（非採用）
-4. **LGBM + XGBoost アンサンブルのLB検証** ← 次の優先事項
-
 詳細: `docs/models/README.md`
+
+---
+
+## アンサンブルフェーズ (進行中)
+
+### 戦略
+
+採用候補モデル（LGBM, XGBoost）を組み合わせ、単体モデルを超える予測性能を目指す。
+
+### フェーズ構成
+
+| Phase | 内容 | 優先度 | ステータス |
+|-------|------|--------|----------|
+| **Phase 1** | LGBM+XGB 50:50 単純平均 LB検証 | ★★★ | ⬜ 未着手 |
+| Phase 2 | 重み最適化 Grid Search | ★★☆ | ⬜ 未着手 |
+| Phase 3 | CatBoost少量追加検討 | ★☆☆ | ⬜ 未着手 |
+| Phase 4 | 高度なアンサンブル（Stacking等） | ★☆☆ | ⬜ 未着手 |
+
+詳細: `docs/ensemble/README.md`
 
 ---
 
