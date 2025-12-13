@@ -1039,3 +1039,86 @@ Phase 3完了により、以下のフェーズに進む準備が整った：
 - **代表選出結果**: results/feature_selection/phase3/cluster_representatives.json
 - **Feature Set定義**: configs/feature_selection/feature_sets.json
 - **Tier3除外リスト**: configs/feature_selection/tier3/excluded.json
+
+---
+
+## 2025-12-13 XGBoost (Model Selection Phase) - **アンサンブル候補✅**
+
+- Branch: `feat/model-xgboost`
+- Kaggle Notebook: Private（Dataset: xgboost-hull-tactical）
+- LB score: **0.622** (Public)
+- Decision: **単体非採用、アンサンブル候補として採用**
+
+### 実績サマリー
+
+| 指標 | XGBoost | LGBM | 差分 |
+|------|---------|------|------|
+| **OOF RMSE** | 0.012062 | 0.012164 | **-0.84%** ✅ |
+| **LB Score** | 0.622 | 0.681 | **-8.7%** ❌ |
+| **予測相関** | - | **0.684** | 低い → アンサンブル価値高 |
+| **pred/actual ratio** | 45.0% | 47.2% | 両方正常範囲 |
+
+### アンサンブル分析（OOFベース）
+
+| 構成 | OOF RMSE | LGBM単体比 |
+|------|----------|------------|
+| LGBM単体 | 0.012164 | baseline |
+| XGBoost単体 | 0.012062 | -0.84% |
+| **50% LGBM + 50% XGB** | **0.011932** | **-1.91%** |
+| 60% LGBM + 40% XGB | 0.011950 | -1.76% |
+| 70% LGBM + 30% XGB | 0.011982 | -1.50% |
+
+### 判定理由
+
+**単体非採用の理由**:
+- LBスコアが0.622とLGBM（0.681）より8.7%劣る
+- OOFではXGBoostが優れている（0.012062 vs 0.012164）が、LBでは逆転
+- OOF↔LB乖離はXGBoostハイパラのデータ依存性を示唆
+
+**アンサンブル候補としての価値**:
+- **予測相関0.684**: 同系統の勾配ブースティングにもかかわらず非常に低い
+  - 期待値は0.95-0.98だったが、実際は0.684
+  - これは異なるモデルタイプ（Ridge等）並みの多様性
+- **OOFアンサンブル効果**: 50:50で1.91%のRMSE改善
+- **LB検証推奨**: アンサンブルのLBスコアを確認する価値あり
+
+### XGBoost設定（最終版）
+
+```python
+# 過少学習を修正した設定
+max_depth: 10          # 6 → 10
+learning_rate: 0.01    # 0.05 → 0.01
+n_estimators: 2000     # 600 → 2000
+min_child_weight: 1    # 32 → 1
+reg_lambda: 0.001      # 1.0 → 0.001
+early_stopping_rounds: 0  # 無効化
+subsample: 0.9
+colsample_bytree: 0.9
+```
+
+### 教訓
+
+1. **OOF↔LB乖離**: XGBoostはOOFで優れていたがLBで劣った
+   - モデル選定ではLBを必ず確認する必要あり
+   - OOF単独での判断は危険
+
+2. **予測相関の重要性**: 単体LBが劣っても予測相関が低ければアンサンブル価値あり
+   - XGBoostの予測相関0.684は期待（0.95-0.98）を大きく下回る
+   - 同系統モデルでもこれだけ異なる予測パターンになりうる
+
+3. **ハイパラ調整の教訓**:
+   - 初期設定（過度な正則化）でLB 0.542と惨敗
+   - 修正後でもLB 0.622止まり
+   - XGBoostのデフォルト正則化はこのデータセットに不適合
+
+### 次のアクション
+
+1. **アンサンブルLB検証**: 50% LGBM + 50% XGBoost をKaggle提出
+2. **CatBoost実装**: 次のモデル候補
+3. **Ridge実装**: 線形モデルで予測相関をさらに下げる
+
+### 参照
+
+- **XGBoost仕様書**: docs/models/xgboost.md
+- **モデル概要**: docs/models/README.md
+- **artifacts**: artifacts/models/xgboost/
