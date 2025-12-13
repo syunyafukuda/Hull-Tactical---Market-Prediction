@@ -1,0 +1,67 @@
+# Lasso Model Configuration
+# This configuration defines the default hyperparameters for Lasso model training.
+# Lasso (L1 regularization) provides sparsity for feature selection diagnostics.
+
+lasso:
+  # Regularization parameter
+  alpha: 0.001  # L1 penalty strength (start small to avoid over-sparsity)
+  
+  # Model parameters
+  fit_intercept: true  # Fit intercept term
+  max_iter: 10000  # Maximum iterations for solver convergence
+  tol: 1e-4  # Tolerance for optimization
+  selection: "cyclic"  # Coordinate descent strategy: cyclic or random
+  
+  # System parameters
+  random_state: 42
+
+# Feature selection configuration
+feature_selection:
+  tier: "tier3"  # Use FS_compact (116 features)
+  excluded_json: "configs/feature_selection/tier3/excluded.json"
+
+# Cross-validation settings
+cv:
+  n_splits: 5
+  gap: 0  # No gap between train and validation
+  min_val_size: 0
+
+# Data paths
+data:
+  data_dir: "data/raw"
+  train_file: null  # Auto-detect
+  test_file: null  # Auto-detect
+
+# Output configuration
+output:
+  artifacts_dir: "artifacts/models/lasso"
+  save_artifacts: true
+
+# Alpha tuning candidates (for future hyperparameter search)
+alpha_candidates:
+  # Logarithmically spaced values for grid search or LassoCV
+  min: 0.00001  # 1e-5
+  max: 0.1      # 1e-1
+  num_values: 20
+  # Equivalent to: np.logspace(-5, -1, 20)
+
+# Success criteria
+success_criteria:
+  oof_rmse_threshold: 0.0125  # Baseline (0.01216) + 3%
+  min_nonzero_features: 20     # Ensure model is not over-regularized
+  max_nonzero_features: 116    # All features
+  correlation_vs_lgbm_max: 0.95  # Ensure diversity for ensembling
+
+# Notes
+metadata:
+  baseline_comparison:
+    lgbm_oof_rmse: 0.012164
+    lgbm_lb_score: 0.681
+  created_at: "2025-12-13"
+  purpose: "L1 regularization for feature selection and linear model diagnostics"
+  expected_improvement: "Sparsity analysis, ensemble diversity, feature importance from coefficients"
+  key_features:
+    - "StandardScaler ensures interpretable coefficients"
+    - "L1 penalty drives non-important features to zero"
+    - "Linear model provides complementary perspective vs tree models"
+    - "Coefficient analysis identifies linear feature importance"
