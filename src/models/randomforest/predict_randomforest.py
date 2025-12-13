@@ -420,10 +420,12 @@ def main(argv: Iterable[str] | None = None) -> int:
     working_sorted = working_df.sort_values(id_col).reset_index(drop=True)
 
     # Ensure required columns
-    X_test_source = (
-        working_sorted[pipeline_input_cols].copy() if all(c in working_sorted.columns for c in pipeline_input_cols) 
-        else working_sorted.drop(columns=["__original_order__"], errors="ignore")
-    )
+    has_all_input_cols = all(c in working_sorted.columns for c in pipeline_input_cols)
+    if has_all_input_cols:
+        X_test_source = working_sorted[pipeline_input_cols].copy()
+    else:
+        X_test_source = working_sorted.drop(columns=["__original_order__"], errors="ignore")
+    
     if not isinstance(X_test_source, pd.DataFrame):
         raise ValueError("X_test_source must be a DataFrame")
     X_test = _ensure_columns(
