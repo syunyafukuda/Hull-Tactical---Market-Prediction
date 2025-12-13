@@ -420,8 +420,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"{'=' * 60}\n")
 
     for fold_idx, (train_idx, val_idx) in enumerate(splitter.split(X_np), start=1):
-        train_idx = np.array(train_idx)
-        val_idx = np.array(val_idx)
+        train_idx = train_idx
+        val_idx = val_idx
 
         # Apply gap
         if args.gap > 0:

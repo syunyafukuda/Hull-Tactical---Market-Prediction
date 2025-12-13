@@ -5,7 +5,7 @@
 randomforest:
   # Tree structure parameters
   n_estimators: 500  # Number of trees in the forest
-  max_depth: 15  # Maximum depth of each tree (null for unlimited)
+  max_depth: 15  # Maximum depth of each tree (15 chosen to balance complexity and overfitting)
   min_samples_split: 10  # Minimum samples required to split an internal node
   min_samples_leaf: 5  # Minimum samples required at a leaf node
   

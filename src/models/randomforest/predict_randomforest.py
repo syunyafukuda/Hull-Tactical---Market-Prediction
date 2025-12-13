@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""RandomForest モデルの推論スクリプト。
+"""RandomForest model inference script.
 
-学習済みの ``artifacts/models/randomforest/inference_bundle.pkl`` を読み込み、指定されたテストデータに
-対して推論を実行し、提出形式の ``submission.csv`` を出力する。
+Loads the trained ``artifacts/models/randomforest/inference_bundle.pkl`` and runs inference
+on the specified test data, outputting a competition-format ``submission.csv``.
 
 Usage:
     python -m src.models.randomforest.predict_randomforest --artifacts-dir artifacts/models/randomforest
