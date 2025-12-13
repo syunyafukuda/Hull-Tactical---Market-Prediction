@@ -1,10 +1,29 @@
 # XGBoost モデル実装仕様書
 
-最終更新: 2025-12-12
+最終更新: 2025-12-13
 
 ## 実装ステータス
 
-**Status**: ✅ **実装完了**
+**Status**: ✅ **実装完了・LB検証済み**
+
+### 実績サマリー
+
+| 指標 | XGBoost | LGBM | 評価 |
+|------|---------|------|------|
+| **LB Score** | 0.622 | 0.681 | XGBoostが8.7%劣る |
+| **OOF RMSE** | 0.012062 | 0.012164 | XGBoostが0.8%優れる |
+| **予測相関** | - | **0.684** | **低い！アンサンブル価値あり** |
+| **pred/actual ratio** | 45.0% | 47.2% | 両方正常範囲 |
+
+### アンサンブル効果（OOFベース）
+
+| 構成 | OOF RMSE | LGBM比 |
+|------|----------|--------|
+| 50% LGBM + 50% XGB | 0.011932 | **-1.91%** |
+| 60% LGBM + 40% XGB | 0.011950 | -1.76% |
+| 70% LGBM + 30% XGB | 0.011982 | -1.50% |
+
+**結論**: 予測相関が0.684と低く、アンサンブルでOOF RMSEが最大1.91%改善 → **アンサンブル価値あり**
 
 ### 実装済み
 - ✅ `src/models/xgboost/train_xgb.py`: 学習スクリプト
@@ -31,6 +50,7 @@
 - **目的**: LGBMと同系統の勾配ブースティングモデルだが、実装の違いによる多様性を導入
 - **期待効果**: アンサンブル時に予測相関が適度に異なることで、精度向上の可能性
 - **比較対象**: LGBM ベースライン（OOF RMSE: 0.012164, LB: 0.681）
+- **実績**: XGBoost単体はLB 0.622だが、予測相関0.684でアンサンブル価値が高い
 
 ### 1.2 前提条件
 
@@ -502,3 +522,123 @@ $ pytest tests/models/test_xgboost.py -v
 
 4. **ハイパーパラメータ調整**:
    - 必要に応じてOptunaでの最適化を検討
+
+---
+
+## 11. Lessons Learned（教訓）
+
+### 11.1 XGBoostハイパーパラメータの重要性
+
+**問題**: 初回のKaggle LBスコアが0.542と極端に悪化した。
+
+**原因分析**:
+1. **予測分散の不足**: OOF予測の標準偏差がactualの**4%**しかなかった（LGBMは50%）
+2. **過度な正則化**: `min_child_weight=32`, `reg_lambda=1.0` がこのデータセットでは厳しすぎた
+3. **早期停止の影響**: `early_stopping_rounds=50` で学習が途中で止まっていた
+
+**解決策**:
+```python
+# 修正前（過度に保守的）
+min_child_weight: 32
+reg_lambda: 1.0
+early_stopping_rounds: 50
+
+# 修正後（適切な設定）
+max_depth: 10          # 6 → 10
+learning_rate: 0.01    # 0.05 → 0.01
+n_estimators: 2000     # 600 → 2000
+min_child_weight: 1    # 32 → 1（デフォルト）
+reg_lambda: 0.001      # 1.0 → 0.001
+early_stopping_rounds: 0  # 無効化
+subsample: 0.9
+colsample_bytree: 0.9
+```
+
+**結果**:
+| 指標 | 修正前 | 修正後 |
+|------|--------|--------|
+| pred/actual ratio | 4.1% | **47.3%** |
+| LB Score | 0.542 | TBD |
+
+### 11.2 診断指標: pred/actual ratio
+
+**重要な診断指標**: `pred.std() / actual.std()`
+
+- **正常範囲**: 30-70%（LGBMは約50%）
+- **異常値**: < 10% は過少学習、> 90% は過学習の兆候
+
+```python
+# 診断コード
+pred_std = oof['prediction'].std()
+actual_std = oof['actual'].std()
+ratio = pred_std / actual_std
+print(f"pred/actual ratio: {ratio:.1%}")
+if ratio < 0.1:
+    print("WARNING: Model may be underfitting")
+```
+
+### 11.3 XGBoost vs LGBMの違い
+
+| 項目 | LGBM | XGBoost | 注意点 |
+|------|------|---------|--------|
+| 葉ベース/深さベース | leaf-wise | depth-wise | 同じmax_depthでも挙動が異なる |
+| デフォルト正則化 | 緩め | 強め | XGBoostは明示的に緩める必要あり |
+| min_child_weight | サンプル数 | ヘッシアン合計 | 回帰では類似だが完全に同等ではない |
+| 早期停止 | 有効 | 慎重に使用 | 小データでは無効化を検討 |
+
+### 11.4 Kaggle提出時のバージョン互換性
+
+**問題**: ローカル（XGBoost 3.1.2）とKaggle（XGBoost 2.0.3）のバージョン不一致で予測値が異なった。
+
+**解決策**:
+1. XGBoostのwheelファイルをartifactsに同梱
+2. ノートブックでバージョンチェックを実装
+
+```python
+# ノートブックでのバージョンチェック
+if not xgb.__version__.startswith("3."):
+    raise RuntimeError(f"XGBoost version mismatch: expected 3.x, got {xgb.__version__}")
+```
+
+### 11.5 ローカル推論スクリプト vs Kaggleノートブック
+
+**問題**: ローカルで推論スクリプトを作成したが、Kaggleノートブックと完全に同一ではなく、環境差異で微小な予測差が発生した。
+
+**構造の違い**:
+
+| 項目 | `predict_xgb.py` (ローカル) | `xgboost.ipynb` (Kaggle) |
+|------|---------------------------|----------------------------|
+| 実行環境 | ローカル開発環境 | Kaggle ノートブック |
+| 依存関係 | `import` で既存モジュール使用 | すべてのクラスをインラインで埋込 |
+| Wheel インストール | なし | 動的にインストール |
+| Kaggle API | なし | `kaggle_evaluation` サーバー連携 |
+| データパス | `data/raw/test.csv` | `/kaggle/input/...` |
+
+**推論ロジック自体は同等**:
+```python
+# predict_xgb.py
+prediction = pipeline.predict(X_test)
+signal = to_signal(prediction, postprocess_params)
+
+# xgboost.ipynb
+raw_predictions = PIPELINE.predict(X)
+signal = to_signal(raw_predictions, POSTPROCESS_PARAMS)
+```
+
+**教訓**:
+1. **ローカル推論スクリプトの用途**: 再学習なしで `submission.csv` を再生成する（デバッグ・検証用）
+2. **Kaggleノートブックの用途**: 実際のコンペ提出（すべての依存クラスを埋め込む必要あり）
+3. **微小な予測差の許容**: Python/NumPyバージョン差による ~0.02% の差異は避けられない
+4. **OOF RMSEの一致を優先**: 予測値の絶対値より、OOF RMSEが一致していれば問題なし
+
+**推論スクリプトの使用方法**:
+```bash
+# ローカルで submission.csv を再生成
+python -m src.models.xgboost.predict_xgb
+
+# カスタム設定
+python -m src.models.xgboost.predict_xgb \
+  --artifacts-dir artifacts/models/xgboost \
+  --test-file data/raw/test.csv
+```
+

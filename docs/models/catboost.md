@@ -468,3 +468,61 @@ submission_df = pd.DataFrame({
 ### 9.5 is_scored フィルタリング
 
 submission.csvには`is_scored==True`の行のみを含める（競技要件）。
+
+### 9.6 勾配ブースティング共通の教訓（XGBoost実装より）
+
+> **重要**: XGBoost実装時に発見された問題はCatBoostでも発生する可能性があります。
+
+#### 9.6.1 予測分散の診断
+
+**診断指標**: `pred.std() / actual.std()` (pred/actual ratio)
+
+- **正常範囲**: 30-70%（LGBMは約50%）
+- **異常値**: < 10% は過少学習（モデルがほぼ何も予測していない）
+
+```python
+# 診断コード
+ratio = oof['prediction'].std() / oof['actual'].std()
+print(f"pred/actual ratio: {ratio:.1%}")
+if ratio < 0.1:
+    print("WARNING: Model may be underfitting - check regularization params")
+```
+
+#### 9.6.2 正則化パラメータの調整
+
+CatBoostは `l2_leaf_reg` (L2正則化) がデフォルトで3.0と強め。
+このデータセットでは以下のように調整を検討：
+
+```python
+# 過少学習が疑われる場合
+l2_leaf_reg: 1.0  # 3.0 → 1.0に緩和
+depth: 8          # 6 → 8に増加
+iterations: 1000  # 600 → 1000に増加
+```
+
+#### 9.6.3 バージョン互換性
+
+CatBoostもXGBoostと同様、バージョン間でモデルフォーマットが異なる場合があります。
+Kaggle提出時は同一バージョンのwheelを同梱することを推奨。
+
+#### 9.6.4 ローカル推論スクリプトとKaggleノートブックの違い
+
+実装時は**2種類の推論コード**を用意することを推奨：
+
+| ファイル | 用途 | 特徴 |
+|----------|------|------|
+| `predict_catboost.py` | ローカルでの再推論 | 既存モジュールを `import` |
+| `catboost.ipynb` | Kaggle提出 | 依存クラスをすべてインライン埋込 |
+
+**推論ロジック自体は同一**にすること：
+```python
+# 両方で同じロジック
+prediction = pipeline.predict(X_test)
+signal = to_signal(prediction, postprocess_params)
+```
+
+**注意点**:
+- Python/NumPyバージョン差で ~0.02% の予測差は許容範囲
+- 重要なのは **OOF RMSEが一致する** こと
+- ローカル推論スクリプトは学習なしで `submission.csv` を再生成できる（デバッグ用）
+
