@@ -437,7 +437,8 @@ def main(argv: Iterable[str] | None = None) -> int:
     print("[info] loading inference bundle")
     bundle = joblib.load(bundle_path)
     
-    # ElasticNet bundle is a direct Pipeline (not a dict)
+    # ElasticNet bundle is typically a dict with keys like 'pipeline', 'augmenter', 'feature_tier', and 'model_input_columns'
+    # (see train_elasticnet.py lines 646-651). For backward compatibility, a direct Pipeline is also supported.
     if isinstance(bundle, dict):
         pipeline = bundle.get("pipeline")
         print("[info] bundle format: dict with pipeline")
