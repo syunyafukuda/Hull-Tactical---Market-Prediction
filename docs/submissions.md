@@ -1122,3 +1122,70 @@ colsample_bytree: 0.9
 - **XGBoost仕様書**: docs/models/xgboost.md
 - **モデル概要**: docs/models/README.md
 - **artifacts**: artifacts/models/xgboost/
+
+## 2025-12-13 ExtraTrees (Model Selection Phase) - **非採用❌**
+
+- Branch: `feat/model-extratrees`
+- Kaggle Notebook: Private（Dataset: feature-selection-extratrees-hulltactical）
+- LB score: **0.500** (Public) ← **ベースライン同等、予測力なし**
+- Decision: **非採用** - アンサンブル価値なし
+
+### 実績サマリー
+
+| 指標 | ExtraTrees | LGBM | 差分 |
+|------|------------|------|------|
+| **OOF RMSE** | 0.011347 | 0.012164 | **-6.7%** ✅ |
+| **OOF MSR** | 0.014483 | 0.019600 | - |
+| **LB Score** | 0.500 | 0.681 | **-26.6%** ❌ |
+
+### 非採用の理由
+
+**OOF↔LB乖離が極端**:
+- OOFではLGBMより6.7%も良いRMSE（0.011347 vs 0.012164）
+- LBでは0.500（ベースライン同等 = 常に1.0を予測した場合と同じ）
+- これは「訓練データでは偶然良く見えたが、テストデータでは汎化しなかった」ことを示す
+
+**ExtraTreesの本質的な問題**:
+1. **分割点がランダム**: 最適な分割点を探索しないため、金融データの微弱なシグナルを捉えられない
+2. **バギングの限界**: 勾配ブースティングのような「残差を逐次学習」がないため、ノイズに埋もれたシグナルを抽出できない
+3. **アンサンブル価値なし**: LB 0.500 = 予測力ゼロなので、他モデルとアンサンブルしても害にしかならない
+
+### 技術詳細
+
+**ExtraTrees設定**:
+```python
+extratrees_params = {
+    "n_estimators": 500,
+    "max_depth": 15,
+    "min_samples_split": 10,
+    "min_samples_leaf": 5,
+    "max_features": 0.7,
+    "bootstrap": False,
+    "random_state": 42,
+    "n_jobs": -1,
+}
+```
+
+**CV設定**:
+- TimeSeriesSplit, n_splits=5, gap=0
+- 特徴量: FS_compact (116列)
+
+### 教訓
+
+1. **ExtraTreesは金融予測に不適合**
+   - 「極度にランダム化」は金融の微弱シグナルに対して弱すぎる
+   - 勾配ブースティング系（LGBM/XGBoost/CatBoost）が圧倒的に優位
+
+2. **OOF単独での判断は危険**
+   - XGBoostでも見られた傾向だが、ExtraTreesではさらに極端
+   - LB検証は必須
+
+3. **バギング系モデルの限界**
+   - RandomForestやExtraTreesはこのコンペでは効果なし
+   - 時間をアンサンブル最適化や線形モデル（ElasticNet）に使うべき
+
+### 参照
+
+- **ExtraTrees仕様書**: docs/models/extratrees.md
+- **モデル概要**: docs/models/README.md
+- **artifacts**: artifacts/models/extratrees/
