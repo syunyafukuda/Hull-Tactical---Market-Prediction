@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""Ridge モデルの推論スクリプト。
+"""Ridge model inference script.
 
-学習済みの ``artifacts/models/ridge/inference_bundle.pkl`` を読み込み、指定されたテストデータに
-対して推論を実行し、提出形式の ``submission.csv`` を出力する。
+Loads the trained ``artifacts/models/ridge/inference_bundle.pkl`` and performs
+inference on specified test data, outputting submission in CSV format.
 
 Usage:
     python -m src.models.ridge.predict_ridge --artifacts-dir artifacts/models/ridge

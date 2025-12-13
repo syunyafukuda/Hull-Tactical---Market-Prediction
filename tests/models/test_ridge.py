@@ -252,13 +252,18 @@ class TestPipelineStructure:
         # Verify order: scaler must come before model
         scaler_idx = step_names.index("scaler")
         model_idx = step_names.index("model")
-        assert scaler_idx < model_idx
+        assert scaler_idx < model_idx, (
+            f"StandardScaler must come before Ridge model, but scaler at index {scaler_idx} "
+            f"comes after model at index {model_idx}"
+        )
 
         # Verify final step is Ridge
         from sklearn.linear_model import Ridge
 
         final_step = pipeline.steps[-1][1]
-        assert isinstance(final_step, Ridge)
+        assert isinstance(final_step, Ridge), (
+            f"Final pipeline step should be Ridge, but got {type(final_step).__name__}"
+        )
 
 
 class TestFeatureExclusion:

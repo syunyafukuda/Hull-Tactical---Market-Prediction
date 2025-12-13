@@ -7,9 +7,9 @@ other model types.
 
 Key features:
 - Uses FS_compact feature exclusion (tier3/excluded.json)
-- Reuses existing preprocessing pipeline (M/E/I/P/S group imputers)
+- Uses existing preprocessing pipeline (M/E/I/P/S group imputers)
 - Includes StandardScaler for feature normalization (required for Ridge)
-- Compatible with the unified CV evaluation framework
+- Compatible with unified CV evaluation framework
 - Provides high model diversity for ensemble methods
 """
 
@@ -390,8 +390,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     augmented_columns_before_exclusion = X_augmented_all.columns.tolist()
 
     # Identify SU1/SU5 generated columns
+    # SU1 and SU5 augmenters add derived features based on the original columns
     su1_generated_columns = [c for c in augmented_columns_before_exclusion if c not in feature_cols]
-    su5_generated_columns: List[str] = []  # SU5 currently doesn't add new columns in this pipeline
+    su5_generated_columns: List[str] = []  # Currently all generated columns are from SU1
 
     # Apply feature exclusion based on tier
     if not args.no_feature_exclusion:
@@ -631,9 +632,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         # Apply signal transformation: pred * mult + 1.0, clipped to [0.9, 1.1]
         # This converts excess returns predictions to competition signal format
-        signal_mult = 1.0
-        signal_lo = 0.9
-        signal_hi = 1.1
+        # These values are stored in model_meta.json for use during inference
+        signal_mult = meta["oof_best_params"]["mult"]
+        signal_lo = meta["oof_best_params"]["lo"]
+        signal_hi = meta["oof_best_params"]["hi"]
         signal_pred = np.clip(test_pred * signal_mult + 1.0, signal_lo, signal_hi)
 
         # Filter to is_scored==True rows only (competition requirement)
