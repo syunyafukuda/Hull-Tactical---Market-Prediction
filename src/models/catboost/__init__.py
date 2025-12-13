@@ -8,8 +8,3 @@ Key features:
 - Compatible with TimeSeriesSplit cross-validation
 - Produces artifacts consistent with other model types
 """
-
-__all__ = [
-    "train_catboost",
-    "predict_catboost",
-]
