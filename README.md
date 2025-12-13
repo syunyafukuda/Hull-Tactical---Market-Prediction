@@ -48,13 +48,13 @@ GitHub Codespaces を開発環境とし、パッケージ管理は **[uv](https:
 │  ├─ models/                     # モデル実装 (8種類)
 │  │  ├─ common/                  # CV・特徴量ロード共通モジュール
 │  │  ├─ lgbm/                    # LightGBM ✅ ベースライン
-│  │  ├─ xgboost/                 # XGBoost (実装予定)
-│  │  ├─ catboost/                # CatBoost (実装予定)
-│  │  ├─ extratrees/              # ExtraTrees (実装予定)
-│  │  ├─ randomforest/            # RandomForest (実装予定)
-│  │  ├─ ridge/                   # Ridge (実装予定)
-│  │  ├─ lasso/                   # Lasso (実装予定)
-│  │  └─ elasticnet/              # ElasticNet (実装予定)
+│  │  ├─ xgboost/                 # XGBoost ✅ アンサンブル候補
+│  │  ├─ catboost/                # CatBoost ✅ (非採用)
+│  │  ├─ extratrees/              # ExtraTrees ✅ (非採用)
+│  │  ├─ randomforest/            # RandomForest ✅ (試行不要)
+│  │  ├─ ridge/                   # Ridge ✅ (試行不要)
+│  │  ├─ lasso/                   # Lasso ✅ (試行不要)
+│  │  └─ elasticnet/              # ElasticNet ✅ (非採用)
 │  └─ preprocess/                 # 特徴量グループ別欠損補完
 ├─ scripts/                       # CLI・ユーティリティ
 ├─ configs/
@@ -164,31 +164,46 @@ python -m src.models.lgbm.train_lgbm
 FS_compact (116列) を固定し、8種類のモデルを同一CV設定で比較。
 アンサンブルに向けた候補モデルを選定する。
 
-### モデル候補
+### モデル実績サマリー
 
-| カテゴリ | モデル | 仕様書 | 実装 | OOF RMSE | 予測相関 (期待) |
-|----------|--------|--------|------|----------|-----------------|
-| **勾配ブースティング** | LGBM | - | ✅ | 0.01216 | - (ベースライン) |
-| 勾配ブースティング | XGBoost | ✅ | ⬜ | - | 0.95-0.98 |
-| 勾配ブースティング | CatBoost | ✅ | ⬜ | - | 0.92-0.96 |
-| **バギング系ツリー** | ExtraTrees | ✅ | ⬜ | - | 0.85-0.92 |
-| バギング系ツリー | RandomForest | ✅ | ⬜ | - | 0.85-0.92 |
-| **線形モデル** | Ridge | ✅ | ⬜ | - | 0.70-0.85 |
-| 線形モデル | Lasso | ✅ | ⬜ | - | 0.70-0.85 |
-| 線形モデル | ElasticNet | ✅ | ⬜ | - | 0.70-0.85 |
+| カテゴリ | モデル | 実装 | OOF RMSE | LB Score | 対LGBM相関 | ステータス |
+|----------|--------|------|----------|----------|------------|----------|
+| **GBDT** | LightGBM | ✅ | 0.012164 | **0.681** | - | ✅ ベースライン |
+| GBDT | XGBoost | ✅ | 0.012062 | 0.622 | 0.684 | ✅ アンサンブル候補 |
+| GBDT | CatBoost | ✅ | 0.011095 | 0.602 | 0.35 | ❌ 非採用 |
+| **バギング** | ExtraTrees | ✅ | 0.011440 | 0.500 | - | ❌ 非採用 |
+| バギング | RandomForest | ✅ | - | - | - | ⚠️ 試行不要 |
+| **線形** | Ridge | ✅ | - | - | - | ⚠️ 試行不要 |
+| 線形 | Lasso | ✅ | - | - | - | ⚠️ 試行不要 |
+| 線形 | ElasticNet | ✅ | 0.011091 | 0.461 | - | ❌ 非採用 |
 
-### 成功基準
+### 重要な教訓（2025-12-13）
 
-- OOF RMSE ≤ 0.013 (線形モデルは ≤ 0.015)
-- 予測相関 (vs LGBM) < 0.95 (アンサンブル効果の見込み)
-- LB Score ≥ 0.68
+**線形モデルは不適合**:
+- ElasticNet（L1+L2）がLB 0.461（ベースライン以下）
+- 116特徴量中わずか2個だけ非ゼロ係数 → 実質的に定数予測
+- Ridge/Lassoも同様の失敗見込み → **試行不要**
+
+**バギング系ツリーも不適合**:
+- ExtraTreesがLB 0.500（ベースライン同等 = 情報なし）
+- RandomForestも同様の失敗が予想される → **試行不要**
+
+### アンサンブル分析
+
+| 構成 | OOF RMSE | LGBM比 |
+|------|----------|--------|
+| LGBM単体 | 0.012164 | - |
+| XGBoost単体 | 0.012062 | -0.84% |
+| 50% LGBM + 50% XGB | **0.011932** | **-1.91%** |
+
+**結論**: LGBM + XGBoost 50:50アンサンブルでOOF RMSEが1.91%改善。
 
 ### 次のステップ
 
-1. XGBoost / CatBoost 実装・OOF評価
-2. バギング系 (ExtraTrees / RandomForest) 実装
-3. 線形モデル (Ridge / Lasso / ElasticNet) 実装
-4. 予測相関分析・アンサンブル構築
+1. ~~XGBoost / CatBoost 実装・OOF評価~~ ✅ 完了
+2. ~~バギング系 (ExtraTrees / RandomForest) 実装~~ ✅ 完了（非採用）
+3. ~~線形モデル (Ridge / Lasso / ElasticNet) 実装~~ ✅ 完了（非採用）
+4. **LGBM + XGBoost アンサンブルのLB検証** ← 次の優先事項
 
 詳細: `docs/models/README.md`
 
