@@ -1,0 +1,68 @@
+# CatBoost Model Configuration
+# This configuration defines the default hyperparameters for CatBoost model training.
+# CatBoost uses Ordered Boosting to prevent overfitting and provides diverse predictions
+# compared to LGBM for ensemble diversity.
+
+catboost:
+  # Loss function
+  loss_function: "RMSE"
+  
+  # Tree structure parameters
+  depth: 6  # Maximum depth of a tree (similar to max_depth in XGBoost/LGBM)
+  
+  # Learning parameters
+  learning_rate: 0.05  # Step size shrinkage
+  iterations: 600  # Number of boosting rounds (equivalent to n_estimators)
+  
+  # Regularization
+  l2_leaf_reg: 3.0  # L2 regularization coefficient (lambda)
+  random_strength: 1.0  # Amount of randomness for scoring splits
+  bagging_temperature: 1.0  # Controls intensity of Bayesian bootstrap (0=no bagging, 1=standard)
+  
+  # Binning and discretization
+  border_count: 254  # Number of splits for numerical features (max: 255 for CPU)
+  
+  # System parameters
+  random_seed: 42
+  thread_count: -1  # Use all CPU cores
+  verbose: false  # Silent mode
+  
+# Feature selection configuration
+feature_selection:
+  tier: "tier3"  # Use FS_compact (116 features)
+  excluded_json: "configs/feature_selection/tier3/excluded.json"
+
+# Cross-validation settings
+cv:
+  n_splits: 5
+  gap: 0  # No gap between train and validation
+  min_val_size: 0
+
+# Data paths
+data:
+  data_dir: "data/raw"
+  train_file: null  # Auto-detect
+  test_file: null  # Auto-detect
+
+# Output configuration
+output:
+  artifacts_dir: "artifacts/models/catboost"
+  save_artifacts: true
+
+# Success criteria
+success_criteria:
+  oof_rmse_threshold: 0.0125  # Baseline (0.01216) + 3%
+  correlation_vs_lgbm_max: 0.98  # Ensure diversity for ensembling
+
+# Notes
+metadata:
+  baseline_comparison:
+    lgbm_oof_rmse: 0.012164
+    lgbm_lb_score: 0.681
+  created_at: "2025-12-13"
+  purpose: "Provide ordered boosting with overfitting resistance and model diversity"
+  expected_improvement: "Similar RMSE to LGBM with different error patterns due to Ordered Boosting"
+  key_differentiators:
+    - "Ordered Boosting: reduces target leakage in gradient estimation"
+    - "Different tree growing strategy compared to LGBM's leaf-wise approach"
+    - "Native handling of categorical features (not used here as all features are numeric)"

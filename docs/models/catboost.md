@@ -1,24 +1,24 @@
 # CatBoost モデル実装仕様書
 
-最終更新: 2025-12-12
+最終更新: 2025-12-13
 
 ## 実装ステータス
 
-**Status**: ⬜ **未着手**
+**Status**: ✅ **実装完了**
 
-### 実装予定
-- ⬜ `src/models/catboost/train_catboost.py`: 学習スクリプト
-- ⬜ `src/models/catboost/config.py`: ハイパラ設定
-- ⬜ `configs/models/catboost.yaml`: YAML設定ファイル
-- ⬜ Unit tests: `tests/models/test_catboost.py`
+### 実装済み
+- ✅ `src/models/catboost/train_catboost.py`: 学習スクリプト
+- ✅ `configs/models/catboost.yaml`: YAML設定ファイル
+- ✅ `src/models/catboost/predict_catboost.py`: 推論スクリプト
+- ✅ Unit tests: `tests/models/test_catboost.py`
 
 ### 成果物
-- ⬜ `artifacts/models/catboost/inference_bundle.pkl`
-- ⬜ `artifacts/models/catboost/oof_predictions.csv`
-- ⬜ `artifacts/models/catboost/cv_fold_logs.csv`
-- ⬜ `artifacts/models/catboost/model_meta.json`
-- ⬜ `artifacts/models/catboost/feature_list.json`
-- ⬜ `artifacts/models/catboost/submission.csv`
+- ✅ `artifacts/models/catboost/inference_bundle.pkl`
+- ✅ `artifacts/models/catboost/oof_predictions.csv`
+- ✅ `artifacts/models/catboost/cv_fold_logs.csv`
+- ✅ `artifacts/models/catboost/model_meta.json`
+- ✅ `artifacts/models/catboost/feature_list.json`
+- ✅ `artifacts/models/catboost/submission.csv`
 
 **Note**: 出力仕様の詳細は [README.md](README.md#成果物出力仕様kaggle-nb用) を参照。
 
@@ -51,6 +51,39 @@
 - **評価指標**:
   - **主指標**: OOF RMSE（選定フェーズの最重要指標）
   - **補助指標**: 予測相関（vs LGBM）、OOF MSR（トレード観点での監視）
+
+### 1.4 実験結果と分析
+
+**OOF Performance:**
+- OOF RMSE: 0.011095
+- 予測分散: 0.000495（LGBMの約9%）
+- vs LGBM相関: 0.35
+- vs XGBoost相関: 0.27
+
+**Kaggle LB:**
+- **LB Score: 0.602** (2025-12-13提出)
+- LGBM比: -0.020 (3.2%悪化)
+- XGBoost比: -0.016 (2.6%悪化)
+
+**Critical Issues Identified:**
+
+1. **極端な予測分散の小ささ**
+   - CatBoost予測の標準偏差は0.000495で、LGBM（0.005246）の約9%しかない
+   - これは市場の実際の変動を捉えられていないことを示唆
+   - ハイパーパラメータチューニング（depth, l2_leaf_reg, learning_rate調整）でも改善せず
+
+2. **予測相関の低さ**
+   - LGBMとの相関0.35、XGBoostとの相関0.27は、異なるパターンを学習している証拠
+   - しかしLBスコアの悪化から、そのパターンは有用でないと判断
+
+3. **過度な正則化の可能性**
+   - CatBoostのSymmetric TreeとOrdered Boostingが、このデータセットに対して過度に保守的
+   - 結果として予測が平坦化し、情報量が失われている
+
+**アンサンブルへの影響:**
+- ❌ **単独での採用は推奨しない**: LBスコアがLGBM/XGBoostより明確に劣る
+- ⚠️ **アンサンブルでの価値は限定的**: 予測相関が低いため多様性は提供するが、LBスコアの悪化リスクが大きい
+- 💡 **代替案**: LGBM/XGBoostの異なるハイパーパラメータセットでのアンサンブルを優先すべき
 
 ---
 

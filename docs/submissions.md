@@ -48,6 +48,32 @@
 
 - Commit: 9db9dcb
 - Submit line: preprocessing_m (M-group ridge_stack policy)
+
+## 2025-12-13 CatBoost Model
+
+- Branch: feat/model-catboost
+- Submit line: models/catboost
+- Kaggle Notebook: Private (Dataset: catboost-hulltactical)
+- LB score: **0.602** ❌
+- OOF RMSE: 0.011095
+- Model: CatBoostRegressor
+- Notes:
+  - **Critical Issue**: 予測分散が極端に小さい（std=0.000495、LGBMの9%）
+  - ハイパーパラメータチューニング試行:
+    - depth: 6→8→10→12
+    - l2_leaf_reg: 3.0→2.0→1.0→0.5→0.1
+    - learning_rate: 0.05→0.1
+    - boosting_type: Ordered→Plain
+    - いずれも分散比は10%前後で改善せず
+  - **結論**: CatBoostの構造（Symmetric Trees + Ordered Boosting）が本データセットに不適合
+  - 予測がLGBM/XGBoostと異なるパターンを学習（相関0.35/0.27）するも、そのパターンは有用でない
+  - **推奨**: 単独採用は見送り。アンサンブルでも慎重に評価すべき
+  - **Performance Comparison**:
+    | Model | OOF RMSE | LB Score | Pred Std | vs LGBM Corr |
+    |-------|----------|----------|----------|--------------|
+    | LGBM | 0.012164 | 0.622 | 0.005246 | 1.00 |
+    | XGBoost | 0.012062 | 0.618 | 0.004999 | 0.89 |
+    | CatBoost | 0.011095 | **0.602** | 0.000495 | 0.35 |
 - Kaggle Notebook: Private（Dataset: preprocess-m-group-hull-tactical）
 - LB score: 0.629
 - Notes:
