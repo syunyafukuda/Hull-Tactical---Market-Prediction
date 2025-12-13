@@ -129,16 +129,17 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--gap", type=int, default=0)
     ap.add_argument("--min-val-size", type=int, default=0)
     # XGBoost hyperparameters
-    ap.add_argument("--max-depth", type=int, default=6)
+    ap.add_argument("--max-depth", type=int, default=8)
     ap.add_argument("--learning-rate", type=float, default=0.05)
     ap.add_argument("--n-estimators", type=int, default=600)
     ap.add_argument("--subsample", type=float, default=0.8)
     ap.add_argument("--colsample-bytree", type=float, default=0.8)
     ap.add_argument("--reg-alpha", type=float, default=0.0)
-    ap.add_argument("--reg-lambda", type=float, default=1.0)
-    ap.add_argument("--min-child-weight", type=int, default=32)
+    ap.add_argument("--reg-lambda", type=float, default=0.1)
+    ap.add_argument("--min-child-weight", type=int, default=1)
     ap.add_argument("--random-state", type=int, default=42)
     ap.add_argument("--verbosity", type=int, default=0)
+    ap.add_argument("--early-stopping-rounds", type=int, default=0, help="Early stopping rounds (0=disabled)")
     # Feature selection
     ap.add_argument(
         "--feature-tier",
@@ -384,8 +385,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "random_state": args.random_state,
         "n_jobs": -1,
         "verbosity": args.verbosity,
-        "early_stopping_rounds": 50,  # XGBoost 2.0+: specify in constructor
     }
+    if args.early_stopping_rounds > 0:
+        model_kwargs["early_stopping_rounds"] = args.early_stopping_rounds
 
     # Build base pipeline with XGBoost
     base_pipeline = build_xgb_pipeline(
@@ -488,21 +490,22 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         # Manual imputation: fit on train, transform both train and valid
         # This ensures eval_set has the same preprocessing as training data
+        pipeline_steps = dict(base_pipeline.steps)
         for step_name in imputer_step_names:
-            imputer = clone(dict(base_pipeline.steps)[step_name])
-            X_train = imputer.fit_transform(X_train)
-            X_valid = imputer.transform(X_valid)
+            imputer = clone(pipeline_steps[step_name])
+            X_train = imputer.fit_transform(X_train)  # type: ignore[union-attr]
+            X_valid = imputer.transform(X_valid)  # type: ignore[union-attr]
             # Convert back to DataFrame if numpy array
             if isinstance(X_train, np.ndarray):
-                X_train = pd.DataFrame(X_train, columns=sanitized_columns)
+                X_train = pd.DataFrame(X_train, columns=pd.Index(sanitized_columns))
             if isinstance(X_valid, np.ndarray):
-                X_valid = pd.DataFrame(X_valid, columns=sanitized_columns)
+                X_valid = pd.DataFrame(X_valid, columns=pd.Index(sanitized_columns))
 
         # Clone XGBoost model
-        xgb_model = clone(dict(base_pipeline.steps)["model"])
+        xgb_model = clone(pipeline_steps["model"])
 
         # Fit with early stopping
-        xgb_model.fit(
+        xgb_model.fit(  # type: ignore[union-attr]
             X_train,
             y_train,
             eval_set=[(X_valid, y_valid)],
@@ -510,12 +513,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
         # Predict
-        pred = xgb_model.predict(X_valid)
+        pred = xgb_model.predict(X_valid)  # type: ignore[union-attr]
         pred = _to_1d(pred)
 
         # Compute metrics
         val_rmse = float(math.sqrt(mean_squared_error(y_valid, pred)))
-        train_pred = xgb_model.predict(X_train)
+        train_pred = xgb_model.predict(X_train)  # type: ignore[union-attr]
         train_rmse = float(math.sqrt(mean_squared_error(y_train, _to_1d(train_pred))))
 
         oof_pred[val_idx] = pred
@@ -687,13 +690,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         # Filter to is_scored==True rows only (competition requirement)
         if "is_scored" in test_df.columns:
-            is_scored_mask = test_df["is_scored"].astype(bool).values
+            is_scored_mask = test_df["is_scored"].astype(bool).to_numpy()
             signal_pred_scored = signal_pred[is_scored_mask]
-            id_values = test_df.loc[is_scored_mask, args.id_col].values if args.id_col in test_df.columns else np.arange(len(signal_pred_scored))
+            id_values = test_df.loc[is_scored_mask, args.id_col].to_numpy() if args.id_col in test_df.columns else np.arange(len(signal_pred_scored))
             print(f"[info] Filtered to {len(signal_pred_scored)} scored rows")
         else:
             signal_pred_scored = signal_pred
-            id_values = test_df[args.id_col].values if args.id_col in test_df.columns else np.arange(len(signal_pred_scored))
+            id_values = test_df[args.id_col].to_numpy() if args.id_col in test_df.columns else np.arange(len(signal_pred_scored))
 
         # Build submission DataFrame with standard column names
         submission_df = pd.DataFrame(
