@@ -48,32 +48,6 @@
 
 - Commit: 9db9dcb
 - Submit line: preprocessing_m (M-group ridge_stack policy)
-
-## 2025-12-13 CatBoost Model
-
-- Branch: feat/model-catboost
-- Submit line: models/catboost
-- Kaggle Notebook: Private (Dataset: catboost-hulltactical)
-- LB score: **0.602** ❌
-- OOF RMSE: 0.011095
-- Model: CatBoostRegressor
-- Notes:
-  - **Critical Issue**: 予測分散が極端に小さい（std=0.000495、LGBMの9%）
-  - ハイパーパラメータチューニング試行:
-    - depth: 6→8→10→12
-    - l2_leaf_reg: 3.0→2.0→1.0→0.5→0.1
-    - learning_rate: 0.05→0.1
-    - boosting_type: Ordered→Plain
-    - いずれも分散比は10%前後で改善せず
-  - **結論**: CatBoostの構造（Symmetric Trees + Ordered Boosting）が本データセットに不適合
-  - 予測がLGBM/XGBoostと異なるパターンを学習（相関0.35/0.27）するも、そのパターンは有用でない
-  - **推奨**: 単独採用は見送り。アンサンブルでも慎重に評価すべき
-  - **Performance Comparison**:
-    | Model | OOF RMSE | LB Score | Pred Std | vs LGBM Corr |
-    |-------|----------|----------|----------|--------------|
-    | LGBM | 0.012164 | 0.622 | 0.005246 | 1.00 |
-    | XGBoost | 0.012062 | 0.618 | 0.004999 | 0.89 |
-    | CatBoost | 0.011095 | **0.602** | 0.000495 | 0.35 |
 - Kaggle Notebook: Private（Dataset: preprocess-m-group-hull-tactical）
 - LB score: 0.629
 - Notes:
@@ -1149,69 +1123,98 @@ colsample_bytree: 0.9
 - **モデル概要**: docs/models/README.md
 - **artifacts**: artifacts/models/xgboost/
 
-## 2025-12-13 ExtraTrees (Model Selection Phase) - **非採用❌**
+---
+
+## 2025-12-13 ExtraTrees (モデル選定) - **非採用**
 
 - Branch: `feat/model-extratrees`
-- Kaggle Notebook: Private（Dataset: feature-selection-extratrees-hulltactical）
-- LB score: **0.500** (Public) ← **ベースライン同等、予測力なし**
-- Decision: **非採用** - アンサンブル価値なし
+- Kaggle Notebook: Private（Dataset: extratrees-hulltactical）
+- **LB score: 0.500 (Public)** ← **ベースライン同等（LGBM: 0.681）**
+- Status: **非採用** - ベースライン（何も予測しない）と同等
+- Decision: **単体非採用、アンサンブル候補としても採用見送り**
 
 ### 実績サマリー
 
 | 指標 | ExtraTrees | LGBM | 差分 |
 |------|------------|------|------|
-| **OOF RMSE** | 0.011347 | 0.012164 | **-6.7%** ✅ |
-| **OOF MSR** | 0.014483 | 0.019600 | - |
-| **LB Score** | 0.500 | 0.681 | **-26.6%** ❌ |
+| **OOF RMSE** | 0.011440 | 0.012164 | **-5.96%** ✅ |
+| **OOF MSR** | 0.032086 | 0.026376 | +21.7% ✅ |
+| **LB Score** | 0.500 | 0.681 | **-26.6%** ❌❌ |
 
-### 非採用の理由
+### 問題分析
 
-**OOF↔LB乖離が極端**:
-- OOFではLGBMより6.7%も良いRMSE（0.011347 vs 0.012164）
-- LBでは0.500（ベースライン同等 = 常に1.0を予測した場合と同じ）
-- これは「訓練データでは偶然良く見えたが、テストデータでは汎化しなかった」ことを示す
+**致命的なOOF↔LB乖離**:
+- OOFではLGBMより5.96%良いRMSEだが、LBでは26.6%劣る
+- これは「何も予測しない」（定数予測）と同等のスコア
+- 過学習の極端なケースを示唆
 
-**ExtraTreesの本質的な問題**:
-1. **分割点がランダム**: 最適な分割点を探索しないため、金融データの微弱なシグナルを捉えられない
-2. **バギングの限界**: 勾配ブースティングのような「残差を逐次学習」がないため、ノイズに埋もれたシグナルを抽出できない
-3. **アンサンブル価値なし**: LB 0.500 = 予測力ゼロなので、他モデルとアンサンブルしても害にしかならない
-
-### 技術詳細
-
-**ExtraTrees設定**:
-```python
-extratrees_params = {
-    "n_estimators": 500,
-    "max_depth": 15,
-    "min_samples_split": 10,
-    "min_samples_leaf": 5,
-    "max_features": 0.7,
-    "bootstrap": False,
-    "random_state": 42,
-    "n_jobs": -1,
-}
-```
-
-**CV設定**:
-- TimeSeriesSplit, n_splits=5, gap=0
-- 特徴量: FS_compact (116列)
+**予測分布の問題**:
+- 予測範囲: 0.999890 ~ 1.000110（ほぼ定数）
+- 有効な市場シグナルを学習できていない
 
 ### 教訓
 
-1. **ExtraTreesは金融予測に不適合**
-   - 「極度にランダム化」は金融の微弱シグナルに対して弱すぎる
-   - 勾配ブースティング系（LGBM/XGBoost/CatBoost）が圧倒的に優位
-
-2. **OOF単独での判断は危険**
-   - XGBoostでも見られた傾向だが、ExtraTreesではさらに極端
-   - LB検証は必須
-
-3. **バギング系モデルの限界**
-   - RandomForestやExtraTreesはこのコンペでは効果なし
-   - 時間をアンサンブル最適化や線形モデル（ElasticNet）に使うべき
+1. **ツリー系アンサンブルの過学習リスク**: ExtraTreesは極端なランダム分割によりノイズを学習
+2. **OOF指標の過信禁止**: 良好なOOF RMSEがLB性能を保証しない
+3. **線形モデルとの違い**: 非線形モデルは過学習に対して脆弱
 
 ### 参照
 
 - **ExtraTrees仕様書**: docs/models/extratrees.md
-- **モデル概要**: docs/models/README.md
 - **artifacts**: artifacts/models/extratrees/
+
+---
+
+## 2025-12-13 ElasticNet (モデル選定) - **非採用**
+
+- Branch: `feat/model-elasticnet`
+- Kaggle Notebook: Private（Dataset: elasticnet-hulltactical）
+- **LB score: 0.461 (Public)** ← **ベースライン以下（LGBM: 0.681）**
+- Status: **非採用** - 「何も予測しない」より悪い
+- Decision: **完全非採用** - 線形モデルがこの問題に不適合であることを示す
+
+### 実績サマリー
+
+| 指標 | ElasticNet | LGBM | 差分 |
+|------|------------|------|------|
+| **OOF RMSE** | 0.011091 | 0.012164 | **-8.82%** ✅ |
+| **OOF MSR** | 0.029069 | 0.026376 | +10.2% ✅ |
+| **LB Score** | 0.461 | 0.681 | **-32.3%** ❌❌❌ |
+| **非ゼロ係数** | 2/116 | - | **極端にスパース** |
+
+### 問題分析
+
+**極端なスパース性**:
+- 116特徴量中、たった2個だけが非ゼロ係数（M4, V13）
+- 係数値: M4 = -0.000152, V13 = +0.000074（極めて小さい）
+- 実質的に「定数予測」になっている
+
+**予測分布の問題**:
+- 予測範囲: 0.999936 ~ 1.000069（ほぼ完全に定数）
+- 分散がほぼゼロ → 有意なシグナルなし
+
+**正則化強度の実験**:
+- alpha=0.001（デフォルト）: OOF RMSE 0.0111, 非ゼロ係数 2/116 → LB 0.461
+- alpha=0.00001（弱正則化）: OOF RMSE 0.5814（壊滅的過学習）
+- 最適点が存在しない → 線形モデル自体が不適合
+
+### 教訓
+
+1. **線形モデルの限界**: マーケット予測の非線形パターンを捉えられない
+2. **L1正則化の極端化**: 有効な特徴がほとんどないため係数がほぼ全てゼロに
+3. **Ridge/Lasso試行の無意味さ**: ElasticNet（L1+L2ハイブリッド）が失敗した以上、純粋なRidge/Lassoも同様に失敗する見込み
+
+### 線形モデル全般への示唆
+
+ElasticNetの結果から、以下の線形モデルは試す価値が低いと判断:
+
+| モデル | 理由 |
+|--------|------|
+| **Ridge** | L2のみ → ElasticNetより制約が弱く、同様に失敗する |
+| **Lasso** | L1のみ → ElasticNetと同様の極端なスパース性問題 |
+| **LinearRegression** | 正則化なし → 過学習でさらに悪化する |
+
+### 参照
+
+- **ElasticNet仕様書**: docs/models/elasticnet.md
+- **artifacts**: artifacts/models/elasticnet/

@@ -4,7 +4,7 @@
 
 ## 実装ステータス
 
-**Status**: ✅ **実装完了**
+**Status**: ❌ **非採用（LB 0.500 - ベースライン同等）**
 
 ### 実装済み
 - ✅ `src/models/extratrees/train_extratrees.py`: 学習スクリプト
@@ -12,7 +12,7 @@
 - ✅ `configs/models/extratrees.yaml`: YAML設定ファイル
 - ✅ Unit tests: `tests/models/test_extratrees.py` (10テスト ALL PASS)
 
-### 成果物
+### 成果物（参考保存）
 - ✅ `artifacts/models/extratrees/inference_bundle.pkl`
 - ✅ `artifacts/models/extratrees/oof_predictions.csv`
 - ✅ `artifacts/models/extratrees/cv_fold_logs.csv`
@@ -21,20 +21,21 @@
 - ✅ `artifacts/models/extratrees/feature_importances.csv` （特徴量重要度）
 - ✅ `artifacts/models/extratrees/submission.csv`
 
+### LB結果
+
+| 指標 | 値 | 評価 |
+|------|------|------|
+| **OOF RMSE** | 0.011440 | -5.96% vs LGBM ✅ |
+| **LB Score** | 0.500 | -26.6% vs LGBM ❌❌ |
+
+### 結論
+
+**バギング系ツリー（ExtraTrees）はこのマーケット予測問題に不適合**
+- OOFでは良好だがLBでベースライン同等（何も予測しないのと同じ）
+- 予測範囲が極端に狭い（0.9999〜1.0001）
+- RandomForestも同様の失敗が予想される → 試行不要
+
 **Note**: 出力仕様の詳細は [README.md](README.md#成果物出力仕様kaggle-nb用) を参照。
-
-### LB検証結果 ❌
-
-**LB Score: 0.500** - アンサンブル価値なし、**非採用**
-
-| 指標 | ExtraTrees | LGBM | 差分 |
-|------|------------|------|------|
-| **OOF RMSE** | 0.011347 | 0.012164 | **-6.7%** ✅ |
-| **LB Score** | 0.500 | 0.681 | **-26.6%** ❌ |
-
-**結論**: ExtraTreesはOOFでは良好だがLBでベースライン同等（0.500）。
-分割点のランダム選択が金融データの微弱シグナル検出に不適合。
-勾配ブースティング（LGBM/XGBoost/CatBoost）とは異なり、アンサンブル価値なし。
 
 ---
 
@@ -137,7 +138,8 @@ extratrees_params = {
 ```
 src/models/extratrees/
 ├── __init__.py           # モジュール初期化
-└── train_extratrees.py   # メイン学習スクリプト
+├── train_extratrees.py   # メイン学習スクリプト
+└── predict_extratrees.py # 推論スクリプト
 
 configs/models/
 └── extratrees.yaml       # YAML設定ファイル
@@ -187,211 +189,6 @@ tests/models/
    - `oof_predictions.csv`: OOF予測値
    - `cv_fold_logs.csv`: fold別メトリクス
    - `model_meta.json`: 設定・評価サマリ
-
-### 3.3 コードスケルトン
-
-```python
-"""ExtraTrees training script with unified CV framework."""
-
-from __future__ import annotations
-
-import argparse
-import json
-import pickle
-from pathlib import Path
-from typing import Any
-
-import numpy as np
-import pandas as pd
-from sklearn.ensemble import ExtraTreesRegressor
-from sklearn.impute import SimpleImputer
-from sklearn.model_selection import TimeSeriesSplit
-from sklearn.pipeline import Pipeline
-
-# 既存モジュールのインポート
-from src.feature_generation.su5.train_su5 import (
-    SU5FeatureAugmenter,
-    _prepare_features,
-    load_preprocess_policies,
-    load_su1_config,
-    load_su5_config,
-)
-from src.models.common.cv_utils import (
-    CVConfig,
-    aggregate_fold_results,
-    compute_fold_metrics,
-    create_cv_splits,
-)
-from src.models.common.feature_loader import get_excluded_features
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train ExtraTrees model")
-    parser.add_argument("--data-dir", type=str, default="data/raw")
-    parser.add_argument("--out-dir", type=str, default="artifacts/models/extratrees")
-    parser.add_argument(
-        "--config-path", type=str, default="configs/feature_generation.yaml"
-    )
-    parser.add_argument("--preprocess-config", type=str, default="configs/preprocess.yaml")
-    parser.add_argument("--feature-tier", type=str, default="tier3")
-    parser.add_argument("--n-splits", type=int, default=5)
-    parser.add_argument("--gap", type=int, default=0)
-    # ExtraTrees specific
-    parser.add_argument("--n-estimators", type=int, default=500)
-    parser.add_argument("--max-depth", type=int, default=15)
-    parser.add_argument("--min-samples-leaf", type=int, default=5)
-    parser.add_argument("--max-features", type=float, default=0.7)
-    return parser.parse_args()
-
-
-def build_extratrees_pipeline(
-    n_estimators: int = 500,
-    max_depth: int = 15,
-    min_samples_leaf: int = 5,
-    max_features: float = 0.7,
-) -> Pipeline:
-    """Build ExtraTrees pipeline (no scaling needed)."""
-    return Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("model", ExtraTreesRegressor(
-            n_estimators=n_estimators,
-            max_depth=max_depth,
-            min_samples_split=10,
-            min_samples_leaf=min_samples_leaf,
-            max_features=max_features,
-            bootstrap=False,
-            random_state=42,
-            n_jobs=-1,
-        )),
-    ])
-
-
-def train_fold(
-    X_train: pd.DataFrame,
-    y_train: pd.Series,
-    X_val: pd.DataFrame,
-    pipeline_params: dict[str, Any],
-) -> tuple[Pipeline, np.ndarray]:
-    """Train a single fold."""
-    pipeline = build_extratrees_pipeline(**pipeline_params)
-    pipeline.fit(X_train, y_train)
-    val_pred = pipeline.predict(X_val)
-    return pipeline, val_pred
-
-
-def main() -> None:
-    args = parse_args()
-    out_dir = Path(args.out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    # データ読み込み・特徴量生成（既存パターン）
-    train_df = pd.read_csv(Path(args.data_dir) / "train.csv")
-    test_df = pd.read_csv(Path(args.data_dir) / "test.csv")
-
-    # SU1 + SU5 特徴量生成
-    su1_cfg = load_su1_config(args.config_path)
-    su5_cfg = load_su5_config(args.config_path)
-    preprocess_policies = load_preprocess_policies(args.preprocess_config)
-    augmenter = SU5FeatureAugmenter(su1_cfg, su5_cfg, preprocess_policies)
-
-    train_aug = augmenter.fit_transform(train_df.copy())
-    test_aug = augmenter.transform(test_df.copy())
-
-    # tier除外
-    excluded = get_excluded_features(args.feature_tier)
-    feature_cols = [c for c in train_aug.columns if c not in excluded and c not in ["Date", "TARGET"]]
-    
-    X = train_aug[feature_cols]
-    y = train_aug["TARGET"]
-    X_test = test_aug[feature_cols]
-
-    # CV設定
-    cv_config = CVConfig(n_splits=args.n_splits, gap=args.gap)
-    splits = create_cv_splits(X, cv_config)
-
-    # パイプラインパラメータ
-    pipeline_params = {
-        "n_estimators": args.n_estimators,
-        "max_depth": args.max_depth,
-        "min_samples_leaf": args.min_samples_leaf,
-        "max_features": args.max_features,
-    }
-
-    # CV学習
-    fold_results = []
-    oof_preds = np.zeros(len(X))
-    models = []
-
-    for fold_idx, (train_idx, val_idx) in enumerate(splits):
-        X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
-        y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
-
-        pipeline, val_pred = train_fold(X_train, y_train, X_val, pipeline_params)
-        oof_preds[val_idx] = val_pred
-        models.append(pipeline)
-
-        metrics = compute_fold_metrics(y_val.values, val_pred, fold_idx)
-        fold_results.append(metrics)
-        print(f"Fold {fold_idx}: RMSE={metrics.rmse:.6f}")
-
-    # 集計
-    summary = aggregate_fold_results(fold_results)
-    print(f"\nOOF RMSE: {summary['oof_rmse']:.6f}")
-    print(f"OOF MSR: {summary['oof_msr']:.6f}")
-
-    # 成果物保存
-    # 1. inference_bundle.pkl
-    test_preds = np.mean([m.predict(X_test) for m in models], axis=0)
-    bundle = {
-        "models": models,
-        "augmenter": augmenter,
-        "feature_cols": feature_cols,
-        "excluded_features": excluded,
-    }
-    with open(out_dir / "inference_bundle.pkl", "wb") as f:
-        pickle.dump(bundle, f)
-
-    # 2. oof_predictions.csv
-    oof_df = pd.DataFrame({
-        "Date": train_aug["Date"],
-        "TARGET": y,
-        "prediction": oof_preds,
-    })
-    oof_df.to_csv(out_dir / "oof_predictions.csv", index=False)
-
-    # 3. cv_fold_logs.csv
-    fold_logs = pd.DataFrame([
-        {"fold": r.fold_idx, "rmse": r.rmse, "msr": r.msr, "n_samples": r.n_samples}
-        for r in fold_results
-    ])
-    fold_logs.to_csv(out_dir / "cv_fold_logs.csv", index=False)
-
-    # 4. model_meta.json
-    meta = {
-        "model_type": "ExtraTreesRegressor",
-        "feature_tier": args.feature_tier,
-        "n_features": len(feature_cols),
-        "cv_config": {"n_splits": args.n_splits, "gap": args.gap},
-        "hyperparameters": pipeline_params,
-        "oof_rmse": summary["oof_rmse"],
-        "oof_msr": summary["oof_msr"],
-    }
-    with open(out_dir / "model_meta.json", "w") as f:
-        json.dump(meta, f, indent=2)
-
-    # 5. submission.csv
-    submission = pd.DataFrame({
-        "Date": test_aug["Date"],
-        "TARGET": test_preds,
-    })
-    submission.to_csv(out_dir / "submission.csv", index=False)
-
-    print(f"\nArtifacts saved to {out_dir}")
-
-
-if __name__ == "__main__":
-    main()
-```
 
 ---
 
@@ -459,61 +256,26 @@ class TestExtraTreesPipeline:
         assert np.isclose(importances.sum(), 1.0)
 ```
 
-### 4.2 統合テスト
-
-```python
-def test_extratrees_cv_pipeline(sample_train_data: pd.DataFrame) -> None:
-    """Test full CV pipeline for ExtraTrees."""
-    from sklearn.model_selection import TimeSeriesSplit
-    from sklearn.impute import SimpleImputer
-    from sklearn.pipeline import Pipeline
-
-    X = sample_train_data.drop(columns=["Date", "TARGET"])
-    y = sample_train_data["TARGET"]
-
-    tscv = TimeSeriesSplit(n_splits=3)
-    oof_preds = np.zeros(len(X))
-
-    for train_idx, val_idx in tscv.split(X):
-        X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
-        y_train = y.iloc[train_idx]
-
-        pipeline = Pipeline([
-            ("imputer", SimpleImputer(strategy="median")),
-            ("model", ExtraTreesRegressor(n_estimators=10, random_state=42)),
-        ])
-        pipeline.fit(X_train, y_train)
-        oof_preds[val_idx] = pipeline.predict(X_val)
-
-    # Check OOF predictions are valid
-    assert not np.isnan(oof_preds).any()
-    assert oof_preds.std() > 0  # Not all same value
-```
-
 ---
 
 ## 5. 成功基準
 
-### 5.1 定量基準
+### 5.1 定量基準（実績）
 
-| 優先度 | 指標 | 閾値 | 理由 |
-|--------|------|------|------|
-| **主指標** | OOF RMSE | ≤ 0.0130 | LGBM（0.01216）より多少劣っても許容 |
-| 補助 | 予測相関（vs LGBM） | < 0.92 | アンサンブル多様性の確保 |
-| 補助 | OOF MSR | > 0（監視のみ） | トレード観点での健全性確認 |
+| 優先度 | 指標 | 目標 | 実績 | 評価 |
+|--------|------|------|------|------|
+| **主指標** | OOF RMSE | ≤ 0.0130 | 0.011440 | ✅ |
+| 主指標 | LB Score | > 0.500 | **0.500** | ❌ |
+| 補助 | 予測相関（vs LGBM） | < 0.92 | N/A | - |
 
-> **📌 アンサンブル候補としての判断基準**
->
-> 意思決定はRMSEで行い、MSRと相関は補助的な診断指標とします。
-> **RMSEは多少悪くても（≤ 0.0130）、多様性（相関 < 0.92）が確保できればアンサンブル候補として残す**方針です。
-> ExtraTreesは「GBDTとは異なる揺れ方」を期待したモデルであり、精度よりも多様性を重視します。
+### 5.2 失敗分析
 
-### 5.2 定性基準
+ExtraTreesは **OOFでは良好だがLBでベースライン同等** という結果。
 
-- [ ] 学習が正常に完了（エラーなし）
-- [ ] 成果物が全て生成される
-- [ ] 品質チェック（ruff, pyright）をパス
-- [ ] ユニットテストが全てパス
+- 予測値が極端に1.0付近に集中（range: 0.9999〜1.0001）
+- 実質的に「何も予測しない」のと同じ
+- バギング系ツリーの特性（平均化によるバリアンス削減）が裏目に出た
+- 金融データの微弱シグナルを検出できない
 
 ---
 
@@ -539,14 +301,6 @@ python -m src.models.extratrees.train_extratrees \
 pytest tests/models/test_extratrees.py -v
 ```
 
-### 6.3 品質チェック
-
-```bash
-ruff check src/models/extratrees/
-ruff format src/models/extratrees/
-pyright src/models/extratrees/
-```
-
 ---
 
 ## 7. 参考リンク
@@ -555,35 +309,3 @@ pyright src/models/extratrees/
 - [Extremely Randomized Trees 論文](https://link.springer.com/article/10.1007/s10994-006-6226-1)
 - [LGBM実装](../models/lgbm/train_lgbm.py)
 - [CV共通モジュール](../../src/models/common/cv_utils.py)
-
----
-
-## 8. 注意事項（XGBoost実装から得た共通教訓）
-
-### 8.1 テスト予測時のfeatureフィルタリング
-
-テストデータには学習時に存在しないカラム（`is_scored`, `lagged_*`等）が含まれる場合がある。
-**学習時のfeature_colsのみを抽出**してから予測を実行：
-```python
-test_features = test_df[feature_cols].copy()
-test_pred = final_pipeline.predict(test_features)
-```
-
-### 8.2 submission.csv のシグナル変換
-
-生の予測値（excess returns）ではなく、**競技シグナル形式**に変換して出力：
-```python
-# シグナル変換: pred * mult + 1.0, clipped to [0.9, 1.1]
-signal_mult = 1.0
-signal_pred = np.clip(test_pred * signal_mult + 1.0, 0.9, 1.1)
-
-# カラム名は "prediction"（target変数名ではない）
-submission_df = pd.DataFrame({
-    "date_id": id_values,
-    "prediction": signal_pred,
-})
-```
-
-### 8.3 is_scored フィルタリング
-
-submission.csvには`is_scored==True`の行のみを含める（競技要件）。

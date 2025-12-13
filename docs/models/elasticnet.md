@@ -1,24 +1,40 @@
 # ElasticNet モデル実装仕様書
 
-最終更新: 2025-12-12
+最終更新: 2025-12-13
 
 ## 実装ステータス
 
-**Status**: ⬜ **未着手**
+**Status**: ❌ **非採用（LB 0.461 - ベースライン以下）**
 
-### 実装予定
-- ⬜ `src/models/elasticnet/train_elasticnet.py`: 学習スクリプト
-- ⬜ `configs/models/elasticnet.yaml`: YAML設定ファイル
-- ⬜ Unit tests: `tests/models/test_elasticnet.py`
+### 実装済み
+- ✅ `src/models/elasticnet/train_elasticnet.py`: 学習スクリプト
+- ✅ `src/models/elasticnet/predict_elasticnet.py`: 推論スクリプト
+- ✅ `configs/models/elasticnet.yaml`: YAML設定ファイル
+- ✅ Unit tests: `tests/models/test_elasticnet.py` (10テスト ALL PASS)
 
-### 成果物
-- ⬜ `artifacts/models/elasticnet/inference_bundle.pkl`
-- ⬜ `artifacts/models/elasticnet/oof_predictions.csv`
-- ⬜ `artifacts/models/elasticnet/cv_fold_logs.csv`
-- ⬜ `artifacts/models/elasticnet/model_meta.json`
-- ⬜ `artifacts/models/elasticnet/feature_list.json`
-- ⬜ `artifacts/models/elasticnet/coefficients.csv` （係数出力）
-- ⬜ `artifacts/models/elasticnet/submission.csv`
+### 成果物（参考保存）
+- ✅ `artifacts/models/elasticnet/inference_bundle.pkl`
+- ✅ `artifacts/models/elasticnet/oof_predictions.csv`
+- ✅ `artifacts/models/elasticnet/cv_fold_logs.csv`
+- ✅ `artifacts/models/elasticnet/model_meta.json`
+- ✅ `artifacts/models/elasticnet/feature_list.json`
+- ✅ `artifacts/models/elasticnet/coefficients.csv` （係数出力）
+- ✅ `artifacts/models/elasticnet/submission.csv`
+
+### LB結果
+
+| 指標 | 値 | 評価 |
+|------|------|------|
+| **OOF RMSE** | 0.011091 | -8.8% vs LGBM ✅ |
+| **LB Score** | 0.461 | -32.3% vs LGBM ❌❌❌ |
+| **非ゼロ係数** | 2/116 (1.7%) | 極端にスパース |
+
+### 結論
+
+**線形モデル（ElasticNet）はこのマーケット予測問題に不適合**
+- 116特徴量中たった2個しか非ゼロ係数にならない
+- 予測がほぼ定数（0.9999〜1.0001）で有意なシグナルなし
+- Ridge, Lasso も同様に失敗する見込み → 試行不要
 
 **Note**: 出力仕様の詳細は [README.md](README.md#成果物出力仕様kaggle-nb用) を参照。
 
