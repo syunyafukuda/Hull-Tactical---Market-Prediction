@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""ExtraTrees モデルの推論スクリプト。
+"""ExtraTrees model inference script.
 
-学習済みの ``artifacts/models/extratrees/inference_bundle.pkl`` を読み込み、指定されたテストデータに
-対して推論を実行し、提出形式の ``submission.csv`` を出力する。
+This script loads a trained inference bundle from ``artifacts/models/extratrees/inference_bundle.pkl``,
+runs inference on the specified test data, and outputs a submission file in ``submission.csv`` format.
 
 Usage:
     python -m src.models.extratrees.predict_extratrees --artifacts-dir artifacts/models/extratrees
