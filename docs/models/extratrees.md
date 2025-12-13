@@ -1,26 +1,40 @@
 # ExtraTrees モデル実装仕様書
 
-最終更新: 2025-12-12
+最終更新: 2025-12-13
 
 ## 実装ステータス
 
-**Status**: ⬜ **未着手**
+**Status**: ✅ **実装完了**
 
-### 実装予定
-- ⬜ `src/models/extratrees/train_extratrees.py`: 学習スクリプト
-- ⬜ `configs/models/extratrees.yaml`: YAML設定ファイル
-- ⬜ Unit tests: `tests/models/test_extratrees.py`
+### 実装済み
+- ✅ `src/models/extratrees/train_extratrees.py`: 学習スクリプト
+- ✅ `src/models/extratrees/predict_extratrees.py`: 推論スクリプト
+- ✅ `configs/models/extratrees.yaml`: YAML設定ファイル
+- ✅ Unit tests: `tests/models/test_extratrees.py` (10テスト ALL PASS)
 
 ### 成果物
-- ⬜ `artifacts/models/extratrees/inference_bundle.pkl`
-- ⬜ `artifacts/models/extratrees/oof_predictions.csv`
-- ⬜ `artifacts/models/extratrees/cv_fold_logs.csv`
-- ⬜ `artifacts/models/extratrees/model_meta.json`
-- ⬜ `artifacts/models/extratrees/feature_list.json`
-- ⬜ `artifacts/models/extratrees/feature_importances.csv` （特徴量重要度）
-- ⬜ `artifacts/models/extratrees/submission.csv`
+- ✅ `artifacts/models/extratrees/inference_bundle.pkl`
+- ✅ `artifacts/models/extratrees/oof_predictions.csv`
+- ✅ `artifacts/models/extratrees/cv_fold_logs.csv`
+- ✅ `artifacts/models/extratrees/model_meta.json`
+- ✅ `artifacts/models/extratrees/feature_list.json`
+- ✅ `artifacts/models/extratrees/feature_importances.csv` （特徴量重要度）
+- ✅ `artifacts/models/extratrees/submission.csv`
 
 **Note**: 出力仕様の詳細は [README.md](README.md#成果物出力仕様kaggle-nb用) を参照。
+
+### LB検証結果 ❌
+
+**LB Score: 0.500** - アンサンブル価値なし、**非採用**
+
+| 指標 | ExtraTrees | LGBM | 差分 |
+|------|------------|------|------|
+| **OOF RMSE** | 0.011347 | 0.012164 | **-6.7%** ✅ |
+| **LB Score** | 0.500 | 0.681 | **-26.6%** ❌ |
+
+**結論**: ExtraTreesはOOFでは良好だがLBでベースライン同等（0.500）。
+分割点のランダム選択が金融データの微弱シグナル検出に不適合。
+勾配ブースティング（LGBM/XGBoost/CatBoost）とは異なり、アンサンブル価値なし。
 
 ---
 
