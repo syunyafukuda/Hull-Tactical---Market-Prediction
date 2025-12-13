@@ -30,7 +30,7 @@ class TestArgumentParsing:
         assert args.out_dir == "artifacts/models/xgboost"
         assert args.n_splits == 5
         assert args.gap == 0
-        assert args.max_depth == 6
+        assert args.max_depth == 8  # Updated from 6 to reduce underfitting
         assert args.learning_rate == 0.05
         assert args.n_estimators == 600
         assert args.subsample == 0.8
