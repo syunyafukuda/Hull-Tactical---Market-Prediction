@@ -7,6 +7,7 @@ import argparse
 import json
 import math
 import shlex
+import statistics
 import subprocess
 import sys
 import time
@@ -15,8 +16,6 @@ from datetime import datetime
 from itertools import chain
 from pathlib import Path
 from typing import Any, Dict, List
-import statistics
-
 
 THIS_DIR = Path(__file__).resolve().parent
 SRC_ROOT = THIS_DIR.parents[1]
@@ -25,9 +24,9 @@ for path in (SRC_ROOT, PROJECT_ROOT):
     if str(path) not in sys.path:
         sys.path.append(str(path))
 
-from preprocess.P_group.p_group import PGroupImputer  # noqa: E402
 from preprocess.E_group.e_group import EGroupImputer  # noqa: E402
 from preprocess.M_group.m_group import MGroupImputer  # noqa: E402
+from preprocess.P_group.p_group import PGroupImputer  # noqa: E402
 
 TRAIN_SCRIPT = THIS_DIR / "train_pre_p.py"
 

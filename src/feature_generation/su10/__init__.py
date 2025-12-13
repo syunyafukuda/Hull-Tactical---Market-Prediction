@@ -7,9 +7,9 @@ train/test 内部データとは独立した情報軸を提供する。
 from __future__ import annotations
 
 from src.feature_generation.su10.feature_su10 import (
+    SU10_FEATURE_COLUMNS,
     SU10Config,
     SU10FeatureGenerator,
-    SU10_FEATURE_COLUMNS,
     load_su10_config,
 )
 

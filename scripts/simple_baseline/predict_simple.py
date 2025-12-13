@@ -14,9 +14,10 @@ import argparse
 import json
 import sys
 from pathlib import Path
-import pandas as pd
-import numpy as np
+
 import joblib
+import numpy as np
+import pandas as pd
 
 
 def infer_test_file(data_dir: Path, explicit: str | None) -> Path:

@@ -24,10 +24,10 @@ except Exception:
     LGBMRegressor = None  # type: ignore
     HAS_LGBM = False
 
-from sklearn.metrics import mean_squared_error
-from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
+from sklearn.metrics import mean_squared_error
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder
 
 
 def load_table(path: Path) -> pd.DataFrame:

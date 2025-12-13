@@ -1,22 +1,45 @@
 # XGBoost モデル実装仕様書
 
-最終更新: 2025-12-12
+最終更新: 2025-12-13
 
 ## 実装ステータス
 
-**Status**: ⬜ **未着手**
+**Status**: ✅ **実装完了・LB検証済み**
 
-### 実装予定
-- ⬜ `src/models/xgboost/train_xgb.py`: 学習スクリプト
-- ⬜ `src/models/xgboost/config.py`: ハイパラ設定
-- ⬜ `configs/models/xgboost.yaml`: YAML設定ファイル
-- ⬜ Unit tests: `tests/models/test_xgboost.py`
+### 実績サマリー
 
-### 成果物
-- ⬜ `artifacts/models/xgboost/inference_bundle.pkl`
-- ⬜ `artifacts/models/xgboost/oof_predictions.csv`
-- ⬜ `artifacts/models/xgboost/cv_fold_logs.csv`
-- ⬜ `artifacts/models/xgboost/model_meta.json`
+| 指標 | XGBoost | LGBM | 評価 |
+|------|---------|------|------|
+| **LB Score** | 0.622 | 0.681 | XGBoostが8.7%劣る |
+| **OOF RMSE** | 0.012062 | 0.012164 | XGBoostが0.8%優れる |
+| **予測相関** | - | **0.684** | **低い！アンサンブル価値あり** |
+| **pred/actual ratio** | 45.0% | 47.2% | 両方正常範囲 |
+
+### アンサンブル効果（OOFベース）
+
+| 構成 | OOF RMSE | LGBM比 |
+|------|----------|--------|
+| 50% LGBM + 50% XGB | 0.011932 | **-1.91%** |
+| 60% LGBM + 40% XGB | 0.011950 | -1.76% |
+| 70% LGBM + 30% XGB | 0.011982 | -1.50% |
+
+**結論**: 予測相関が0.684と低く、アンサンブルでOOF RMSEが最大1.91%改善 → **アンサンブル価値あり**
+
+### 実装済み
+- ✅ `src/models/xgboost/train_xgb.py`: 学習スクリプト
+- ✅ `configs/models/xgboost.yaml`: YAML設定ファイル
+- ✅ Unit tests: `tests/models/test_xgboost.py`
+
+### 成果物（実行時生成）
+- ✅ `artifacts/models/xgboost/inference_bundle.pkl`
+- ✅ `artifacts/models/xgboost/oof_predictions.csv`
+- ✅ `artifacts/models/xgboost/cv_fold_logs.csv`
+- ✅ `artifacts/models/xgboost/model_meta.json`
+- ✅ `artifacts/models/xgboost/feature_list.json`
+- ✅ `artifacts/models/xgboost/submission.csv`
+
+**Note**: 成果物は実際のデータで学習実行時に生成されます。
+出力仕様の詳細は [README.md](README.md#成果物出力仕様kaggle-nb用) を参照。
 
 ---
 
@@ -27,12 +50,15 @@
 - **目的**: LGBMと同系統の勾配ブースティングモデルだが、実装の違いによる多様性を導入
 - **期待効果**: アンサンブル時に予測相関が適度に異なることで、精度向上の可能性
 - **比較対象**: LGBM ベースライン（OOF RMSE: 0.012164, LB: 0.681）
+- **実績**: XGBoost単体はLB 0.622だが、予測相関0.684でアンサンブル価値が高い
 
 ### 1.2 前提条件
 
-- **特徴セット**: FS_compact（116列）を固定
+- **特徴セット**: FS_compact（116列）を固定（Feature Selection Phase での結論と整合）
 - **CV設定**: TimeSeriesSplit, n_splits=5, gap=0（LGBMと同一）
-- **評価指標**: OOF RMSE, OOF MSR, 予測相関（vs LGBM）
+- **評価指標**:
+  - **主指標**: OOF RMSE（選定フェーズの最重要指標）
+  - **補助指標**: 予測相関（vs LGBM）、OOF MSR（トレード観点での監視）
 
 ---
 
@@ -301,11 +327,12 @@ class TestXGBoostTraining:
 
 ### 5.1 成功条件
 
-| 指標 | 条件 | 備考 |
-|------|------|------|
-| OOF RMSE | ≤ 0.0125 | ベースライン+3%以内 |
-| 予測相関（vs LGBM） | < 0.98 | アンサンブル効果の見込み |
-| 実行時間 | < 10分 | 同等のデータ量で |
+| 優先度 | 指標 | 条件 | 備考 |
+|--------|------|------|------|
+| **主指標** | OOF RMSE | ≤ 0.0125 | ベースライン+3%以内 |
+| 補助 | 予測相関（vs LGBM） | < 0.98 | アンサンブル効果の見込み |
+| 補助 | OOF MSR | > 0（監視のみ） | トレード観点での健全性確認 |
+| 参考 | 実行時間 | < 10分 | 同等のデータ量で |
 
 ### 5.2 LB提出判断
 
@@ -368,12 +395,250 @@ uv run pyright src/models/xgboost/
 
 ---
 
-## 9. 注意事項
+## 9. 注意事項（実装から得た教訓）
 
-1. **Early Stopping**: XGBoostでは`early_stopping_rounds`パラメータを使用。eval_setの指定が必須。
+### 9.1 Early Stopping と eval_set の前処理
 
-2. **特徴量名**: XGBoostは特徴量名に`[`, `]`, `<`を含むと警告が出る。必要に応じてサニタイズ。
+1. **XGBoost 2.0+ API変更**: `early_stopping_rounds`はfit()ではなく**コンストラクタで指定**する必要がある
+   ```python
+   # ✅ 正しい（XGBoost 2.0+）
+   model = XGBRegressor(early_stopping_rounds=50, ...)
+   model.fit(X_train, y_train, eval_set=[(X_valid, y_valid)])
+   
+   # ❌ エラー（XGBoost 2.0+）
+   model.fit(X_train, y_train, early_stopping_rounds=50, eval_set=...)
+   ```
 
-3. **メモリ使用量**: tree_method="hist"を使用することで、GPUなしでも高速化可能。
+2. **eval_set の前処理**: CVループでeval_setを使う場合、**パイプライン経由ではなく手動でimputation**を適用する必要がある
+   - パイプラインのfitではeval_setに前処理が適用されない
+   - 解決策: 各imputerをclone()してfit_transform/transformを手動適用
 
-4. **再現性**: `random_state`を固定しても、マルチスレッド環境では完全な再現性が保証されない場合がある。
+### 9.2 特徴量名のサニタイズ
+
+XGBoostは特徴量名に`[`, `]`, `<`, `>`を含むと警告が出る。`sanitize_feature_names()`でアンダースコアに置換。
+
+### 9.3 テスト予測時のfeatureフィルタリング
+
+テストデータには学習時に存在しないカラム（`is_scored`, `lagged_*`等）が含まれる場合がある。
+**学習時のfeature_colsのみを抽出**してから予測を実行：
+```python
+test_features = test_df[feature_cols].copy()
+test_pred = final_pipeline.predict(test_features)
+```
+
+### 9.4 submission.csv のシグナル変換
+
+生の予測値（excess returns）ではなく、**競技シグナル形式**に変換して出力：
+```python
+# シグナル変換: pred * mult + 1.0, clipped to [0.9, 1.1]
+signal_mult = 1.0
+signal_pred = np.clip(test_pred * signal_mult + 1.0, 0.9, 1.1)
+
+# カラム名は "prediction"（target変数名ではない）
+submission_df = pd.DataFrame({
+    "date_id": id_values,
+    "prediction": signal_pred,
+})
+```
+
+### 9.5 is_scored フィルタリング
+
+submission.csvには`is_scored==True`の行のみを含める（競技要件）。
+
+### 9.6 最終モデル学習時のearly_stopping無効化
+
+全データで再学習する際は検証セットがないため、`early_stopping_rounds`を**削除**してパイプラインを再構築：
+```python
+model_kwargs_final = model_kwargs.copy()
+model_kwargs_final.pop("early_stopping_rounds", None)
+final_pipeline = build_xgb_pipeline(..., model_kwargs=model_kwargs_final)
+```
+
+### 9.7 その他
+
+- **メモリ使用量**: `tree_method="hist"`を使用することで、GPUなしでも高速化可能
+- **再現性**: `random_state`を固定しても、マルチスレッド環境では完全な再現性が保証されない場合がある
+
+---
+
+## 10. 実装完了レポート
+
+### 10.1 実装概要
+
+2025-12-12に完了したXGBoostモデル実装は、LGBM実装(`src/models/lgbm/train_lgbm.py`)をベースに以下の主要機能を実装：
+
+1. **コマンドライン引数パース**: 
+   - XGBoost固有のハイパーパラメータをサポート
+   - LGBM実装と同じCV設定オプションを提供
+
+2. **特徴量名のサニタイズ**: 
+   - XGBoostが警告を出す特殊文字(`[`, `]`, `<`, `>`)を自動的にアンダースコアに置換
+   - `sanitize_feature_names()`関数で実装
+
+3. **Early Stopping対応**:
+   - sklearn Pipelineを通じて`model__eval_set`パラメータで検証データを渡す
+   - `early_stopping_rounds=50`をデフォルトで設定
+
+4. **既存モジュールの再利用**:
+   - `src.feature_generation.su5.train_su5`から特徴量生成パイプライン
+   - `src.models.common.feature_loader`から特徴量除外ロジック
+   - `src.models.common.cv_utils`からCV評価メトリクス計算
+
+### 10.2 実装の差異（vs LGBM）
+
+| 項目 | LGBM | XGBoost | 理由 |
+|------|------|---------|------|
+| モデルクラス | `LGBMRegressor` | `XGBRegressor` | - |
+| 特徴量名処理 | そのまま使用 | サニタイズ実装 | XGBoostの警告回避 |
+| Early Stopping | `callbacks`使用 | `early_stopping_rounds`パラメータ | XGBoost APIの違い |
+| デフォルト`max_depth` | -1（制限なし） | 6 | 過学習抑制 |
+
+### 10.3 テスト結果
+
+すべてのユニットテストが合格：
+```bash
+$ pytest tests/models/test_xgboost.py -v
+13 passed, 1 skipped in 0.75s
+```
+
+品質チェック結果：
+- **ruff check**: All checks passed
+- **ruff format**: Formatted successfully
+- **pyright**: 0 errors, 0 warnings
+
+### 10.4 次のステップ
+
+1. **実データでの学習実行**: 
+   ```bash
+   uv run python -m src.models.xgboost.train_xgb
+   ```
+
+2. **評価指標の確認**:
+   - OOF RMSE ≤ 0.0125 の確認
+   - LGBM予測との相関係数 < 0.98 の確認
+
+3. **LB提出判断**:
+   - OOF RMSEがベースラインと同等以上であれば提出検討
+
+4. **ハイパーパラメータ調整**:
+   - 必要に応じてOptunaでの最適化を検討
+
+---
+
+## 11. Lessons Learned（教訓）
+
+### 11.1 XGBoostハイパーパラメータの重要性
+
+**問題**: 初回のKaggle LBスコアが0.542と極端に悪化した。
+
+**原因分析**:
+1. **予測分散の不足**: OOF予測の標準偏差がactualの**4%**しかなかった（LGBMは50%）
+2. **過度な正則化**: `min_child_weight=32`, `reg_lambda=1.0` がこのデータセットでは厳しすぎた
+3. **早期停止の影響**: `early_stopping_rounds=50` で学習が途中で止まっていた
+
+**解決策**:
+```python
+# 修正前（過度に保守的）
+min_child_weight: 32
+reg_lambda: 1.0
+early_stopping_rounds: 50
+
+# 修正後（適切な設定）
+max_depth: 10          # 6 → 10
+learning_rate: 0.01    # 0.05 → 0.01
+n_estimators: 2000     # 600 → 2000
+min_child_weight: 1    # 32 → 1（デフォルト）
+reg_lambda: 0.001      # 1.0 → 0.001
+early_stopping_rounds: 0  # 無効化
+subsample: 0.9
+colsample_bytree: 0.9
+```
+
+**結果**:
+| 指標 | 修正前 | 修正後 |
+|------|--------|--------|
+| pred/actual ratio | 4.1% | **47.3%** |
+| LB Score | 0.542 | TBD |
+
+### 11.2 診断指標: pred/actual ratio
+
+**重要な診断指標**: `pred.std() / actual.std()`
+
+- **正常範囲**: 30-70%（LGBMは約50%）
+- **異常値**: < 10% は過少学習、> 90% は過学習の兆候
+
+```python
+# 診断コード
+pred_std = oof['prediction'].std()
+actual_std = oof['actual'].std()
+ratio = pred_std / actual_std
+print(f"pred/actual ratio: {ratio:.1%}")
+if ratio < 0.1:
+    print("WARNING: Model may be underfitting")
+```
+
+### 11.3 XGBoost vs LGBMの違い
+
+| 項目 | LGBM | XGBoost | 注意点 |
+|------|------|---------|--------|
+| 葉ベース/深さベース | leaf-wise | depth-wise | 同じmax_depthでも挙動が異なる |
+| デフォルト正則化 | 緩め | 強め | XGBoostは明示的に緩める必要あり |
+| min_child_weight | サンプル数 | ヘッシアン合計 | 回帰では類似だが完全に同等ではない |
+| 早期停止 | 有効 | 慎重に使用 | 小データでは無効化を検討 |
+
+### 11.4 Kaggle提出時のバージョン互換性
+
+**問題**: ローカル（XGBoost 3.1.2）とKaggle（XGBoost 2.0.3）のバージョン不一致で予測値が異なった。
+
+**解決策**:
+1. XGBoostのwheelファイルをartifactsに同梱
+2. ノートブックでバージョンチェックを実装
+
+```python
+# ノートブックでのバージョンチェック
+if not xgb.__version__.startswith("3."):
+    raise RuntimeError(f"XGBoost version mismatch: expected 3.x, got {xgb.__version__}")
+```
+
+### 11.5 ローカル推論スクリプト vs Kaggleノートブック
+
+**問題**: ローカルで推論スクリプトを作成したが、Kaggleノートブックと完全に同一ではなく、環境差異で微小な予測差が発生した。
+
+**構造の違い**:
+
+| 項目 | `predict_xgb.py` (ローカル) | `xgboost.ipynb` (Kaggle) |
+|------|---------------------------|----------------------------|
+| 実行環境 | ローカル開発環境 | Kaggle ノートブック |
+| 依存関係 | `import` で既存モジュール使用 | すべてのクラスをインラインで埋込 |
+| Wheel インストール | なし | 動的にインストール |
+| Kaggle API | なし | `kaggle_evaluation` サーバー連携 |
+| データパス | `data/raw/test.csv` | `/kaggle/input/...` |
+
+**推論ロジック自体は同等**:
+```python
+# predict_xgb.py
+prediction = pipeline.predict(X_test)
+signal = to_signal(prediction, postprocess_params)
+
+# xgboost.ipynb
+raw_predictions = PIPELINE.predict(X)
+signal = to_signal(raw_predictions, POSTPROCESS_PARAMS)
+```
+
+**教訓**:
+1. **ローカル推論スクリプトの用途**: 再学習なしで `submission.csv` を再生成する（デバッグ・検証用）
+2. **Kaggleノートブックの用途**: 実際のコンペ提出（すべての依存クラスを埋め込む必要あり）
+3. **微小な予測差の許容**: Python/NumPyバージョン差による ~0.02% の差異は避けられない
+4. **OOF RMSEの一致を優先**: 予測値の絶対値より、OOF RMSEが一致していれば問題なし
+
+**推論スクリプトの使用方法**:
+```bash
+# ローカルで submission.csv を再生成
+python -m src.models.xgboost.predict_xgb
+
+# カスタム設定
+python -m src.models.xgboost.predict_xgb \
+  --artifacts-dir artifacts/models/xgboost \
+  --test-file data/raw/test.csv
+```
+

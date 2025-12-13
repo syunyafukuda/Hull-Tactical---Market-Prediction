@@ -17,6 +17,10 @@
 - ⬜ `artifacts/models/ridge/oof_predictions.csv`
 - ⬜ `artifacts/models/ridge/cv_fold_logs.csv`
 - ⬜ `artifacts/models/ridge/model_meta.json`
+- ⬜ `artifacts/models/ridge/feature_list.json`
+- ⬜ `artifacts/models/ridge/submission.csv`
+
+**Note**: 出力仕様の詳細は [README.md](README.md#成果物出力仕様kaggle-nb用) を参照。
 
 ---
 
@@ -39,9 +43,12 @@
 
 ### 1.3 前提条件
 
-- **特徴セット**: FS_compact（116列）を固定
+- **特徴セット**: FS_compact（116列）を固定（Feature Selection Phase での結論と整合）
+  - **必ず FS_compact を入力として使用する**。特徴量セットの変更は行わない。
 - **CV設定**: TimeSeriesSplit, n_splits=5, gap=0（LGBMと同一）
-- **評価指標**: OOF RMSE, OOF MSR, 予測相関（vs LGBM）
+- **評価指標**:
+  - **主指標**: OOF RMSE（選定フェーズの最重要指標）
+  - **補助指標**: 予測相関（vs LGBM）、OOF MSR（トレード観点での監視）
 
 ---
 
@@ -395,11 +402,12 @@ class TestRidgeTraining:
 
 ### 5.1 成功条件
 
-| 指標 | 条件 | 備考 |
-|------|------|------|
-| OOF RMSE | ≤ 0.015 | 線形モデルなので緩め |
-| 予測相関（vs LGBM） | < 0.90 | 高い多様性を期待 |
-| 実行時間 | < 1分 | 閉形式解のため高速 |
+| 優先度 | 指標 | 条件 | 備考 |
+|--------|------|------|------|
+| **主指標** | OOF RMSE | ≤ 0.015 | 線形モデルなので緩め |
+| 補助 | 予測相関（vs LGBM） | < 0.90 | 高い多様性を期待 |
+| 補助 | OOF MSR | > 0（監視のみ） | トレード観点での健全性確認 |
+| 参考 | 実行時間 | < 1分 | 閉形式解のため高速 |
 
 ### 5.2 アンサンブル価値の判断
 
@@ -467,7 +475,9 @@ uv run pyright src/models/ridge/
 
 ---
 
-## 9. 注意事項
+## 9. 注意事項（XGBoost実装から得た共通教訓を含む）
+
+### 9.1 Ridge固有の注意点
 
 1. **スケーリング必須**: Ridgeは特徴量のスケールに敏感。StandardScalerを必ず適用すること。
 
@@ -475,9 +485,42 @@ uv run pyright src/models/ridge/
 
 3. **多重共線性**: Ridgeは多重共線性に強いが、極端に相関が高い特徴量群ではalphaを大きくする必要がある場合がある。
 
-4. **係数の解釈**: スケーリング後の係数は直接比較可能。元のスケールでの係数を得るには逆変換が必要。
+4. **係数の解釈**: StandardScaler 適用後の係数であるため、特徴量間で直接比較可能。
+   - 元スケールでの影響を見たい場合は、スケーラーの `mean_` と `scale_` を用いて逆変換する：
+     ```python
+     # 逆変換: 元スケールの係数 = スケール後の係数 / scaler.scale_
+     original_coef = model.coef_ / scaler.scale_
+     ```
 
 5. **ターゲットスケーリング**: 今回はターゲット（market_forward_excess_returns）はスケーリングしない。必要に応じて検討。
+
+### 9.2 テスト予測時のfeatureフィルタリング
+
+テストデータには学習時に存在しないカラム（`is_scored`, `lagged_*`等）が含まれる場合がある。
+**学習時のfeature_colsのみを抽出**してから予測を実行：
+```python
+test_features = test_df[feature_cols].copy()
+test_pred = final_pipeline.predict(test_features)
+```
+
+### 9.3 submission.csv のシグナル変換
+
+生の予測値（excess returns）ではなく、**競技シグナル形式**に変換して出力：
+```python
+# シグナル変換: pred * mult + 1.0, clipped to [0.9, 1.1]
+signal_mult = 1.0
+signal_pred = np.clip(test_pred * signal_mult + 1.0, 0.9, 1.1)
+
+# カラム名は "prediction"（target変数名ではない）
+submission_df = pd.DataFrame({
+    "date_id": id_values,
+    "prediction": signal_pred,
+})
+```
+
+### 9.4 is_scored フィルタリング
+
+submission.csvには`is_scored==True`の行のみを含める（競技要件）。
 
 ---
 

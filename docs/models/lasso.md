@@ -16,7 +16,11 @@
 - ⬜ `artifacts/models/lasso/oof_predictions.csv`
 - ⬜ `artifacts/models/lasso/cv_fold_logs.csv`
 - ⬜ `artifacts/models/lasso/model_meta.json`
+- ⬜ `artifacts/models/lasso/feature_list.json`
 - ⬜ `artifacts/models/lasso/coefficients.csv` （係数出力）
+- ⬜ `artifacts/models/lasso/submission.csv`
+
+**Note**: 出力仕様の詳細は [README.md](README.md#成果物出力仕様kaggle-nb用) を参照。
 
 ---
 
@@ -38,13 +42,15 @@
 - **L1正則化**: 係数の絶対値和にペナルティを課す
 - **スパース性**: 不要な特徴の係数が完全に0になる
 - **特徴選択効果**: 自動的に重要な特徴のみを使用
-- **スケーリング依存**: 特徴量のスケールに敏感（StandardScaler必須）
+- **スケーリング依存**: 特徴量のスケールに敏感（**StandardScaler必須、外すと係数解釈が破綻**）
 
 ### 1.3 前提条件
 
-- **特徴セット**: FS_compact（116列）を固定
+- **特徴セット**: FS_compact（116列）を固定（Feature Selection Phase での結論と整合）
 - **CV設定**: TimeSeriesSplit, n_splits=5, gap=0（LGBMと同一）
-- **評価指標**: OOF RMSE, OOF MSR, 予測相関（vs LGBM）
+- **評価指標**:
+  - **主指標**: OOF RMSE（選定フェーズの最重要指標）
+  - **補助指標**: 予測相関（vs LGBM）、OOF MSR（トレード観点での監視）
 - **スケーリング**: **必須**
 
 ---
@@ -107,6 +113,16 @@ from sklearn.linear_model import LassoCV
 alphas = np.logspace(-5, -1, 50)  # 0.00001 〜 0.1
 model = LassoCV(alphas=alphas, cv=5, max_iter=10000)
 ```
+
+> **⚠️ 時系列CVに関する注意**
+>
+> `LassoCV(cv=5)` の内部CVはデフォルトでランダムなK-Fold分割を行います。
+> 外側のCV（TimeSeriesSplit）がfold間のリークを防いでいるため致命的な問題ではありませんが、
+> 厳密に時系列を守りたい場合は以下の選択肢があります:
+> 1. `cv=TimeSeriesSplit(n_splits=5)` を渡す
+> 2. `--auto-alpha` を使わず、外側CVでグリッドサーチを行う
+>
+> 本フェーズでは「まず固定alphaで位置確認 → 必要に応じて自動選択で微調整」の方針を推奨します。
 
 ### 2.5 RidgeとLassoの比較
 
@@ -382,6 +398,8 @@ def main() -> None:
     coef_all.to_csv(out_dir / "coefficients.csv", index=False)
 
     # 5. coefficients_summary.csv (fold平均)
+    # 注意: これはStandardScaler後の係数。元スケールでの寄与を見る場合は
+    # scaler.scale_ で割り戻す必要がある
     coef_summary = (
         coef_all.groupby("feature")["coefficient"]
         .agg(["mean", "std"])
@@ -536,12 +554,17 @@ class TestLassoPipeline:
 
 ### 5.1 定量基準
 
-| 指標 | 閾値 | 理由 |
-|------|------|------|
-| OOF RMSE | ≤ 0.015 | 線形モデルとして許容範囲 |
-| OOF MSR | > 0 | 正のリターンを維持 |
-| 予測相関（vs LGBM） | < 0.85 | 高いアンサンブル多様性 |
-| 非ゼロ係数数 | 記録 | スパース性の確認 |
+| 優先度 | 指標 | 閾値 | 理由 |
+|--------|------|------|------|
+| **主指標** | OOF RMSE | ≤ 0.015 | 線形モデルとして許容範囲 |
+| 補助 | 予測相関（vs LGBM） | < 0.85 | 高いアンサンブル多様性 |
+| 補助 | OOF MSR | > 0（監視のみ） | トレード観点での健全性確認 |
+| 参考 | 非ゼロ係数数 | 記録 | スパース性の確認 |
+
+> **📌 アンサンブル候補としての判断基準**
+>
+> 意思決定はRMSEで行い、MSRと相関は補助的な診断指標とします。
+> RMSEでLGBMに勝つことは求めず、**相関が十分低ければ（< 0.85）アンサンブル要員として価値あり**と判断します。
 
 ### 5.2 定性基準
 
@@ -618,3 +641,35 @@ print(nonzero.head(20))
 - [scikit-learn LassoCV](https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LassoCV.html)
 - [Ridge仕様書](ridge.md)
 - [ElasticNet仕様書](elasticnet.md)
+
+---
+
+## 9. 注意事項（XGBoost実装から得た共通教訓）
+
+### 9.1 テスト予測時のfeatureフィルタリング
+
+テストデータには学習時に存在しないカラム（`is_scored`, `lagged_*`等）が含まれる場合がある。
+**学習時のfeature_colsのみを抽出**してから予測を実行：
+```python
+test_features = test_df[feature_cols].copy()
+test_pred = final_pipeline.predict(test_features)
+```
+
+### 9.2 submission.csv のシグナル変換
+
+生の予測値（excess returns）ではなく、**競技シグナル形式**に変換して出力：
+```python
+# シグナル変換: pred * mult + 1.0, clipped to [0.9, 1.1]
+signal_mult = 1.0
+signal_pred = np.clip(test_pred * signal_mult + 1.0, 0.9, 1.1)
+
+# カラム名は "prediction"（target変数名ではない）
+submission_df = pd.DataFrame({
+    "date_id": id_values,
+    "prediction": signal_pred,
+})
+```
+
+### 9.3 is_scored フィルタリング
+
+submission.csvには`is_scored==True`の行のみを含める（競技要件）。

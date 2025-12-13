@@ -7,15 +7,15 @@ import argparse
 import json
 import math
 import shlex
+import statistics
 import subprocess
 import sys
 import time
-from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from itertools import chain
 from pathlib import Path
 from typing import Any, Dict, List
-import statistics
 
 THIS_DIR = Path(__file__).resolve().parent
 SRC_ROOT = THIS_DIR.parents[1]

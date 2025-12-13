@@ -15,6 +15,7 @@ import json
 import sys
 from pathlib import Path
 from typing import Any, Sequence, cast
+
 import joblib
 import numpy as np
 import pandas as pd
@@ -27,11 +28,9 @@ for path in (SRC_ROOT, PROJECT_ROOT):
     if str(path) not in sys.path:
         sys.path.append(str(path))
 
-from preprocess.M_group.m_group import MGroupImputer  # noqa: F401,E402
 from preprocess.E_group.e_group import EGroupImputer  # noqa: F401,E402
 from preprocess.I_group.i_group import IGroupImputer  # noqa: F401,E402
-
-
+from preprocess.M_group.m_group import MGroupImputer  # noqa: F401,E402
 from scripts.utils_msr import PostProcessParams, to_signal  # noqa: E402
 
 

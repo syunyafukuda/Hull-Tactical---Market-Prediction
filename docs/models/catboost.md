@@ -17,6 +17,10 @@
 - ⬜ `artifacts/models/catboost/oof_predictions.csv`
 - ⬜ `artifacts/models/catboost/cv_fold_logs.csv`
 - ⬜ `artifacts/models/catboost/model_meta.json`
+- ⬜ `artifacts/models/catboost/feature_list.json`
+- ⬜ `artifacts/models/catboost/submission.csv`
+
+**Note**: 出力仕様の詳細は [README.md](README.md#成果物出力仕様kaggle-nb用) を参照。
 
 ---
 
@@ -34,13 +38,19 @@
 
 - **Ordered Boosting**: 時系列的な順序を考慮した学習（リーク防止に有利）
 - **Symmetric Trees**: 対称木構造による高速化と正則化効果
-- **Native Categorical Support**: カテゴリ変数の自動エンコーディング（今回は未使用）
+- **Native Categorical Support**: カテゴリ変数の自動エンコーディング
+
+> **本コンペでの利用方針**: 今回の FS_compact（116列）はほぼ全て数値特徴量のため、
+> CatBoost のカテゴリカル自動エンコード機能は**使用しない**。
+> すべての特徴量を numeric 扱いとし、不要な複雑性を避ける。
 
 ### 1.3 前提条件
 
-- **特徴セット**: FS_compact（116列）を固定
+- **特徴セット**: FS_compact（116列）を固定（Feature Selection Phase での結論と整合）
 - **CV設定**: TimeSeriesSplit, n_splits=5, gap=0（LGBMと同一）
-- **評価指標**: OOF RMSE, OOF MSR, 予測相関（vs LGBM）
+- **評価指標**:
+  - **主指標**: OOF RMSE（選定フェーズの最重要指標）
+  - **補助指標**: 予測相関（vs LGBM）、OOF MSR（トレード観点での監視）
 
 ---
 
@@ -343,11 +353,12 @@ class TestCatBoostTraining:
 
 ### 5.1 成功条件
 
-| 指標 | 条件 | 備考 |
-|------|------|------|
-| OOF RMSE | ≤ 0.0125 | ベースライン+3%以内 |
-| 予測相関（vs LGBM） | < 0.98 | アンサンブル効果の見込み |
-| 実行時間 | < 15分 | CatBoostはやや遅い傾向 |
+| 優先度 | 指標 | 条件 | 備考 |
+|--------|------|------|------|
+| **主指標** | OOF RMSE | ≤ 0.0125 | ベースライン+3%以内 |
+| 補助 | 予測相関（vs LGBM） | < 0.98 | アンサンブル効果の見込み |
+| 補助 | OOF MSR | > 0（監視のみ） | トレード観点での健全性確認 |
+| 参考 | 実行時間 | < 15分 | CatBoostはやや遅い傾向 |
 
 ### 5.2 LB提出判断
 
@@ -410,7 +421,9 @@ uv run pyright src/models/catboost/
 
 ---
 
-## 9. 注意事項
+## 9. 注意事項（XGBoost実装から得た共通教訓を含む）
+
+### 9.1 CatBoost固有の注意点
 
 1. **Ordered Boosting**: デフォルトで有効。時系列データに有利だが、学習が遅くなる場合がある。`boosting_type='Plain'`で無効化可能。
 
@@ -418,6 +431,98 @@ uv run pyright src/models/catboost/
 
 3. **モデルサイズ**: CatBoostのモデルファイルは比較的大きくなる傾向がある。
 
-4. **sklearn互換性**: `CatBoostRegressor`はsklearn互換APIを持つが、Pipelineでの使用時に一部制約あり（fit_params の渡し方など）。
+4. **特徴量重要度**: `get_feature_importance()`で取得可能。type='PredictionValuesChange'がLGBMのgainに相当。
 
-5. **特徴量重要度**: `get_feature_importance()`で取得可能。type='PredictionValuesChange'がLGBMのgainに相当。
+### 9.2 Early Stopping と eval_set の前処理（XGBoostと同様）
+
+1. **eval_set の前処理**: CVループでeval_setを使う場合、**パイプライン経由ではなく手動でimputation**を適用する必要がある
+   - パイプラインのfitではeval_setに前処理が適用されない
+   - 解決策: 各imputerをclone()してfit_transform/transformを手動適用
+
+2. **最終モデル学習時のearly_stopping無効化**: 全データで再学習する際は検証セットがないため、`early_stopping_rounds`を**削除**してモデルを再構築
+
+### 9.3 テスト予測時のfeatureフィルタリング
+
+テストデータには学習時に存在しないカラム（`is_scored`, `lagged_*`等）が含まれる場合がある。
+**学習時のfeature_colsのみを抽出**してから予測を実行：
+```python
+test_features = test_df[feature_cols].copy()
+test_pred = final_pipeline.predict(test_features)
+```
+
+### 9.4 submission.csv のシグナル変換
+
+生の予測値（excess returns）ではなく、**競技シグナル形式**に変換して出力：
+```python
+# シグナル変換: pred * mult + 1.0, clipped to [0.9, 1.1]
+signal_mult = 1.0
+signal_pred = np.clip(test_pred * signal_mult + 1.0, 0.9, 1.1)
+
+# カラム名は "prediction"（target変数名ではない）
+submission_df = pd.DataFrame({
+    "date_id": id_values,
+    "prediction": signal_pred,
+})
+```
+
+### 9.5 is_scored フィルタリング
+
+submission.csvには`is_scored==True`の行のみを含める（競技要件）。
+
+### 9.6 勾配ブースティング共通の教訓（XGBoost実装より）
+
+> **重要**: XGBoost実装時に発見された問題はCatBoostでも発生する可能性があります。
+
+#### 9.6.1 予測分散の診断
+
+**診断指標**: `pred.std() / actual.std()` (pred/actual ratio)
+
+- **正常範囲**: 30-70%（LGBMは約50%）
+- **異常値**: < 10% は過少学習（モデルがほぼ何も予測していない）
+
+```python
+# 診断コード
+ratio = oof['prediction'].std() / oof['actual'].std()
+print(f"pred/actual ratio: {ratio:.1%}")
+if ratio < 0.1:
+    print("WARNING: Model may be underfitting - check regularization params")
+```
+
+#### 9.6.2 正則化パラメータの調整
+
+CatBoostは `l2_leaf_reg` (L2正則化) がデフォルトで3.0と強め。
+このデータセットでは以下のように調整を検討：
+
+```python
+# 過少学習が疑われる場合
+l2_leaf_reg: 1.0  # 3.0 → 1.0に緩和
+depth: 8          # 6 → 8に増加
+iterations: 1000  # 600 → 1000に増加
+```
+
+#### 9.6.3 バージョン互換性
+
+CatBoostもXGBoostと同様、バージョン間でモデルフォーマットが異なる場合があります。
+Kaggle提出時は同一バージョンのwheelを同梱することを推奨。
+
+#### 9.6.4 ローカル推論スクリプトとKaggleノートブックの違い
+
+実装時は**2種類の推論コード**を用意することを推奨：
+
+| ファイル | 用途 | 特徴 |
+|----------|------|------|
+| `predict_catboost.py` | ローカルでの再推論 | 既存モジュールを `import` |
+| `catboost.ipynb` | Kaggle提出 | 依存クラスをすべてインライン埋込 |
+
+**推論ロジック自体は同一**にすること：
+```python
+# 両方で同じロジック
+prediction = pipeline.predict(X_test)
+signal = to_signal(prediction, postprocess_params)
+```
+
+**注意点**:
+- Python/NumPyバージョン差で ~0.02% の予測差は許容範囲
+- 重要なのは **OOF RMSEが一致する** こと
+- ローカル推論スクリプトは学習なしで `submission.csv` を再生成できる（デバッグ用）
+

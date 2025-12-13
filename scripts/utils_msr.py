@@ -14,7 +14,8 @@ MSR（Mean-to-Std Ratio）プロキシの共通ユーティリティ。
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, List, Tuple, Optional
+from typing import Iterable, List, Optional, Tuple
+
 import numpy as np
 
 

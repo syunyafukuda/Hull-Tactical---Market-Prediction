@@ -35,7 +35,6 @@ from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.pipeline import Pipeline
 
-
 THIS_DIR = Path(__file__).resolve().parent
 SRC_ROOT = THIS_DIR.parents[1]
 PROJECT_ROOT = THIS_DIR.parents[2]
@@ -47,8 +46,14 @@ from scripts.utils_msr import (  # noqa: E402
     evaluate_msr_proxy,
     grid_search_msr,
 )
-from src.feature_generation.su1.feature_su1 import SU1Config, load_su1_config  # noqa: E402
-from src.feature_generation.su5.feature_su5 import SU5Config, load_su5_config  # noqa: E402
+from src.feature_generation.su1.feature_su1 import (  # noqa: E402
+    SU1Config,
+    load_su1_config,
+)
+from src.feature_generation.su5.feature_su5 import (  # noqa: E402
+    SU5Config,
+    load_su5_config,
+)
 from src.feature_generation.su9.feature_su9 import SU9Config  # noqa: E402
 from src.feature_generation.su9.train_su9 import (  # noqa: E402
     SU9FullFeatureAugmenter,

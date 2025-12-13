@@ -1,7 +1,8 @@
+from typing import cast
+
 import numpy as np
 import pandas as pd
 import pytest
-from typing import cast
 
 from preprocess.S_group.s_group import SGroupImputer
 
