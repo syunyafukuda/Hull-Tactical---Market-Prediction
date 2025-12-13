@@ -1,0 +1,60 @@
+# RandomForest Model Configuration
+# This configuration defines the default hyperparameters for RandomForest model training.
+# RandomForest is a bagging-based tree ensemble that provides diversity compared to GBDT models.
+
+randomforest:
+  # Tree structure parameters
+  n_estimators: 500  # Number of trees in the forest
+  max_depth: 15  # Maximum depth of each tree (null for unlimited)
+  min_samples_split: 10  # Minimum samples required to split an internal node
+  min_samples_leaf: 5  # Minimum samples required at a leaf node
+  
+  # Feature sampling parameters
+  max_features: 0.7  # Fraction of features to consider at each split (0.7 = 70%)
+  
+  # Bagging parameters
+  bootstrap: true  # Use bootstrap sampling for each tree
+  oob_score: true  # Compute out-of-bag score for additional validation
+  
+  # System parameters
+  random_state: 42
+  n_jobs: -1  # Use all CPU cores
+  verbose: 0  # Silent mode
+
+# Feature selection configuration
+feature_selection:
+  tier: "tier3"  # Use FS_compact (116 features)
+  excluded_json: "configs/feature_selection/tier3/excluded.json"
+
+# Cross-validation settings
+cv:
+  n_splits: 5
+  gap: 0  # No gap between train and validation
+  min_val_size: 0
+
+# Data paths
+data:
+  data_dir: "data/raw"
+  train_file: null  # Auto-detect
+  test_file: null  # Auto-detect
+
+# Output configuration
+output:
+  artifacts_dir: "artifacts/models/randomforest"
+  save_artifacts: true
+
+# Success criteria
+success_criteria:
+  oof_rmse_threshold: 0.0125  # Baseline (0.01216) + 3%
+  correlation_vs_lgbm_min: 0.85  # Ensure sufficient diversity for ensembling
+  correlation_vs_lgbm_max: 0.92  # But not too similar
+
+# Notes
+metadata:
+  baseline_comparison:
+    lgbm_oof_rmse: 0.012164
+    lgbm_lb_score: 0.681
+  created_at: "2025-12-13"
+  purpose: "Bagging-based tree model for ensemble diversity vs GBDT"
+  expected_improvement: "Similar RMSE with different error patterns (bagging vs boosting)"
+  comparison_to_extratrees: "RandomForest uses optimal splits, ExtraTrees uses random splits"
