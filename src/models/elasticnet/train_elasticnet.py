@@ -389,7 +389,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     
     # Identify SU1/SU5 generated columns
     su1_generated_columns = [c for c in augmented_columns_before_exclusion if c not in feature_cols]
-    su5_generated_columns: List[str] = []
+    # Note: SU5 columns would be identified separately if SU5 adds distinct columns
+    # For now, all generated columns are attributed to SU1
+    su5_generated_columns: List[str] = []  # SU5 currently doesn't add new columns in this pipeline
 
     # Apply feature exclusion based on tier
     if not args.no_feature_exclusion:
