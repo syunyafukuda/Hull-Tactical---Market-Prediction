@@ -1,0 +1,65 @@
+# ExtraTrees Model Configuration
+# This configuration defines the default hyperparameters for ExtraTrees model training.
+# ExtraTrees (Extremely Randomized Trees) provides model diversity for ensemble methods.
+
+extratrees:
+  # Tree structure parameters
+  n_estimators: 500  # Number of trees in the forest (higher = more stable predictions)
+  max_depth: 15  # Maximum depth of each tree
+  min_samples_split: 10  # Minimum samples required to split an internal node
+  min_samples_leaf: 5  # Minimum samples required to be at a leaf node
+  
+  # Feature sampling
+  max_features: 0.7  # Proportion of features to consider for each split (70%)
+  
+  # Sampling strategy
+  bootstrap: false  # ExtraTrees default: use all samples (no bootstrap)
+  
+  # System parameters
+  random_state: 42
+  n_jobs: -1  # Use all CPU cores
+  verbose: 0  # Silent mode
+
+# Feature selection configuration
+feature_selection:
+  tier: "tier3"  # Use FS_compact (116 features)
+  excluded_json: "configs/feature_selection/tier3/excluded.json"
+
+# Cross-validation settings
+cv:
+  n_splits: 5
+  gap: 0  # No gap between train and validation (same as LGBM baseline)
+  min_val_size: 0
+
+# Data paths
+data:
+  data_dir: "data/raw"
+  train_file: null  # Auto-detect
+  test_file: null  # Auto-detect
+
+# Output configuration
+output:
+  artifacts_dir: "artifacts/models/extratrees"
+  save_artifacts: true
+
+# Success criteria
+success_criteria:
+  oof_rmse_threshold: 0.0125  # Baseline (0.01216) + 3%
+  correlation_vs_lgbm_range: [0.85, 0.92]  # Target diversity for ensembling
+
+# Notes
+metadata:
+  baseline_comparison:
+    lgbm_oof_rmse: 0.012164
+    lgbm_lb_score: 0.681
+  created_at: "2025-12-13"
+  purpose: "Provide bagging-based model diversity (vs gradient boosting)"
+  expected_characteristics:
+    - "Extremely randomized split points (faster than RandomForest)"
+    - "Lower overfitting risk due to high randomization"
+    - "Different prediction errors compared to LGBM/XGBoost"
+    - "High ensemble value due to decorrelated predictions"
+  model_characteristics:
+    scaling_required: false  # Tree-based model
+    handles_missing: false  # Requires imputation
+    interpretability: "medium"  # Feature importances available

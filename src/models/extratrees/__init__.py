@@ -1,2 +1,1 @@
-# ExtraTrees model module
-"""ExtraTreesRegressor implementation for ensemble diversity."""
+"""ExtraTrees model training and evaluation."""
