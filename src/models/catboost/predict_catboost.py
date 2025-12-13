@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""CatBoost モデルの推論スクリプト。
+"""CatBoost model inference script.
 
-学習済みの ``artifacts/models/catboost/inference_bundle.pkl`` を読み込み、指定されたテストデータに
-対して推論を実行し、提出形式の ``submission.csv`` を出力する。
+Loads the trained ``artifacts/models/catboost/inference_bundle.pkl`` and runs
+inference on the specified test data, outputting a submission-ready ``submission.csv``.
 
 Usage:
     python -m src.models.catboost.predict_catboost --artifacts-dir artifacts/models/catboost
@@ -420,10 +420,11 @@ def main(argv: Iterable[str] | None = None) -> int:
     working_sorted = working_df.sort_values(id_col).reset_index(drop=True)
 
     # Ensure required columns
-    X_test_source = (
-        working_sorted[pipeline_input_cols].copy() if all(c in working_sorted.columns for c in pipeline_input_cols) 
-        else working_sorted.drop(columns=["__original_order__"], errors="ignore")
-    )
+    has_all_columns = all(c in working_sorted.columns for c in pipeline_input_cols)
+    if has_all_columns:
+        X_test_source = working_sorted[pipeline_input_cols].copy()
+    else:
+        X_test_source = working_sorted.drop(columns=["__original_order__"], errors="ignore")
     if not isinstance(X_test_source, pd.DataFrame):
         raise ValueError("X_test_source must be a DataFrame")
     X_test = _ensure_columns(

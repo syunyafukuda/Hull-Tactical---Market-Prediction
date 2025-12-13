@@ -399,7 +399,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # Capture augmented columns before tier exclusion for feature_list.json
     augmented_columns_before_exclusion = X_augmented_all.columns.tolist()
-    
+
     # Identify SU1/SU5 generated columns
     su1_generated_columns = [c for c in augmented_columns_before_exclusion if c not in feature_cols]
     su5_generated_columns: List[str] = []  # SU5 currently doesn't add new columns in this pipeline
@@ -606,7 +606,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             import subprocess
             git_commit = subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], 
+                ["git", "rev-parse", "HEAD"],
                 cwd=str(PROJECT_ROOT),
                 stderr=subprocess.DEVNULL
             ).decode().strip()
@@ -621,7 +621,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         # Model input columns are the final columns after tier exclusion
         model_input_columns = original_columns
-        
+
         feature_list = {
             "version": f"catboost-{args.feature_tier}-v1",
             "created_at": datetime.now(timezone.utc).isoformat(),
