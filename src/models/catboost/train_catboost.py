@@ -8,7 +8,7 @@ Key features:
 - Uses FS_compact feature exclusion (tier3/excluded.json)
 - Reuses existing preprocessing pipeline (M/E/I/P/S group imputers)
 - Compatible with the unified CV evaluation framework
-- Implements Ordered Boosting for overfitting resistance
+- Supports Ordered Boosting for overfitting resistance (set via --boosting-type; default is "Plain")
 """
 
 from __future__ import annotations
@@ -613,6 +613,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         # Get git commit/branch info
         try:
             import subprocess
+            # First check if we're in a git repository
+            subprocess.check_output(
+                ["git", "rev-parse", "--is-inside-work-tree"],
+                cwd=str(PROJECT_ROOT),
+                stderr=subprocess.DEVNULL
+            )
             git_commit = subprocess.check_output(
                 ["git", "rev-parse", "HEAD"],
                 cwd=str(PROJECT_ROOT),

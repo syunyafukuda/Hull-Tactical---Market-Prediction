@@ -468,7 +468,8 @@ def main(argv: Iterable[str] | None = None) -> int:
     if "is_scored" not in working_sorted.columns:
         raise KeyError(
             "Expected 'is_scored' column in test data for submission filtering. "
-            "This column should indicate which rows are evaluated in the competition."
+            "This column should indicate which rows are evaluated in the competition. "
+            "If testing with custom data, add an 'is_scored' column with True/False values to indicate which rows should be included in the submission."
         )
     scored_mask = working_sorted["is_scored"].to_numpy().astype(bool)
 
