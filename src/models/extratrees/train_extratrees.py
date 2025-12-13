@@ -254,6 +254,101 @@ def build_extratrees_pipeline(
     return Pipeline(steps=steps)
 
 
+def build_extratrees_pipeline_no_augment(
+    preprocess_settings: Dict[str, Any],
+    *,
+    numeric_fill_value: float,
+    model_kwargs: Dict[str, Any],
+    random_state: int,
+) -> Pipeline:
+    """Build ExtraTrees pipeline WITHOUT augmenter (for use with pre-augmented data).
+
+    This pipeline is used for final training on tier-excluded features.
+    """
+    from sklearn.impute import SimpleImputer
+
+    m_cfg = preprocess_settings.get("m_group", {})
+    e_cfg = preprocess_settings.get("e_group", {})
+    i_cfg = preprocess_settings.get("i_group", {})
+    p_cfg = preprocess_settings.get("p_group", {})
+    s_cfg = preprocess_settings.get("s_group", {})
+
+    m_imputer = MGroupImputer(
+        columns=None,
+        policy=str(m_cfg.get("policy", "ffill_bfill")),
+        rolling_window=int(m_cfg.get("rolling_window", 5)),
+        ema_alpha=float(m_cfg.get("ema_alpha", 0.3)),
+        calendar_column=m_cfg.get("calendar_column"),
+        policy_params=m_cfg.get("policy_params", {}),
+        random_state=random_state,
+    )
+    e_imputer = EGroupImputer(
+        columns=None,
+        policy=str(e_cfg.get("policy", "ffill_bfill")),
+        rolling_window=int(e_cfg.get("rolling_window", 5)),
+        ema_alpha=float(e_cfg.get("ema_alpha", 0.3)),
+        calendar_column=e_cfg.get("calendar_column"),
+        policy_params=e_cfg.get("policy_params", {}),
+        random_state=random_state,
+        all_nan_strategy=str(e_cfg.get("all_nan_strategy", "keep_nan")),
+        all_nan_fill=float(e_cfg.get("all_nan_fill", 0.0)),
+    )
+    i_imputer = IGroupImputer(
+        columns=None,
+        policy=str(i_cfg.get("policy", "ffill_bfill")),
+        rolling_window=int(i_cfg.get("rolling_window", 5)),
+        ema_alpha=float(i_cfg.get("ema_alpha", 0.3)),
+        calendar_column=i_cfg.get("calendar_column"),
+        policy_params=i_cfg.get("policy_params", {}),
+        random_state=random_state,
+        clip_quantile_low=float(i_cfg.get("clip_quantile_low", 0.001)),
+        clip_quantile_high=float(i_cfg.get("clip_quantile_high", 0.999)),
+        enable_quantile_clip=bool(i_cfg.get("enable_quantile_clip", True)),
+    )
+    p_imputer = PGroupImputer(
+        columns=None,
+        policy=str(p_cfg.get("policy", "ffill_bfill")),
+        rolling_window=int(p_cfg.get("rolling_window", 5)),
+        ema_alpha=float(p_cfg.get("ema_alpha", 0.3)),
+        calendar_column=p_cfg.get("calendar_column"),
+        policy_params=p_cfg.get("policy_params", {}),
+        random_state=random_state,
+        mad_clip_scale=float(p_cfg.get("mad_clip_scale", 4.0)),
+        mad_clip_min_samples=int(p_cfg.get("mad_clip_min_samples", 25)),
+        enable_mad_clip=bool(p_cfg.get("enable_mad_clip", True)),
+        fallback_quantile_low=float(p_cfg.get("fallback_quantile_low", 0.005)),
+        fallback_quantile_high=float(p_cfg.get("fallback_quantile_high", 0.995)),
+    )
+    s_imputer = SGroupImputer(
+        columns=None,
+        policy=str(s_cfg.get("policy", "ffill_bfill")),
+        rolling_window=int(s_cfg.get("rolling_window", 5)),
+        ema_alpha=float(s_cfg.get("ema_alpha", 0.3)),
+        calendar_column=s_cfg.get("calendar_column"),
+        policy_params=s_cfg.get("policy_params", {}),
+        random_state=random_state,
+        mad_clip_scale=float(s_cfg.get("mad_clip_scale", 4.0)),
+        mad_clip_min_samples=int(s_cfg.get("mad_clip_min_samples", 25)),
+        enable_mad_clip=bool(s_cfg.get("enable_mad_clip", True)),
+        fallback_quantile_low=float(s_cfg.get("fallback_quantile_low", 0.005)),
+        fallback_quantile_high=float(s_cfg.get("fallback_quantile_high", 0.995)),
+    )
+
+    final_imputer = SimpleImputer(strategy="constant", fill_value=numeric_fill_value)
+    model = ExtraTreesRegressor(**model_kwargs)
+
+    steps = [
+        ("m_imputer", m_imputer),
+        ("e_imputer", e_imputer),
+        ("i_imputer", i_imputer),
+        ("p_imputer", p_imputer),
+        ("s_imputer", s_imputer),
+        ("final_imputer", final_imputer),
+        ("model", model),
+    ]
+    return Pipeline(steps=steps)
+
+
 def _to_1d(pred: Any) -> np.ndarray:
     """Convert prediction to 1D numpy array."""
     array = np.asarray(pred)
@@ -517,20 +612,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.no_artifacts and not args.dry_run:
         print("[info] Final training on all data...")
 
-        # Retrain on all data
-        final_pipeline = build_extratrees_pipeline(
-            su1_config,
-            su5_config,
+        # Retrain on all data using tier-excluded features (116 columns)
+        # Use build_extratrees_pipeline_no_augment since X_augmented_all is already augmented
+        print(f"[info] Training final model on {X_augmented_all.shape[1]} features (tier-excluded)")
+        final_pipeline = build_extratrees_pipeline_no_augment(
             preprocess_settings,
             numeric_fill_value=args.numeric_fill_value,
             model_kwargs=model_kwargs,
             random_state=args.random_state,
         )
-        final_pipeline.fit(X_np, y_np)
+        final_pipeline.fit(X_augmented_all, y_np)
 
-        # Save model
+        # Save model bundle (includes augmenter for Kaggle inference)
+        # Bundle contains: augmenter (pre-fitted), pipeline (no augment), and tier info
+        bundle = {
+            "pipeline": final_pipeline,
+            "augmenter": su5_prefit,
+            "feature_tier": args.feature_tier,
+            "model_input_columns": final_columns,
+        }
         model_path = out_dir / "inference_bundle.pkl"
-        joblib.dump(final_pipeline, model_path)
+        joblib.dump(bundle, model_path)
         print(f"[info] Saved model to {model_path}")
 
         # Save OOF predictions
@@ -582,6 +684,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         # Save feature_list.json for Kaggle submission
         try:
             import subprocess
+            # First check if we're in a git repository
+            subprocess.check_output(
+                ["git", "rev-parse", "--is-inside-work-tree"],
+                cwd=str(PROJECT_ROOT),
+                stderr=subprocess.DEVNULL
+            )
             git_commit = subprocess.check_output(
                 ["git", "rev-parse", "HEAD"], 
                 cwd=str(PROJECT_ROOT),
@@ -618,9 +726,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         final_model = final_pipeline.named_steps["model"]
         if hasattr(final_model, "feature_importances_"):
             importances = final_model.feature_importances_
+            # Ensure feature names match importance length
+            if len(model_input_columns) == len(importances):
+                feature_names = model_input_columns
+            else:
+                # Fall back to generic names if mismatch
+                feature_names = [f"feature_{i}" for i in range(len(importances))]
+                print(f"[warn] Feature count mismatch: {len(model_input_columns)} columns vs {len(importances)} importances")
             importance_df = pd.DataFrame(
                 {
-                    "feature": model_input_columns,
+                    "feature": feature_names,
                     "importance": importances,
                 }
             )
@@ -631,8 +746,19 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         # Generate test predictions and save submission.csv
         print("[info] Generating test predictions...")
-        test_features = test_df[feature_cols].copy()
-        test_pred = final_pipeline.predict(test_features)
+        # Apply augmenter to test data, then tier exclusion, then predict
+        test_features_raw = test_df[feature_cols].copy()
+        assert isinstance(test_features_raw, pd.DataFrame)
+        test_features: pd.DataFrame = test_features_raw
+        test_augmented_raw = su5_prefit.transform(test_features)
+        assert isinstance(test_augmented_raw, pd.DataFrame)
+        test_augmented: pd.DataFrame = test_augmented_raw
+        # Apply tier exclusion to test data
+        if not args.no_feature_exclusion:
+            test_augmented = apply_feature_exclusion_to_augmented(
+                test_augmented, tier=args.feature_tier, verbose=False
+            )
+        test_pred = final_pipeline.predict(test_augmented)
         test_pred = _to_1d(test_pred)
 
         # Apply signal transformation
