@@ -137,6 +137,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--bagging-temperature", type=float, default=1.0)
     ap.add_argument("--border-count", type=int, default=254)
     ap.add_argument("--random-seed", type=int, default=42)
+    ap.add_argument(
+        "--boosting-type",
+        type=str,
+        default="Plain",
+        choices=["Ordered", "Plain"],
+        help="Boosting type: Ordered (original CatBoost) or Plain (similar to LGBM)",
+    )
     # Feature selection
     ap.add_argument(
         "--feature-tier",
@@ -358,6 +365,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "bagging_temperature": args.bagging_temperature,
         "border_count": args.border_count,
         "random_seed": args.random_seed,
+        "boosting_type": args.boosting_type,
         "thread_count": -1,
         "verbose": False,
     }
