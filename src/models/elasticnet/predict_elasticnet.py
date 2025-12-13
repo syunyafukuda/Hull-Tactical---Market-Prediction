@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""ElasticNet モデルの推論スクリプト。
+"""ElasticNet model inference script.
 
-学習済みの ``artifacts/models/elasticnet/inference_bundle.pkl`` を読み込み、指定されたテストデータに
-対して推論を実行し、提出形式の ``submission.csv`` を出力する。
+Loads the trained inference bundle from ``artifacts/models/elasticnet/inference_bundle.pkl``,
+runs predictions on the specified test data, and outputs submission files in the required format.
 
 Usage:
     python -m src.models.elasticnet.predict_elasticnet --artifacts-dir artifacts/models/elasticnet
