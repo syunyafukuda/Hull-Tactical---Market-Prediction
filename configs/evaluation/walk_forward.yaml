@@ -1,0 +1,61 @@
+# Walk-Forward CV 設定
+# 最終更新: 2025-12-14
+# ステータス: 確定版（ローカル検証完了）
+
+# Walk-Forward モード
+# - expanding: train_start 固定、train_end のみ拡大（推奨）
+# - rolling: train_start も step で移動
+mode: expanding
+
+# ウィンドウ設定
+train_window: 6000   # 学習日数（約24年相当）
+val_window: 1000     # 検証日数（約4年相当）
+step: 500            # ウィンドウ移動量（4-fold 生成用に 1000→500 に変更）
+
+# 制約
+min_folds: 4         # 最小 fold 数（安定性検証のため 3→4 に変更）
+gap: 0               # train/val 間のギャップ（リーク防止用）
+
+# 評価設定
+eval_sharpe: true    # Hull Sharpe を計算
+eval_rmse: true      # RMSE も計算（参考用）
+
+# prediction → position マッピング（最適化済み）
+# sharpe_mult: 20 は Vol Ratio を 0.8-1.2 範囲内に収めるための最適値
+# チューニング経緯: 100→50→30→20 で検証、20 が Mean Sharpe +0.11 で最良
+signal:
+  mult: 20.0         # 予測値にかける係数（デフォルト 1.0 → 20.0 に最適化）
+  offset: 1.0        # 加算オフセット（position = pred * mult + offset）
+  clip_min: 0.0      # 最小投資比率
+  clip_max: 2.0      # 最大投資比率
+
+# -----------------------------------------------------------------------------
+# Alpha-Beta Position Mapping (Kaggle discussion/611071)
+# -----------------------------------------------------------------------------
+# Do-nothing baseline: alpha=0, beta=0.806 → WF Sharpe ≈ 0.469
+# 採用基準: WF Mean Sharpe ≥ 0.5 AND WF Min Sharpe > 0
+position_mapping:
+  # 推奨初期値（チューニング後に更新）
+  alpha: 0.25           # Prediction scale (0 = do-nothing)
+  beta: 1.0             # Offset (1.0 = market neutral)
+  clip_min: 0.0         # Min position (100% cash)
+  clip_max: 2.0         # Max position (200% market)
+  winsor_pct: 0.01      # Winsorize at 1st/99th percentile
+  
+  # Do-nothing reproduction settings (比較用)
+  # alpha: 0.0
+  # beta: 0.806
+  # → この設定で WF Sharpe ≈ 0.469 を再現可能
+
+# 出力設定
+output:
+  fold_csv: true           # walk_forward_folds.csv を出力
+  summary_json: true       # hull_sharpe_summary.json を出力
+  include_penalties: true  # ペナルティ内訳を含める
+
+# 最適化結果サマリ（2025-12-14 確定）
+# - Mean Sharpe: +0.11
+# - Min Sharpe: -0.01
+# - Std Sharpe: 0.08
+# - Vol Ratio 範囲: 0.99 - 1.13（全 fold ペナルティなし）
+
