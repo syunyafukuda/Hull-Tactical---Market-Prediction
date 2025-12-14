@@ -1330,3 +1330,77 @@ ElasticNetの結果から、以下の線形モデルは試す価値が低いと�
 - **アンサンブル概要**: docs/ensemble/README.md
 - **Notebook**: notebooks/submit/LGBM_XGB.ipynb
 
+---
+
+## 2025-12-14 LGBM-sharpe-wf-opt (Hull Sharpe × Walk-Forward CV) - **要注意**
+
+- Branch: `dev`
+- Kaggle Notebook: Private（Dataset: lgbm-sharpe-wf-opt-hulltactical）
+- **LB score: 3.318 (Public)** ← **前回0.681から+387%の大幅上昇**
+- Status: **要注意** - 信頼性に疑問あり、ノイズ/運の可能性が高い
+- Decision: **LBスコアは参考値とし、ローカル WF Sharpe を主評価軸に方針転換**
+
+### 実績サマリー
+
+| 指標 | 値 | 備考 |
+|------|----|----|
+| Public LB | 3.318 | +387% vs 前回0.681 |
+| Local WF Mean Sharpe | +0.11 | 4-fold Walk-Forward CV |
+| Local WF Std | 0.16 | 分散あり |
+| Do-nothing baseline | 0.469 | beta=0.806, alpha=0 |
+| LB vs Local 乖離 | **30x** | 異常な不一致 |
+
+### 構成
+
+- **特徴量**: FS_compact（116列、tier3除外）
+- **特徴量生成**: SU1 + SU5
+- **前処理**: M/E/I/P/S group imputers
+- **モデル**: LightGBM（lr=0.05, n_estimators=600, num_leaves=63）
+- **損失関数**: Hull Sharpe Loss（sharpe_mult=20.0, sharpe_offset=1.0）
+- **CV**: Walk-Forward CV（train=6000, val=1000, step=500, 4-fold）
+
+### 分析: なぜ3.318は信頼できないか
+
+1. **Kaggle公式警告**
+   - > "Note: This is an experimental competition...ranks in this competition are not meaningful"
+   - Public LBは公開データから採点可能 → 実質 train set と重複
+
+2. **コミュニティ分析**
+   - Do-nothing baseline（常に β=0.806）で Sharpe ≈ 0.469
+   - この期間のS&P500は強気相場
+   - モデル予測が当たったのではなく、market exposure で乗れただけの可能性
+
+3. **Local vs LB の 30x 乖離**
+   - Local WF Mean Sharpe: +0.11
+   - Public LB: 3.318
+   - **真にアルファがあれば両者は近いはず**
+
+4. **結論**
+   - "Public テスト切片でたまたま当たった" 可能性が高い
+   - Private LB（未知データ）では崩壊するリスク大
+
+### 方針転換
+
+**今後の評価軸**
+
+| 項目 | 従来 | 今後 |
+|------|------|------|
+| 主評価軸 | Public LB | Local WF Sharpe |
+| 比較対象 | 過去LBスコア | Do-nothing baseline (0.469) |
+| 採用基準 | LB改善 | WF Mean Sharpe ≥ 0.5 AND Min > 0 |
+
+### 次のステップ
+
+1. **Do-nothing再現**: alpha=0, beta=0.806 で local WF Sharpe ≈ 0.469 を確認
+2. **Clipping戦略実装**: `prediction → position` 変換の最適化（α/β/clip/winsor）
+3. **有意差確認**: WF Sharpe が do-nothing を超えるか検証
+4. **LB提出は参考値のみ**: 0.5+相当の local WF Sharpe 達成後に提出検討
+
+### 参照
+
+- **最適化設定詳細**: [docs/evaluation/optimized_settings.md](../evaluation/optimized_settings.md)
+- **クリッピング戦略**: [docs/evaluation/prediction_clipping.md](../evaluation/prediction_clipping.md)
+- **Notebook**: notebooks/submit/LGBM-sharpe-wf-opt.ipynb
+- **Artifacts**: artifacts/models/lgbm-sharpe-wf-opt/
+
+
