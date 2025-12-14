@@ -1,11 +1,31 @@
 # Ensemble Phase
 
-最終更新: 2025-12-13
+最終更新: 2025-12-14
 
 ## 概要
 
 Model Selection Phase完了後、**アンサンブルフェーズ**に移行。
 採用候補モデル（LGBM, XGBoost, CatBoost）を組み合わせ、単体モデルを超える予測性能を目指す。
+
+## ⚠️ フェーズ終了判定
+
+**2025-12-14: アンサンブルフェーズを終了し、LGBM単体を維持**
+
+| Step | 手法 | OOF RMSE | LB Score | 判定 |
+|------|------|----------|----------|------|
+| ベースライン | LGBM単体 | 0.012164 | **0.681** | ✅ 維持 |
+| Step 1 | 50:50 単純平均 | 0.011932 | 0.615 | ❌ -9.7% |
+| Step 2 | Rank Average | 0.011876 | 0.616 | ❌ -9.5% |
+| Step 3 | 3モデル加重平均 | - | - | ❌ 中止 |
+| Step 4 | 3モデル Rank Avg | - | - | ❌ 中止 |
+| Step 5 | Stacking | - | - | ❌ 中止 |
+
+**根本原因**: XGBoost/CatBoostの**OOF↔LB乖離**
+- OOFでは両モデルともLGBMより優秀
+- LBではXGBoost -8.7%、CatBoost -11.6%と大幅劣化
+- どの混合手法でもこの劣化が伝播し、アンサンブル全体を悪化させる
+
+---
 
 ## 現状ベースライン
 
@@ -33,20 +53,22 @@ Model Selection Phase完了後、**アンサンブルフェーズ**に移行。
 
 ---
 
-## フェーズ構成
+## フェーズ構成（全Step非採用）
 
 ```
-Ensemble Phase
-├── Step 1: LGBM + XGBoost（50:50 単純平均）
+Ensemble Phase ❌ 終了（2025-12-14）
+├── Step 1: LGBM + XGBoost（50:50 単純平均）  ❌ LB 0.615 - 非採用
 │   └── 基本的なアンサンブル効果を確認
-├── Step 2: LGBM + XGBoost（Rank Average）
+├── Step 2: LGBM + XGBoost（Rank Average）     ❌ LB 0.616 - 非採用
 │   └── スケール差を吸収した平均
-├── Step 3: LGBM + XGBoost + CatBoost（60:30:10）
+├── Step 3: LGBM + XGBoost + CatBoost（60:30:10） ❌ 中止
 │   └── CatBoost少量追加の効果を検証
-├── Step 4: LGBM + XGBoost + CatBoost（Rank Average）※Step3有効時
+├── Step 4: LGBM + XGBoost + CatBoost（Rank Average） ❌ 中止
 │   └── 3モデルのRank Average
-└── Step 5: LGBM + XGBoost + CatBoost（Stacking）※Step3有効時
+└── Step 5: LGBM + XGBoost + CatBoost（Stacking）    ❌ 中止
     └── Meta-Learnerによる重み学習
+
+結論: LGBM単体（LB 0.681）を維持
 ```
 
 ---

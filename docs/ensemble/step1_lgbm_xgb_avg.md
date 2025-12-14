@@ -1,6 +1,6 @@
 # Step 1: LGBM + XGBoost 50:50 単純平均
 
-最終更新: 2025-12-13
+最終更新: 2025-12-14
 
 ## 概要
 
@@ -8,7 +8,43 @@ LightGBMとXGBoostの予測を50:50で単純平均し、アンサンブル効果
 
 ## 実装ステータス
 
-**Status**: ✅ OOF評価完了 → LB検証待ち
+**Status**: ❌ **非採用** - LB検証の結果、LGBM単体より大幅に劣化
+
+---
+
+## LB検証結果（2025-12-14実施）
+
+| 指標 | 期待 (OOF) | 実際 (LB) | 判定 |
+|------|-----------|----------|------|
+| **LGBM 単体** | 0.012164 | **0.681** | baseline |
+| **XGBoost 単体** | 0.012062 | **0.622** | -8.7% |
+| **50:50 Ensemble** | **0.011932** | **0.615** | **-9.7%** ❌ |
+
+### 判定結果
+
+| 項目 | 内容 |
+|------|------|
+| **Decision** | ❌ **非採用** |
+| **理由** | XGBoost の LB 劣化がアンサンブルに波及 |
+| **推奨** | LGBM 単体 (0.681) を継続使用 |
+
+### 原因分析
+
+1. **XGBoost の OOF↔LB 乖離が主因**
+   - XGBoost 単体: OOF では LGBM より良い (0.012062 vs 0.012164)
+   - XGBoost 単体 LB: 0.622 (LGBM の 0.681 より大幅に劣る)
+   - **XGBoost が将来データで過学習している**
+
+2. **アンサンブルが XGBoost の悪影響を受けた**
+   - 50:50 混合により、XGBoost の劣化がそのまま反映
+   - 期待値: 0.681 × 0.5 + 0.622 × 0.5 ≈ 0.65
+   - 実際は 0.615 でさらに悪い → **非線形な劣化効果**
+
+3. **市場レジーム変化への脆弱性**
+   - XGBoost のハイパーパラメータ (max_depth=10, min_child_weight=5) が訓練データに過適合
+   - テスト期間の市場環境が異なり、XGBoost の予測が外れている
+
+---
 
 ## OOF評価結果（2025-12-13実施）
 
@@ -42,12 +78,13 @@ LightGBMとXGBoostの予測を50:50で単純平均し、アンサンブル効果
 
 | モデル | ファイル | 用途 |
 |--------|----------|------|
-| LGBM | `artifacts/models/lgbm/oof_predictions.csv` | OOF評価用 |
-| LGBM | `artifacts/models/lgbm/inference_bundle.pkl` | テスト予測用（※） |
-| XGBoost | `artifacts/models/xgboost/oof_predictions.csv` | OOF評価用 |
-| XGBoost | `artifacts/models/xgboost/inference_bundle.pkl` | テスト予測用 |
+| LGBM | `artifacts/models/lgbm-artifacts/oof_predictions.csv` | OOF評価用 |
+| LGBM | `artifacts/models/lgbm-artifacts/inference_bundle.pkl` | テスト予測用 |
+| XGBoost | `artifacts/models/xgboost-artifacts/oof_predictions.csv` | OOF評価用 |
+| XGBoost | `artifacts/models/xgboost-artifacts/inference_bundle.pkl` | テスト予測用 |
+| XGBoost | `artifacts/models/xgboost-artifacts/xgboost-*.whl` | XGBoost wheel |
 
-> ※ LGBMのinference_bundleがない場合は、submission.csvから直接読み込む
+> Kaggle用に `lgbm-artifacts` と `xgboost-artifacts` という名前でディレクトリをリネーム済み
 
 ### OOF予測ファイルの形式
 
@@ -151,12 +188,59 @@ python -m src.ensemble.blend \
 
 ---
 
+## Kaggle NB実装方針（確定）
+
+### アプローチ: 2データセットインプット
+
+```
+Kaggle NB
+├── Input Dataset 1: lgbm-su8-artifacts
+│   ├── inference_bundle.pkl (LGBM)
+│   ├── feature_list.json
+│   ├── model_meta.json
+│   └── scikit_learn-*.whl
+│
+├── Input Dataset 2: xgboost-su8-artifacts
+│   ├── inference_bundle.pkl (XGBoost)
+│   ├── feature_list.json
+│   ├── model_meta.json
+│   ├── scikit_learn-*.whl
+│   └── xgboost-*.whl
+│
+└── NB Code:
+    # 両方のパイプラインを初期化
+    lgbm_pred = lgbm_pipeline.predict(X)
+    xgb_pred = xgb_pipeline.predict(X)
+    ensemble_pred = (lgbm_pred + xgb_pred) / 2
+```
+
+### 選択理由
+
+| 観点 | 評価 |
+|------|------|
+| 既存artifacts流用 | ✅ そのまま使える |
+| 実装の複雑さ | ⚠️ 2つのパイプライン初期化が必要 |
+| メモリ使用量 | ⚠️ 2モデル分（約4.5GB） |
+| 検証速度 | ✅ すぐにLB検証可能 |
+
+### 必要なartifacts（2025-12-13確認済み）
+
+| モデル | 必要ファイル | 現状 | サイズ |
+|--------|-------------|------|--------|
+| LGBM | inference_bundle.pkl | ✅ 生成済み | 2.2GB |
+| LGBM | feature_list.json | ✅ 生成済み | 3KB |
+| LGBM | model_meta.json | ✅ 生成済み | 0.5KB |
+| XGBoost | inference_bundle.pkl | ✅ 生成済み | 2.3GB |
+| XGBoost | feature_list.json | ✅ 生成済み | 3KB |
+| XGBoost | model_meta.json | ✅ 生成済み | 0.7KB |
+| XGBoost | xgboost-*.whl | ✅ 生成済み | 116MB |
+
+---
+
 ## Kaggle NB実装イメージ
 
 ```python
 import pickle
-import numpy as np
-import pandas as pd
 
 # モデル読み込み
 with open("/kaggle/input/lgbm-bundle/inference_bundle.pkl", "rb") as f:
