@@ -28,10 +28,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add project root to path
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
-from models.common.signals import map_predictions_to_positions
+from src.models.common.signals import map_predictions_to_positions
 
 
 def hull_sharpe_simple(
@@ -133,12 +134,6 @@ def main():
     if "prediction" not in oof_df.columns:
         raise ValueError("OOF CSV must have 'prediction' column")
     
-    pred_excess = oof_df["prediction"].values
-    print(f"  Loaded {len(pred_excess)} predictions")
-    print(f"  Prediction stats: mean={pred_excess.mean():.6f}, "
-          f"std={pred_excess.std():.6f}, "
-          f"min={pred_excess.min():.6f}, max={pred_excess.max():.6f}")
-
     # Load forward returns from train.csv
     print(f"Loading forward returns from {args.train_path}...")
     train_df = pd.read_csv(args.train_path)
@@ -154,10 +149,19 @@ def main():
         forward_returns = merged["forward_returns"].values
         pred_excess = merged["prediction"].values
     else:
-        # Assume same order
-        forward_returns = train_df["forward_returns"].values[:len(pred_excess)]
+        # Assume same order - use index from OOF
+        forward_returns = train_df["forward_returns"].values[:len(oof_df)]
+        pred_excess = oof_df["prediction"].values
     
-    print(f"  Using {len(forward_returns)} forward returns")
+    # Remove NaN values (OOF predictions have NaN for training-only samples)
+    valid_mask = ~np.isnan(pred_excess) & ~np.isnan(forward_returns)
+    pred_excess = pred_excess[valid_mask]
+    forward_returns = forward_returns[valid_mask]
+    
+    print(f"  Valid samples: {len(pred_excess)} (after removing NaN)")
+    print(f"  Prediction stats: mean={pred_excess.mean():.6f}, "
+          f"std={pred_excess.std():.6f}, "
+          f"min={pred_excess.min():.6f}, max={pred_excess.max():.6f}")
     print(f"  Forward returns stats: mean={forward_returns.mean():.6f}, "
           f"std={forward_returns.std():.6f}")
 

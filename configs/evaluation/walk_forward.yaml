@@ -32,20 +32,36 @@ signal:
 # -----------------------------------------------------------------------------
 # Alpha-Beta Position Mapping (Kaggle discussion/611071)
 # -----------------------------------------------------------------------------
-# Do-nothing baseline: alpha=0, beta=0.806 → WF Sharpe ≈ 0.469
-# 採用基準: WF Mean Sharpe ≥ 0.5 AND WF Min Sharpe > 0
+# Grid Search 結果 (2025-12-14, OOF 2500 samples)
+#
+# | 設定        | alpha | beta | OOF Sharpe | pos_mean | clip率(min/max) | 備考           |
+# |-------------|-------|------|------------|----------|-----------------|----------------|
+# | Do-nothing  |     0 | 0.81 |      0.797 |     0.81 |       0%/0%     | ベースライン   |
+# | Conservative|   100 |  1.2 |      0.838 |     0.98 |     0.6%/4.5%   | 低リスク       |
+# | Moderate★  |   200 |  1.5 |      0.912 |     1.01 |     8.4%/13.1%  | 推奨（採用）   |
+# | Aggressive  |   350 |  2.0 |      0.969 |     1.06 |    19.6%/25.3%  | 過学習リスク   |
+#
+# 採用基準: クリッピング率 < 15% AND OOF Sharpe > 0.85
+# → Moderate (alpha=200, beta=1.5) を採用
+
 position_mapping:
-  # 推奨初期値（チューニング後に更新）
-  alpha: 0.25           # Prediction scale (0 = do-nothing)
-  beta: 1.0             # Offset (1.0 = market neutral)
+  # ★ 推奨設定 (Moderate) - 2025-12-14 Grid Search で決定
+  alpha: 200.0          # Prediction scale (高めだがクリップ率許容範囲)
+  beta: 1.5             # Offset (市場平均より若干高め)
   clip_min: 0.0         # Min position (100% cash)
   clip_max: 2.0         # Max position (200% market)
-  winsor_pct: 0.01      # Winsorize at 1st/99th percentile
-  
-  # Do-nothing reproduction settings (比較用)
+  winsor_pct: null      # Winsorization なし（効果なしと判明）
+
+  # --- 次点候補 (Conservative) ---
+  # alpha: 100.0
+  # beta: 1.2
+  # → OOF Sharpe: 0.838, clip率: 0.6%/4.5%
+  # → より保守的にしたい場合はこちら
+
+  # --- Do-nothing baseline (比較用) ---
   # alpha: 0.0
   # beta: 0.806
-  # → この設定で WF Sharpe ≈ 0.469 を再現可能
+  # → OOF Sharpe: 0.797（予測を使わない定数ポジション）
 
 # 出力設定
 output:
@@ -53,9 +69,8 @@ output:
   summary_json: true       # hull_sharpe_summary.json を出力
   include_penalties: true  # ペナルティ内訳を含める
 
-# 最適化結果サマリ（2025-12-14 確定）
-# - Mean Sharpe: +0.11
-# - Min Sharpe: -0.01
-# - Std Sharpe: 0.08
-# - Vol Ratio 範囲: 0.99 - 1.13（全 fold ペナルティなし）
-
+# Grid Search 詳細結果
+# - 探索範囲: alpha=[0-400], beta=[0.5-2.0], winsor=[0-0.05]
+# - winsor_pct は全設定で効果なし（既にクリップで外れ値処理済み）
+# - alpha が大きいほど Sharpe 向上するがクリップ率も増加
+# - 結果ファイル: results/position_sweep/alpha_beta_search.csv
