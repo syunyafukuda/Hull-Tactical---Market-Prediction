@@ -190,14 +190,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     ap.add_argument(
         "--clip-min",
         type=float,
-        default=0.0,
-        help="Minimum position for clipping (0 = 100%% cash)",
+        default=None,
+        help="Minimum position for clipping (default: 0.0 = 100%% cash)",
     )
     ap.add_argument(
         "--clip-max",
         type=float,
-        default=2.0,
-        help="Maximum position for clipping (2 = 200%% market)",
+        default=None,
+        help="Maximum position for clipping (default: 2.0 = 200%% market)",
     )
     ap.add_argument(
         "--winsor-pct",
@@ -432,16 +432,21 @@ def _build_position_config(args: argparse.Namespace) -> AlphaBetaPositionConfig:
         beta = args.sharpe_offset
 
     # Other params: CLI > config file > defaults
-    clip_min = (
-        args.clip_min
-        if args.clip_min != 0.0 or "clip_min" not in file_config
-        else float(file_config.get("clip_min", 0.0))
-    )
-    clip_max = (
-        args.clip_max
-        if args.clip_max != 2.0 or "clip_max" not in file_config
-        else float(file_config.get("clip_max", 2.0))
-    )
+    # clip_min: CLI (if specified) > config file > default 0.0
+    if args.clip_min is not None:
+        clip_min = args.clip_min
+    elif "clip_min" in file_config:
+        clip_min = float(file_config["clip_min"])
+    else:
+        clip_min = 0.0
+
+    # clip_max: CLI (if specified) > config file > default 2.0
+    if args.clip_max is not None:
+        clip_max = args.clip_max
+    elif "clip_max" in file_config:
+        clip_max = float(file_config["clip_max"])
+    else:
+        clip_max = 2.0
 
     winsor_pct = args.winsor_pct
     if winsor_pct is None and "winsor_pct" in file_config:

@@ -94,14 +94,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     ap.add_argument(
         "--clip-min",
         type=float,
-        default=0.0,
-        help="Minimum position for clipping",
+        default=None,
+        help="Minimum position for clipping (default: 0.0)",
     )
     ap.add_argument(
         "--clip-max",
         type=float,
-        default=2.0,
-        help="Maximum position for clipping",
+        default=None,
+        help="Maximum position for clipping (default: 2.0)",
     )
     ap.add_argument(
         "--winsor-pct",
@@ -232,12 +232,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         beta = args.sharpe_offset
 
+    # Determine clip bounds (CLI > defaults)
+    clip_min = args.clip_min if args.clip_min is not None else 0.0
+    clip_max = args.clip_max if args.clip_max is not None else 2.0
+
     positions = map_predictions_to_positions(
         y_pred,
         alpha=alpha,
         beta=beta,
-        clip_min=args.clip_min,
-        clip_max=args.clip_max,
+        clip_min=clip_min,
+        clip_max=clip_max,
         winsor_pct=args.winsor_pct,
     )
 
