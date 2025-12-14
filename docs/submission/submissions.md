@@ -1218,3 +1218,115 @@ ElasticNetの結果から、以下の線形モデルは試す価値が低いと�
 
 - **ElasticNet仕様書**: docs/models/elasticnet.md
 - **artifacts**: artifacts/models/elasticnet/
+---
+
+## 2025-12-14 LGBM+XGBoost Ensemble Step1 (50:50 単純平均) - **非採用**
+
+- Branch: `dev`
+- Kaggle Notebook: Private（Dataset: ensamble-lgbm-hulltactical, feature-selection-xgboost-hulltactical）
+- **LB score: 0.615 (Public)** ← **LGBM単体（0.681）より-9.7%劣化**
+- Status: **非採用** - アンサンブルがLGBM単体より悪化
+- Decision: **Step 1 放棄、LGBM単体継続**
+
+### 実績サマリー
+
+| 指標 | 期待 (OOF) | 実際 (LB) | 差分 |
+|------|-----------|----------|------|
+| **LGBM 単体** | 0.012164 | **0.681** | baseline |
+| **XGBoost 単体** | 0.012062 | **0.622** | -8.7% |
+| **50:50 Ensemble** | **0.011932** | **0.615** | **-9.7%** ❌ |
+
+### 問題分析
+
+**XGBoostのOOF↔LB乖離が主因**:
+- OOFではXGBoostがLGBMより0.84%良い（0.012062 vs 0.012164）
+- しかしLBではXGBoostが8.7%劣る（0.622 vs 0.681）
+- **XGBoostが訓練データに過学習し、テスト期間で崩壊**
+
+**アンサンブルへの波及**:
+- 50:50混合でXGBoostの劣化がそのまま反映
+- 期待：(0.681 + 0.622) / 2 ≈ 0.65
+- 実際：0.615 → 期待値よりさらに悪化（非線形劣化効果）
+
+**市場レジーム変化への脆弱性**:
+- XGBoostのハイパラ（max_depth=10, min_child_weight=5）が過適合
+- テスト期間の市場環境が訓練期間と異なる
+
+### 教訓
+
+1. **OOF優位がLB優位を保証しない**
+   - XGBoostはOOFでLGBMより良いがLBでは大幅に劣る
+   - 単体LB検証なしでアンサンブルに採用すべきでない
+
+2. **50:50平均は悪いモデルの影響を直接受ける**
+   - 単純平均は劣化モデルの「足を引っ張る」効果が大きい
+   - Rank Averageや重み最適化が必要
+
+3. **XGBoostの正則化不足**
+   - max_depth=10は過学習リスクが高い
+   - 再調整（max_depth減、reg_alpha/lambda増）が必要
+
+### 次のアクション候補
+
+| 優先度 | アクション | 期待効果 |
+|--------|-----------|---------|
+| 1 | LGBM単体継続（0.681） | 安定性確保 |
+| 2 | LGBM重み増加（80:20, 90:10）で再試行 | XGBoost影響を軽減 |
+| 3 | XGBoost正則化強化後に再アンサンブル | XGBoost単体LB改善 |
+| 4 | CatBoost追加で3モデルアンサンブル | 多様性確保 |
+| 5 | Rank Average採用 | 外れ値の影響を軽減 |
+
+### 参照
+
+- **Step 1 仕様書**: docs/ensemble/step1_lgbm_xgb_avg.md
+- **アンサンブル概要**: docs/ensemble/README.md
+- **XGBoost分析**: docs/submission/submissions.md（2025-12-12 XGBoostセクション）
+- **Notebook**: notebooks/submit/LGBM_XGB.ipynb
+
+---
+
+## 2025-12-14 LGBM+XGBoost Ensemble Step2 (Rank Average) - **非採用**
+
+- Branch: `dev`
+- Kaggle Notebook: Private（Dataset: ensamble-lgbm-hulltactical, feature-selection-xgboost-hulltactical）
+- **LB score: 0.616 (Public)** ← **LGBM単体（0.681）より-9.5%劣化**
+- Status: **非採用** - Step 1と同様、アンサンブルがLGBM単体より悪化
+- Decision: **Step 2 放棄、LGBM単体継続、Step 3以降も中止**
+
+### 実績サマリー
+
+| Step | 手法 | OOF RMSE | LB Score | vs LGBM単体 |
+|------|------|----------|----------|-------------|
+| ベースライン | LGBM単体 | 0.012164 | **0.681** | - |
+| Step 1 | 50:50 平均 | 0.011932 | 0.615 | -9.7% |
+| **Step 2** | **Rank Average** | **0.011876** | **0.616** | **-9.5%** ❌ |
+
+### 分析
+
+**Rank Averageは Step 1 と実質同等（+0.001）**
+
+1. **根本問題は変わらず**: XGBoostのOOF↔LB乖離（OOFで優位、LBで8.7%劣化）
+2. **Rank化の効果なし**: 外れ値抑制は問題の本質ではなかった
+3. **XGBoostを混ぜること自体が悪い**: どの混ぜ方でもXGBoostの崩壊が伝播
+
+### Step 3以降の中止判断
+
+| Step | 手法 | 判断 | 理由 |
+|------|------|------|------|
+| Step 3 | LGBM+XGB+CatBoost (60:30:10) | ❌ 中止 | CatBoostもLB劣化（0.602）、追加価値なし |
+| Step 4 | 3モデル Rank Average | ❌ 中止 | Step 3前提、CatBoost予測Stdが極端に小さく平坦化リスク |
+| Step 5 | Stacking | ❌ 中止 | Step 3前提、OOF↔LB乖離が解消されるまで無意味 |
+
+### 最終決定
+
+**アンサンブルフェーズを終了し、LGBM単体（LB 0.681）を維持**
+
+- OOF↔LB乖離が解消されるまで、アンサンブルは全て非推奨
+- XGBoost/CatBoostの正則化強化は別途検討課題として残す
+
+### 参照
+
+- **Step 2 仕様書**: docs/ensemble/step2_lgbm_xgb_rank.md
+- **アンサンブル概要**: docs/ensemble/README.md
+- **Notebook**: notebooks/submit/LGBM_XGB.ipynb
+
