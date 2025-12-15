@@ -174,7 +174,14 @@ class TestMapPositionsFromTwoHeadConfig:
 
 
 class TestComputeHullSharpeTwoHead:
-    """Tests for compute_hull_sharpe_two_head function."""
+    """Tests for compute_hull_sharpe_two_head function.
+    
+    This test class validates that compute_hull_sharpe_two_head uses
+    the official Hull Competition Sharpe metric, including:
+    - Raw Sharpe ratio (annualized)
+    - Vol penalty (when vol_ratio outside [0.8, 1.2])
+    - Return penalty (when strategy_return < market_return)
+    """
     
     def test_neutral_positions(self):
         """Test with all neutral positions (position=1)."""
@@ -185,18 +192,21 @@ class TestComputeHullSharpeTwoHead:
         
         metrics = compute_hull_sharpe_two_head(positions, forward_true, rf_true)
         
-        # All required keys present
-        assert "sharpe_raw" in metrics
+        # All required keys present (official metric format)
+        assert "raw_sharpe" in metrics
         assert "vol_ratio" in metrics
         assert "vol_penalty" in metrics
+        assert "return_penalty" in metrics
         assert "hull_sharpe" in metrics
-        assert "mean_return" in metrics
-        assert "std_return" in metrics
+        assert "strategy_mean" in metrics
+        assert "strategy_std" in metrics
+        assert "market_mean" in metrics
+        assert "market_std" in metrics
         
         # With position=1, vol_ratio should be close to 1
         assert np.isclose(metrics["vol_ratio"], 1.0, atol=0.1)
     
-    def test_vol_penalty_applied(self):
+    def test_vol_penalty_high_leverage(self):
         """Test that vol penalty is applied when vol_ratio > 1.2."""
         n = 100
         # High leverage positions (2x) increase volatility
@@ -209,21 +219,37 @@ class TestComputeHullSharpeTwoHead:
         # With 2x leverage, vol_ratio ≈ 2.0, so penalty should apply
         assert metrics["vol_ratio"] > 1.2
         assert metrics["vol_penalty"] > 0
-        assert metrics["hull_sharpe"] < metrics["sharpe_raw"]
+        # hull_sharpe = raw_sharpe - vol_penalty - return_penalty
+        expected_hull = metrics["raw_sharpe"] - metrics["vol_penalty"] - metrics["return_penalty"]
+        assert np.isclose(metrics["hull_sharpe"], expected_hull, atol=1e-6)
     
-    def test_no_penalty_below_threshold(self):
-        """Test no penalty when vol_ratio <= 1.2."""
+    def test_vol_penalty_low_volatility(self):
+        """Test that vol penalty is applied when vol_ratio < 0.8."""
+        n = 100
+        # Low leverage positions (0.3x) decrease volatility
+        positions = np.full(n, 0.3)
+        forward_true = np.random.randn(n) * 0.01 + 0.001
+        rf_true = np.full(n, 0.0003)
+        
+        metrics = compute_hull_sharpe_two_head(positions, forward_true, rf_true)
+        
+        # With 0.3x leverage, vol_ratio ≈ 0.3, so penalty should apply
+        assert metrics["vol_ratio"] < 0.8
+        assert metrics["vol_penalty"] > 0
+    
+    def test_no_penalty_in_tolerance_band(self):
+        """Test no vol penalty when vol_ratio in [0.8, 1.2]."""
         n = 100
         positions = np.ones(n)  # Neutral positions
+        np.random.seed(42)  # For reproducibility
         forward_true = np.random.randn(n) * 0.01 + 0.001
         rf_true = np.full(n, 0.0003)
         
         metrics = compute_hull_sharpe_two_head(positions, forward_true, rf_true)
         
         # With position=1, vol_ratio = 1.0, no penalty
-        assert metrics["vol_ratio"] <= 1.2
+        assert 0.8 <= metrics["vol_ratio"] <= 1.2
         assert metrics["vol_penalty"] == 0.0
-        assert metrics["hull_sharpe"] == metrics["sharpe_raw"]
 
 
 class TestOptimizeXParameter:

@@ -16,6 +16,9 @@ from typing import Dict, Any
 
 import numpy as np
 
+# Re-use official Hull Competition Sharpe metric
+from src.metrics.hull_sharpe import compute_hull_sharpe, HullSharpeResult
+
 
 @dataclass
 class TwoHeadPositionConfig:
@@ -177,9 +180,11 @@ def compute_hull_sharpe_two_head(
     positions: np.ndarray,
     forward_true: np.ndarray,
     rf_true: np.ndarray,
-    annualization: float = 252.0,
 ) -> Dict[str, float]:
     """Compute Hull Sharpe score for two-head positions.
+    
+    This function uses the official Hull Competition Sharpe metric
+    from src/metrics/hull_sharpe.py to ensure consistency with LB scoring.
     
     Parameters
     ----------
@@ -189,55 +194,50 @@ def compute_hull_sharpe_two_head(
         True forward_returns.
     rf_true : np.ndarray
         True risk_free_rate.
-    annualization : float
-        Annualization factor (252 for daily).
         
     Returns
     -------
     dict
-        Sharpe metrics including vol_ratio penalty.
-        Keys: sharpe_raw, vol_ratio, vol_penalty, hull_sharpe,
-              mean_return, std_return, mean_position, std_position
+        Official Hull Sharpe metrics including:
+        - hull_sharpe: final score (= raw_sharpe - vol_penalty - return_penalty)
+        - raw_sharpe: annualized Sharpe ratio
+        - vol_ratio: strategy_std / market_std
+        - vol_penalty: penalty when vol_ratio outside [0.8, 1.2]
+        - return_penalty: penalty when strategy_return < market_return
+        - strategy_mean, strategy_std, market_mean, market_std
+        - mean_position, std_position
+        
+    Notes
+    -----
+    The official strategy return formula is:
+        strategy_returns = rf * (1 - position) + position * forward
+    
+    This represents:
+        - (1 - position) invested in risk-free asset
+        - position invested in S&P 500
     """
-    # Excess returns
-    excess_true = forward_true - rf_true
+    positions = np.asarray(positions, dtype=float)
+    forward_true = np.asarray(forward_true, dtype=float)
+    rf_true = np.asarray(rf_true, dtype=float)
     
-    # Strategy returns
-    strategy_returns = positions * excess_true
-    
-    # Statistics
-    mean_return = float(np.mean(strategy_returns))
-    std_return = float(np.std(strategy_returns, ddof=1))
-    
-    # Sharpe
-    if std_return > 1e-10:
-        sharpe = (mean_return / std_return) * np.sqrt(annualization)
-    else:
-        sharpe = 0.0
-    
-    # Vol ratio
-    market_std = float(np.std(excess_true, ddof=1))
-    if market_std > 1e-10:
-        vol_ratio = std_return / market_std
-    else:
-        vol_ratio = 1.0
-    
-    # Vol penalty (Hull Competition rule)
-    if vol_ratio > 1.2:
-        vol_penalty = (vol_ratio - 1.2) * 100
-    else:
-        vol_penalty = 0.0
-    
-    # Hull Sharpe
-    hull_sharpe = sharpe - vol_penalty
+    # Use official Hull Competition Sharpe metric
+    result: HullSharpeResult = compute_hull_sharpe(
+        prediction=positions,
+        forward_returns=forward_true,
+        risk_free_rate=rf_true,
+        validate=False,  # positions already clipped
+    )
     
     return {
-        "sharpe_raw": float(sharpe),
-        "vol_ratio": float(vol_ratio),
-        "vol_penalty": float(vol_penalty),
-        "hull_sharpe": float(hull_sharpe),
-        "mean_return": mean_return,
-        "std_return": std_return,
+        "hull_sharpe": result.final_score,
+        "raw_sharpe": result.raw_sharpe,
+        "vol_ratio": result.vol_ratio,
+        "vol_penalty": result.vol_penalty,
+        "return_penalty": result.return_penalty,
+        "strategy_mean": result.strategy_mean,
+        "strategy_std": result.strategy_std,
+        "market_mean": result.market_mean,
+        "market_std": result.market_std,
         "mean_position": float(np.mean(positions)),
         "std_position": float(np.std(positions)),
     }
