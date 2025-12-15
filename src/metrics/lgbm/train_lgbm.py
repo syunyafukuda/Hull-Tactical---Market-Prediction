@@ -450,7 +450,9 @@ def _build_position_config(args: argparse.Namespace) -> AlphaBetaPositionConfig:
 
     winsor_pct = args.winsor_pct
     if winsor_pct is None and "winsor_pct" in file_config:
-        winsor_pct = float(file_config["winsor_pct"])
+        config_winsor = file_config["winsor_pct"]
+        # Handle null/None in YAML
+        winsor_pct = float(config_winsor) if config_winsor is not None else None
 
     return AlphaBetaPositionConfig(
         alpha=alpha,
