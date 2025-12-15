@@ -129,6 +129,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--no-artifacts", action="store_true")
     ap.add_argument("--dry-run", action="store_true", help="Run CV only, no final training")
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument(
+        "--save-bundle", action="store_true",
+        help="Save inference_bundle.pkl (WARNING: ~4GB, memory intensive)",
+    )
     return ap.parse_args(argv)
 
 
@@ -657,6 +661,65 @@ def main(argv: Sequence[str] | None = None) -> int:
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
         print(f"[info] Saved metadata to {meta_path}")
+        
+        # Save feature_list.json (required for Kaggle submission notebook)
+        # Collect original input columns (before augmentation)
+        pipeline_input_cols = sorted(X.columns.tolist())
+        
+        # Collect SU1/SU5 generated columns from augmenter
+        su1_generated = list(getattr(su5_prefit, "su1_feature_names_", []))
+        su5_generated = list(getattr(su5_prefit, "su5_feature_names_", []))
+        
+        # Model input columns (after augmentation + tier exclusion)
+        model_input_cols = sorted(X_augmented_all.columns.tolist())
+        
+        feature_manifest = {
+            "version": f"lgbm-two-head-{feature_tier}-v1",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "pipeline_input_columns": pipeline_input_cols,
+            "su1_generated_columns": su1_generated,
+            "su5_generated_columns": su5_generated,
+            "model_input_columns": model_input_cols,
+            "total_feature_count": len(model_input_cols),
+            "feature_tier": feature_tier,
+            "excluded_count": len(excluded_features),
+        }
+        
+        # Try to get git info
+        try:
+            import subprocess
+            commit = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL
+            ).decode().strip()[:8]
+            branch = subprocess.check_output(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"], stderr=subprocess.DEVNULL
+            ).decode().strip()
+            feature_manifest["source_commit"] = commit
+            feature_manifest["source_branch"] = branch
+        except Exception:
+            pass
+        
+        feature_list_path = out_dir / "feature_list.json"
+        with open(feature_list_path, "w", encoding="utf-8") as f:
+            json.dump(feature_manifest, f, indent=2)
+        print(f"[info] Saved feature list to {feature_list_path}")
+        
+        # Save inference_bundle.pkl (optional - large file ~4GB)
+        if args.save_bundle:
+            inference_bundle = {
+                "forward_model": final_forward_pipeline,
+                "rf_model": final_rf_pipeline,
+                "augmenter": su5_prefit,
+                "excluded_features": excluded_features,
+                "feature_tier": feature_tier,
+                "position_config": position_config.to_dict(),
+                "feature_names": list(X_augmented_all.columns),
+            }
+            bundle_path = out_dir / "inference_bundle.pkl"
+            joblib.dump(inference_bundle, bundle_path)
+            print(f"[info] Saved inference bundle to {bundle_path}")
+        else:
+            print("[info] Skipping inference_bundle.pkl (use --save-bundle to create)")
     
     return 0
 

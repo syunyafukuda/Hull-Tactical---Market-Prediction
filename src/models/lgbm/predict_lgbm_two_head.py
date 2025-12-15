@@ -199,15 +199,6 @@ def main(argv: Iterable[str] | None = None) -> int:
     out_csv = args.out_csv if args.out_csv else str(art_dir / "submission.csv")
     out_csv_path = Path(out_csv)
 
-    # Check required files exist
-    forward_model_path = art_dir / "forward_model.pkl"
-    rf_model_path = art_dir / "rf_model.pkl"
-    position_config_path = art_dir / "position_config.json"
-    
-    for path in [forward_model_path, rf_model_path, position_config_path]:
-        if not path.exists():
-            raise FileNotFoundError(f"Required file not found: {path}")
-
     # Load test data
     test_path = infer_test_file(data_dir, args.test_file)
     print(f"[info] test file: {test_path}")
@@ -221,15 +212,58 @@ def main(argv: Iterable[str] | None = None) -> int:
     working_df["__original_order__"] = np.arange(len(working_df))
     working_sorted = working_df.sort_values(args.id_col).reset_index(drop=True)
 
-    # Load models
-    print(f"[info] loading forward model from {forward_model_path}")
-    forward_bundle = joblib.load(forward_model_path)
+    # Try to load inference_bundle.pkl first (preferred), fallback to separate files
+    bundle_path = art_dir / "inference_bundle.pkl"
     
-    print(f"[info] loading rf model from {rf_model_path}")
-    rf_bundle = joblib.load(rf_model_path)
-    
-    # Load position config
-    position_config = _load_json(position_config_path)
+    if bundle_path.exists():
+        print(f"[info] loading inference bundle from {bundle_path}")
+        bundle = joblib.load(bundle_path)
+        
+        forward_pipeline = bundle["forward_model"]
+        rf_pipeline = bundle["rf_model"]
+        augmenter = bundle.get("augmenter")
+        excluded_features = set(bundle.get("excluded_features", []))
+        position_config = bundle.get("position_config", {})
+        
+        print(f"[info] bundle contains: forward_model, rf_model, augmenter, excluded_features ({len(excluded_features)})")
+    else:
+        # Fallback to separate files
+        forward_model_path = art_dir / "forward_model.pkl"
+        rf_model_path = art_dir / "rf_model.pkl"
+        position_config_path = art_dir / "position_config.json"
+        
+        for path in [forward_model_path, rf_model_path, position_config_path]:
+            if not path.exists():
+                raise FileNotFoundError(f"Required file not found: {path}")
+        
+        print(f"[info] loading forward model from {forward_model_path}")
+        forward_pipeline = joblib.load(forward_model_path)
+        
+        print(f"[info] loading rf model from {rf_model_path}")
+        rf_pipeline = joblib.load(rf_model_path)
+        
+        position_config = _load_json(position_config_path)
+        
+        # Load augmenter (if exists - new format)
+        augmenter_path = art_dir / "augmenter.pkl"
+        excluded_path = art_dir / "excluded_features.json"
+        
+        if augmenter_path.exists():
+            print(f"[info] loading augmenter from {augmenter_path}")
+            augmenter = joblib.load(augmenter_path)
+            
+            if excluded_path.exists():
+                with open(excluded_path, "r") as f:
+                    excluded_data = json.load(f)
+                excluded_features = set(excluded_data.get("excluded", []))
+                print(f"[info] excluded features: {len(excluded_features)}")
+            else:
+                excluded_features = set()
+        else:
+            augmenter = None
+            excluded_features = set()
+
+    # Parse position config
     x_value = args.x if args.x is not None else position_config.get("x", 0.0)
     clip_min = args.clip_min if args.clip_min != 0.0 else position_config.get("clip_min", 0.0)
     clip_max = args.clip_max if args.clip_max != 2.0 else position_config.get("clip_max", 2.0)
@@ -237,31 +271,11 @@ def main(argv: Iterable[str] | None = None) -> int:
     
     print(f"[info] position config: x={x_value:.6f}, clip=[{clip_min}, {clip_max}]")
 
-    # Load models (core_pipeline without augmenter, trained on tier3-excluded features)
-    forward_pipeline = forward_bundle
-    rf_pipeline = rf_bundle
+    # Prepare test data
+    drop_cols = ["__original_order__", "is_scored", "row_id"]
+    X_test_raw = working_sorted.drop(columns=[c for c in drop_cols if c in working_sorted.columns])
     
-    # Load augmenter (if exists - new format)
-    augmenter_path = art_dir / "augmenter.pkl"
-    excluded_path = art_dir / "excluded_features.json"
-    
-    if augmenter_path.exists():
-        print(f"[info] loading augmenter from {augmenter_path}")
-        augmenter = joblib.load(augmenter_path)
-        
-        # Load excluded features
-        if excluded_path.exists():
-            with open(excluded_path, "r") as f:
-                excluded_data = json.load(f)
-            excluded_features = set(excluded_data.get("excluded", []))
-            print(f"[info] excluded features: {len(excluded_features)}")
-        else:
-            excluded_features = set()
-        
-        # Prepare test data
-        drop_cols = ["__original_order__", "is_scored", "row_id"]
-        X_test_raw = working_sorted.drop(columns=[c for c in drop_cols if c in working_sorted.columns])
-        
+    if augmenter is not None:
         # Apply augmenter
         print("[info] applying feature augmentation...")
         X_augmented = augmenter.fit_transform(X_test_raw)
@@ -279,8 +293,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     else:
         # Legacy format: pipeline includes augmenter
         print("[info] legacy format: using pipeline with built-in augmenter")
-        drop_cols = ["__original_order__", "is_scored", "row_id"]
-        X_test = working_sorted.drop(columns=[c for c in drop_cols if c in working_sorted.columns])
+        X_test = X_test_raw
     
     print(f"[info] Test data shape: {X_test.shape}")
 
