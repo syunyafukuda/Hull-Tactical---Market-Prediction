@@ -1403,4 +1403,112 @@ ElasticNetの結果から、以下の線形モデルは試す価値が低いと�
 - **Notebook**: notebooks/submit/LGBM-sharpe-wf-opt.ipynb
 - **Artifacts**: artifacts/models/lgbm-sharpe-wf-opt/
 
+---
 
+## 2025-12-15 LGBM-sharpe-clip (Position Mapping Integration) - **スコア変化なし**
+
+- Branch: `dev`
+- Kaggle Notebook: Private（Dataset: lgbm-best-sharpe）
+- **LB score: 3.318 (Public)** ← **前回と同じ**
+- Status: **確認完了** - クリッピング戦略の統合は正常動作、ただし効果なし
+- Decision: **モデル予測精度向上が真の改善ポイント**
+
+### 実施内容
+
+1. **Pipeline Integration**
+   - `map_predictions_to_positions` を `train_lgbm.py` に統合
+   - CLI args追加: `--alpha`, `--beta`, `--clip-min`, `--clip-max`, `--winsor-pct`
+   - Config file loading: `configs/evaluation/walk_forward.yaml` から position_mapping 読み込み
+
+2. **Alpha/Beta Grid Search**
+   - 125+組み合わせを sweep
+   - 結果: alpha=200, beta=1.5 が simple Sharpe 最高 (0.912)
+   - **問題発見**: simple Sharpe ≠ Hull Competition Sharpe
+
+3. **Hull Competition Sharpe の vol_ratio ペナルティ**
+   - vol_ratio > 1.2 の場合: `penalty = (vol_ratio - 1.2) * 100`
+   - alpha=200 → vol_ratio=1.48 → penalty=28 → **Hull Sharpe = -27**
+   - alpha=0.05 (sharpe_mult=20) → vol_ratio=1.0 → penalty=0 → **Hull Sharpe = +0.075**
+
+4. **最終設定（保守的）**
+   - `sharpe_mult=20.0` (alpha=0.05)
+   - `sharpe_offset=1.0` (beta=1.0)
+   - `clip_min=0.0`, `clip_max=2.0`
+
+### 4-fold Walk-Forward CV 結果
+
+| Fold | val_rmse | Hull Sharpe | vol_ratio |
+|------|----------|-------------|-----------|
+| 1 | 0.0088 | +0.022 | 1.000 |
+| 2 | 0.0094 | -0.113 | 1.000 |
+| 3 | 0.0131 | +0.308 | 1.000 |
+| 4 | 0.0139 | +0.084 | 1.000 |
+
+**OOF 統計:**
+- RMSE: 0.0114
+- Hull Sharpe (mean): **0.0751**
+- Hull Sharpe (min): -0.1133
+- Hull Sharpe (std): 0.1522
+- Vol Ratio: 全fold 1.000
+
+### Submission 統計
+
+```
+Mean prediction: 1.0097
+Std prediction:  0.0723
+Min prediction:  0.8820
+Max prediction:  1.0899
+```
+
+### 分析: なぜクリッピングが効かないか
+
+1. **Position計算式**
+   ```
+   position = pred_excess * mult + offset
+           = pred_excess * 20.0 + 1.0
+   ```
+
+2. **予測値の範囲**
+   - `pred_excess` ≈ ±0.005（RMSE ≈ 0.01 より推定）
+   - `position` = 0.005 * 20 + 1.0 = **1.10** (max)
+   - `position` = -0.005 * 20 + 1.0 = **0.90** (min)
+
+3. **クリッピング範囲との比較**
+   - Clip範囲: `[0.0, 2.0]`
+   - 実際のposition範囲: `[0.88, 1.10]`
+   - **→ クリッピングが発生する値が存在しない**
+
+4. **根本原因**
+   - `sharpe_mult=20.0` は vol_ratio=1.0 を維持するための**保守的設定**
+   - この設定では position は常に [0.85, 1.15] 程度に収まる
+   - clip(0.0, 2.0) には絶対にかからない
+
+### 教訓
+
+| 発見 | 詳細 |
+|------|------|
+| Grid Search の落とし穴 | simple Sharpe 最適化 ≠ Hull Sharpe 最適化 |
+| vol_ratio ペナルティ | 攻撃的な alpha は即座にペナルティで相殺 |
+| クリッピングの限界 | 保守的設定ではクリッピング自体が発生しない |
+| 真の改善ポイント | **モデル予測精度 (RMSE) の向上** |
+
+### 次のステップ
+
+1. **モデル改善に集中**
+   - 新しい特徴量エンジニアリング
+   - ハイパーパラメータチューニング
+   - アンサンブル（ただしOOF↔LB乖離に注意）
+
+2. **Vol-aware Grid Search**
+   - Hull Sharpe（vol_ratio ペナルティ込み）で最適化
+   - 現状の simple Sharpe grid search は意味がない
+
+3. **攻撃的設定の再検討**
+   - vol_ratio ペナルティを受け入れつつ、Sharpe > ペナルティ となる設定を探索
+   - 例: alpha=50, beta=1.0, clip=[0.5, 1.5] など
+
+### 参照
+
+- **Artifacts**: artifacts/models/lgbm-best-sharpe/
+- **Notebook**: notebooks/submit/LGBM-sharpe-clip.ipynb
+- **Position Mapping Config**: configs/evaluation/walk_forward.yaml
