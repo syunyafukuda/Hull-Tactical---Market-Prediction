@@ -537,25 +537,47 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.no_artifacts and not args.dry_run:
         print("[info] Training final models on all data...")
         
-        # Train final forward model
-        final_forward_pipeline = cast(Pipeline, clone(base_pipeline))
+        # Prepare final training data (X_augmented_all with tier3 exclusion applied)
+        # Drop target columns from X_augmented_all
+        drop_cols_for_model = [forward_col, rf_col, "market_forward_excess_returns", "date_id"]
+        X_final_train = X_augmented_all.drop(
+            columns=[c for c in drop_cols_for_model if c in X_augmented_all.columns],
+            errors="ignore"
+        )
+        print(f"[info] Final training features: {X_final_train.shape[1]}")
+        
+        # Train final forward model using core_pipeline (no augmenter)
+        # This ensures tier3 exclusion is applied consistently with CV
+        final_forward_pipeline = cast(Pipeline, clone(core_pipeline_template))
         fit_kwargs_final: Dict[str, Any] = {}
         if callbacks:
             fit_kwargs_final["model__callbacks"] = callbacks
             fit_kwargs_final["model__eval_metric"] = "rmse"
-        final_forward_pipeline.fit(X_np, y_forward, **fit_kwargs_final)
+        final_forward_pipeline.fit(X_final_train, y_forward, **fit_kwargs_final)
         
         # Train final rf model
-        final_rf_pipeline = cast(Pipeline, clone(base_pipeline))
-        final_rf_pipeline.fit(X_np, y_rf, **fit_kwargs_final)
+        final_rf_pipeline = cast(Pipeline, clone(core_pipeline_template))
+        final_rf_pipeline.fit(X_final_train, y_rf, **fit_kwargs_final)
         
-        # Save models
+        # Save models (core_pipeline without augmenter)
         forward_model_path = out_dir / "forward_model.pkl"
         rf_model_path = out_dir / "rf_model.pkl"
         joblib.dump(final_forward_pipeline, forward_model_path)
         joblib.dump(final_rf_pipeline, rf_model_path)
         print(f"[info] Saved forward model to {forward_model_path}")
         print(f"[info] Saved rf model to {rf_model_path}")
+        
+        # Save augmenter separately for inference
+        augmenter_path = out_dir / "augmenter.pkl"
+        joblib.dump(su5_prefit, augmenter_path)
+        print(f"[info] Saved augmenter to {augmenter_path}")
+        
+        # Save excluded features list for inference
+        excluded_features = list(get_excluded_features(feature_tier))
+        excluded_path = out_dir / "excluded_features.json"
+        with open(excluded_path, "w", encoding="utf-8") as f:
+            json.dump({"tier": feature_tier, "excluded": excluded_features}, f, indent=2)
+        print(f"[info] Saved excluded features to {excluded_path}")
         
         # Save position config with optimized x
         position_config = TwoHeadPositionConfig(
