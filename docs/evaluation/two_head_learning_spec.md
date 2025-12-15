@@ -26,71 +26,164 @@
 
 ---
 
-## 2. フォルダ構成
+## 2. 設計方針: コピー＆リネーム方式
+
+既存ファイルを直接修正すると履歴追跡が困難になるため、以下の方針を採用:
+
+1. **既存ファイルは変更しない**: `train_lgbm.py`, `predict_lgbm.py`, `signals.py` は現状維持
+2. **コピー＆リネーム**: 既存ファイルをベースに新規ファイルを作成
+3. **独立した実行パス**: 2ヘッド専用のスクリプト群として分離
+
+### 2.1 コピー元 → コピー先 マッピング
+
+| コピー元 (既存) | コピー先 (新規) | 目的 |
+|-----------------|-----------------|------|
+| `src/metrics/lgbm/train_lgbm.py` | `src/metrics/lgbm_two_head/train_lgbm_two_head.py` | 2ヘッドトレーニング |
+| `src/metrics/lgbm/predict_lgbm.py` | `src/metrics/lgbm_two_head/predict_lgbm_two_head.py` | 2ヘッド推論 |
+| `src/models/common/signals.py` | `src/models/common/signals_two_head.py` | 2ヘッド用シグナル関数 |
+
+---
+
+## 3. フォルダ構成
 
 ```
 src/
 ├── metrics/
-│   └── lgbm/
-│       ├── train_lgbm.py          # [既存] --two-head オプション追加
-│       ├── train_two_head.py      # [新規] 2ヘッド専用トレーニング
-│       └── predict_lgbm.py        # [既存] 2ヘッド推論パス追加
+│   ├── lgbm/                              # [既存] 1ヘッド用（変更なし）
+│   │   ├── __init__.py
+│   │   ├── train_lgbm.py
+│   │   └── predict_lgbm.py
+│   │
+│   └── lgbm_two_head/                     # [新規] 2ヘッド専用モジュール
+│       ├── __init__.py                    # [新規]
+│       ├── train_lgbm_two_head.py         # [新規] train_lgbm.py ベース
+│       └── predict_lgbm_two_head.py       # [新規] predict_lgbm.py ベース
+│
 ├── models/
 │   └── common/
-│       └── signals.py             # [既存] map_positions_from_forward_rf 追加
+│       ├── signals.py                     # [既存] 変更なし
+│       └── signals_two_head.py            # [新規] 2ヘッド用関数
+│
 scripts/
-├── tune_two_head_positions.py     # [新規] x パラメータのグリッドサーチ
+├── two_head/                              # [新規] 2ヘッド専用スクリプト
+│   ├── tune_x_parameter.py                # [新規] x パラメータ最適化
+│   └── compare_one_vs_two_head.py         # [新規] 1ヘッド vs 2ヘッド比較
+│
 configs/
 └── evaluation/
-    └── two_head.yaml              # [新規] 2ヘッド設定ファイル
+    ├── walk_forward.yaml                  # [既存] 変更なし
+    └── two_head.yaml                      # [新規] 2ヘッド設定
+│
 artifacts/
 └── models/
-    └── lgbm-two-head/             # [新規] 2ヘッドモデル成果物
-        ├── forward_model.pkl
-        ├── rf_model.pkl
-        ├── model_meta.json
-        ├── forward_oof.csv
-        ├── rf_oof.csv
-        ├── tuning_results.csv
-        └── submission.csv
+    ├── lgbm-best-sharpe/                  # [既存] 1ヘッドモデル
+    └── lgbm-two-head/                     # [新規] 2ヘッドモデル
+        ├── forward_model.pkl              # forward_returns 予測モデル
+        ├── rf_model.pkl                   # risk_free_rate 予測モデル
+        ├── inference_bundle.pkl           # 統合推論バンドル
+        ├── model_meta.json                # メタ情報 (best_x 含む)
+        ├── oof_predictions.csv            # OOF予測 (forward/rf 両方)
+        ├── x_search_results.csv           # x パラメータ探索結果
+        └── submission.csv                 # 提出ファイル
+│
 results/
-└── two_head/                      # [新規] チューニング結果
-    └── x_search.csv
+└── two_head/                              # [新規] 実験結果
+    ├── x_search.csv                       # x 探索ログ
+    └── comparison.csv                     # 1ヘッド vs 2ヘッド比較
+│
+notebooks/
+└── submit/
+    ├── LGBM-sharpe-clip.ipynb             # [既存] 1ヘッド提出
+    └── LGBM-two-head.ipynb                # [新規] 2ヘッド提出
+│
 docs/
 └── evaluation/
-    ├── two_head_learning.md       # [既存] 概要書
-    └── two_head_learning_spec.md  # [本ファイル] 仕様書
+    ├── two_head_learning.md               # [既存] 概要書
+    └── two_head_learning_spec.md          # [本ファイル] 仕様書
+│
+tests/
+└── metrics/
+    └── lgbm_two_head/                     # [新規] テスト
+        ├── test_signals_two_head.py
+        └── test_train_two_head.py
 ```
 
 ---
 
-## 3. 作成/修正ファイル一覧
+## 4. 作成ファイル一覧
 
-### 3.1 新規作成
+### 4.1 コア実装 (src/)
 
-| # | ファイル | 目的 |
+| # | ファイル | ベース | 説明 |
+|---|----------|--------|------|
+| 1 | `src/metrics/lgbm_two_head/__init__.py` | - | モジュール初期化 |
+| 2 | `src/metrics/lgbm_two_head/train_lgbm_two_head.py` | `train_lgbm.py` | 2ヘッド学習 |
+| 3 | `src/metrics/lgbm_two_head/predict_lgbm_two_head.py` | `predict_lgbm.py` | 2ヘッド推論 |
+| 4 | `src/models/common/signals_two_head.py` | `signals.py` (部分) | 2ヘッド用シグナル関数 |
+
+### 4.2 スクリプト (scripts/)
+
+| # | ファイル | 説明 |
 |---|----------|------|
-| 1 | `src/metrics/lgbm/train_two_head.py` | 2ヘッド専用トレーニングスクリプト |
-| 2 | `scripts/tune_two_head_positions.py` | x パラメータ最適化 |
-| 3 | `configs/evaluation/two_head.yaml` | 2ヘッド設定ファイル |
+| 5 | `scripts/two_head/tune_x_parameter.py` | x パラメータ Grid Search |
+| 6 | `scripts/two_head/compare_one_vs_two_head.py` | 比較評価スクリプト |
 
-### 3.2 既存修正
+### 4.3 設定 (configs/)
 
-| # | ファイル | 修正内容 |
-|---|----------|----------|
-| 4 | `src/models/common/signals.py` | `map_positions_from_forward_rf` 関数追加 |
-| 5 | `src/metrics/lgbm/predict_lgbm.py` | 2ヘッド推論パス追加 |
+| # | ファイル | 説明 |
+|---|----------|------|
+| 7 | `configs/evaluation/two_head.yaml` | 2ヘッド設定ファイル |
+
+### 4.4 テスト (tests/)
+
+| # | ファイル | 説明 |
+|---|----------|------|
+| 8 | `tests/metrics/lgbm_two_head/test_signals_two_head.py` | シグナル関数テスト |
+| 9 | `tests/metrics/lgbm_two_head/test_train_two_head.py` | トレーニングテスト |
+
+### 4.5 ノートブック (notebooks/)
+
+| # | ファイル | ベース | 説明 |
+|---|----------|--------|------|
+| 10 | `notebooks/submit/LGBM-two-head.ipynb` | `LGBM-sharpe-clip.ipynb` | Kaggle提出用 |
 
 ---
 
-## 4. 詳細実装仕様
+## 5. 既存ファイルへの影響
 
-### 4.1 `src/models/common/signals.py` への追加
+**変更なし** (履歴保持のため):
+
+| ファイル | 状態 |
+|----------|------|
+| `src/metrics/lgbm/train_lgbm.py` | 変更なし |
+| `src/metrics/lgbm/predict_lgbm.py` | 変更なし |
+| `src/models/common/signals.py` | 変更なし |
+| `configs/evaluation/walk_forward.yaml` | 変更なし |
+
+---
+
+## 6. 詳細実装仕様
+
+### 6.1 `src/models/common/signals_two_head.py` (新規作成)
+
+**ベース**: `signals.py` から必要な dataclass と関数を参考に、2ヘッド専用として新規作成
 
 ```python
-# ============================================================================
-# Two-Head Position Mapping (forward_returns + risk_free_rate)
-# ============================================================================
+"""Two-Head Signal/Prediction to Position mapping utilities.
+
+This module provides functions specifically for the two-head learning approach,
+where forward_returns and risk_free_rate are predicted separately.
+
+Based on Kaggle discussion/608349:
+position = clip((x - rf_pred) / (forward_pred - rf_pred), clip_min, clip_max)
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+
 
 @dataclass
 class TwoHeadPositionConfig:
@@ -228,7 +321,9 @@ def map_positions_from_two_head_config(
 
 ---
 
-### 4.2 `src/metrics/lgbm/train_two_head.py` (新規)
+### 6.2 `src/metrics/lgbm_two_head/train_lgbm_two_head.py` (新規作成)
+
+**ベース**: `src/metrics/lgbm/train_lgbm.py` をコピーして大幅改修
 
 ```python
 #!/usr/bin/env python
@@ -239,7 +334,7 @@ Trains two separate models:
 2. rf_model: Predicts risk_free_rate
 
 Usage:
-    python -m src.metrics.lgbm.train_two_head \
+    python -m src.metrics.lgbm_two_head.train_lgbm_two_head \
         --cv-mode walk_forward \
         --out-dir artifacts/models/lgbm-two-head
 """
@@ -259,7 +354,7 @@ from lightgbm import LGBMRegressor
 from sklearn.base import clone
 from sklearn.pipeline import Pipeline
 
-# 既存のユーティリティをインポート
+# 既存のユーティリティをインポート (1ヘッドから流用)
 from src.metrics.lgbm.train_lgbm import (
     load_raw_train,
     load_preprocess_config,
@@ -267,7 +362,9 @@ from src.metrics.lgbm.train_lgbm import (
     apply_feature_tier_selection,
     setup_walk_forward_cv,
 )
-from src.models.common.signals import (
+
+# 2ヘッド専用シグナル関数
+from src.models.common.signals_two_head import (
     map_positions_from_forward_rf,
     TwoHeadPositionConfig,
 )
@@ -703,7 +800,7 @@ if __name__ == "__main__":
 
 ---
 
-### 4.3 `configs/evaluation/two_head.yaml` (新規)
+### 6.3 `configs/evaluation/two_head.yaml` (新規作成)
 
 ```yaml
 # Two-Head Learning Configuration
@@ -752,16 +849,15 @@ model:
 
 ---
 
-### 4.4 `scripts/tune_two_head_positions.py` (新規)
+### 6.4 `scripts/two_head/tune_x_parameter.py` (新規作成)
 
 ```python
 #!/usr/bin/env python
 """Grid search for optimal x parameter in two-head position mapping.
 
 Usage:
-    python scripts/tune_two_head_positions.py \
-        --forward-oof artifacts/models/lgbm-two-head/forward_oof.csv \
-        --rf-oof artifacts/models/lgbm-two-head/rf_oof.csv \
+    python scripts/two_head/tune_x_parameter.py \
+        --oof-path artifacts/models/lgbm-two-head/oof_predictions.csv \
         --out-dir results/two_head
 """
 
@@ -773,7 +869,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.models.common.signals import map_positions_from_forward_rf
+# 2ヘッド専用シグナル関数
+from src.models.common.signals_two_head import map_positions_from_forward_rf
 
 
 def compute_hull_sharpe(
@@ -892,12 +989,37 @@ if __name__ == "__main__":
 
 ---
 
-### 4.5 `src/metrics/lgbm/predict_lgbm.py` への修正
+### 6.5 `src/metrics/lgbm_two_head/predict_lgbm_two_head.py` (新規作成)
 
-既存の `predict_lgbm.py` に 2 ヘッド推論パスを追加:
+**ベース**: `src/metrics/lgbm/predict_lgbm.py` をコピーして2ヘッド専用に改修
 
 ```python
-# 追加: Two-Head inference support
+#!/usr/bin/env python
+"""Two-Head LightGBM Prediction for Hull Competition.
+
+Loads trained forward_model and rf_model, generates positions using
+the optimized x parameter, and creates submission.csv.
+
+Usage:
+    python -m src.metrics.lgbm_two_head.predict_lgbm_two_head \
+        --artifacts-dir artifacts/models/lgbm-two-head
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Sequence
+
+import joblib
+import numpy as np
+import pandas as pd
+
+# 2ヘッド専用シグナル関数
+from src.models.common.signals_two_head import map_positions_from_forward_rf
+
+
 def run_two_head_inference(
     test_df: pd.DataFrame,
     forward_model_path: Path,
@@ -931,8 +1053,6 @@ def run_two_head_inference(
     np.ndarray
         Position values.
     """
-    from src.models.common.signals import map_positions_from_forward_rf
-    
     forward_model = joblib.load(forward_model_path)
     rf_model = joblib.load(rf_model_path)
     
@@ -949,41 +1069,113 @@ def run_two_head_inference(
     )
     
     return positions
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Run Two-Head inference for Hull Competition"
+    )
+    parser.add_argument(
+        "--artifacts-dir", type=str,
+        default="artifacts/models/lgbm-two-head",
+    )
+    parser.add_argument(
+        "--data-dir", type=str,
+        default="data/raw",
+    )
+    parser.add_argument(
+        "--out-csv", type=str, default=None,
+    )
+    args = parser.parse_args(argv)
+    
+    art_dir = Path(args.artifacts_dir)
+    
+    # Load model_meta.json for x parameter
+    with open(art_dir / "model_meta.json") as f:
+        meta = json.load(f)
+    
+    x = meta["position_mapping"]["x"]
+    clip_min = meta["position_mapping"].get("clip_min", 0.0)
+    clip_max = meta["position_mapping"].get("clip_max", 2.0)
+    
+    print(f"[info] x={x}, clip=[{clip_min}, {clip_max}]")
+    
+    # Load test data
+    test_path = Path(args.data_dir) / "test.csv"
+    test_df = pd.read_csv(test_path)
+    
+    # Get feature columns from meta
+    feature_cols = meta.get("feature_columns", [])
+    
+    # Run inference
+    positions = run_two_head_inference(
+        test_df,
+        forward_model_path=art_dir / "forward_model.pkl",
+        rf_model_path=art_dir / "rf_model.pkl",
+        x=x,
+        feature_cols=feature_cols,
+        clip_min=clip_min,
+        clip_max=clip_max,
+    )
+    
+    # Build submission
+    out_csv = args.out_csv or str(art_dir / "submission.csv")
+    submission = pd.DataFrame({
+        "date_id": test_df["date_id"],
+        "prediction": positions.astype(np.float32),
+    })
+    
+    # Filter to scored rows
+    if "is_scored" in test_df.columns:
+        scored_mask = test_df["is_scored"].astype(bool)
+        submission = submission[scored_mask]
+    
+    submission.to_csv(out_csv, index=False)
+    print(f"[ok] Saved {out_csv} ({len(submission)} rows)")
+    
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main())
 ```
 
 ---
 
-## 5. 実装手順
+## 7. 実装手順
 
 ### Phase 1: 基盤構築 (Day 1)
 
 | # | タスク | 詳細 |
 |---|--------|------|
-| 1 | `signals.py` 更新 | `TwoHeadPositionConfig`, `map_positions_from_forward_rf` 追加 |
-| 2 | Config 作成 | `configs/evaluation/two_head.yaml` |
-| 3 | ユニットテスト | `map_positions_from_forward_rf` のテスト作成 |
+| 1 | `signals_two_head.py` 作成 | `TwoHeadPositionConfig`, `map_positions_from_forward_rf` |
+| 2 | `__init__.py` 作成 | `src/metrics/lgbm_two_head/__init__.py` |
+| 3 | Config 作成 | `configs/evaluation/two_head.yaml` |
+| 4 | ユニットテスト | `test_signals_two_head.py` 作成 |
 
 ### Phase 2: トレーニング (Day 2)
 
 | # | タスク | 詳細 |
 |---|--------|------|
-| 4 | `train_two_head.py` 作成 | 2 ヘッド学習スクリプト |
-| 5 | Walk-Forward CV 実行 | 4-fold で OOF 生成 |
-| 6 | x 最適化 | Grid search で best_x 決定 |
+| 5 | `train_lgbm_two_head.py` 作成 | `train_lgbm.py` をコピー＆改修 |
+| 6 | Walk-Forward CV 実行 | 4-fold で OOF 生成 |
+| 7 | x 最適化 | `tune_x_parameter.py` で Grid search |
 
 ### Phase 3: 評価・提出 (Day 3)
 
 | # | タスク | 詳細 |
 |---|--------|------|
-| 7 | 1 ヘッドとの比較 | Hull Sharpe, vol_ratio を比較 |
-| 8 | Submission 生成 | テストデータで推論 |
-| 9 | ドキュメント更新 | 結果を `submissions.md` に追記 |
+| 8 | `predict_lgbm_two_head.py` 作成 | 2ヘッド推論スクリプト |
+| 9 | 1 ヘッドとの比較 | Hull Sharpe, vol_ratio を比較 |
+| 10 | Submission 生成 | テストデータで推論 |
+| 11 | ドキュメント更新 | 結果を `submissions.md` に追記 |
 
 ---
 
-## 6. 評価基準
+## 8. 評価基準
 
-### 6.1 成功条件
+### 8.1 成功条件
 
 | 指標 | 閾値 | 説明 |
 |------|------|------|
@@ -992,7 +1184,7 @@ def run_two_head_inference(
 | Vol Ratio | < 1.2 | ペナルティ回避 |
 | vs Do-nothing | > 0 | ベースラインを上回る |
 
-### 6.2 比較実験
+### 8.2 比較実験
 
 | 設定 | 説明 |
 |------|------|
@@ -1002,7 +1194,7 @@ def run_two_head_inference(
 
 ---
 
-## 7. リスク管理
+## 9. リスク管理
 
 | リスク | 対策 |
 |--------|------|
@@ -1013,9 +1205,11 @@ def run_two_head_inference(
 
 ---
 
-## 8. 参照
+## 10. 参照
 
 - [概要書](two_head_learning.md)
 - [Kaggle Discussion 608349](https://www.kaggle.com/competitions/hull-tactical-asset-allocation-challenge/discussion/608349)
 - [Kaggle Discussion 611071](https://www.kaggle.com/competitions/hull-tactical-asset-allocation-challenge/discussion/611071)
-- [既存 signals.py](../../src/models/common/signals.py)
+- [既存 signals.py](../../src/models/common/signals.py) - 変更なし（参考のみ）
+- [既存 train_lgbm.py](../../src/metrics/lgbm/train_lgbm.py) - コピー元（変更なし）
+- [既存 predict_lgbm.py](../../src/metrics/lgbm/predict_lgbm.py) - コピー元（変更なし）
