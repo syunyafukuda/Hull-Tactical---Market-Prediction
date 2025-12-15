@@ -1,0 +1,96 @@
+# Two-Head Learning Configuration
+# ================================
+# 
+# This config is for the two-head learning approach where we predict
+# forward_returns and risk_free_rate separately, then compute positions
+# using the formula: position = (x - rf_pred) / (forward_pred - rf_pred)
+
+two_head:
+  enabled: true
+  
+  # Target columns in the dataset
+  targets:
+    forward: "forward_returns"
+    rf: "risk_free_rate"
+    excess: "market_forward_excess_returns"  # For comparison
+  
+  # Position mapping parameters
+  position_mapping:
+    # x parameter: the target return level (to be optimized via grid search)
+    # Typical range is similar to forward_returns scale (around ±0.002)
+    x: 0.0
+    clip_min: 0.0
+    clip_max: 2.0
+    epsilon: 1.0e-8
+  
+  # Grid search configuration for x optimization
+  x_optimization:
+    min: -0.002
+    max: 0.002
+    steps: 41
+    # Alternative: use percentile-based grid
+    # use_percentile: true
+    # percentile_range: [1, 99]
+  
+  # Walk-Forward CV configuration
+  walk_forward:
+    train_window: 6000
+    val_window: 1000
+    step: 500
+    n_splits: 4
+    mode: "expanding"  # or "sliding"
+
+# LightGBM model configuration (shared for both heads)
+model:
+  type: lightgbm
+  params:
+    learning_rate: 0.05
+    n_estimators: 600
+    num_leaves: 63
+    min_data_in_leaf: 32
+    feature_fraction: 0.9
+    bagging_fraction: 0.9
+    bagging_freq: 1
+    random_state: 42
+    n_jobs: -1
+    verbosity: -1
+  
+  # Per-head overrides (optional)
+  forward_overrides: {}
+  rf_overrides: {}
+
+# Feature configuration
+features:
+  # Feature tier selection (same as 1-head)
+  tier: "tier3"  # tier1, tier2, tier3, or none
+  
+  # Columns to drop from features
+  drop_columns:
+    - "date_id"
+    - "row_id"
+    - "forward_returns"
+    - "risk_free_rate"
+    - "market_forward_excess_returns"
+    - "is_scored"
+
+# Evaluation settings
+evaluation:
+  # Compare against these baselines
+  baselines:
+    do_nothing:
+      beta: 0.806
+      alpha: 0.0
+    one_head:
+      alpha: 0.05
+      beta: 1.0
+  
+  # Success criteria
+  success_criteria:
+    min_hull_sharpe_mean: 0.0  # Must be non-negative
+    max_vol_ratio: 1.2  # Avoid penalty
+    beat_do_nothing: true
+
+# Output paths
+output:
+  artifacts_dir: "artifacts/models/lgbm-two-head"
+  results_dir: "results/two_head"
