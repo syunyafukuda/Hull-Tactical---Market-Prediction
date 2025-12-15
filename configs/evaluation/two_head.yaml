@@ -25,9 +25,9 @@ two_head:
   
   # Grid search configuration for x optimization
   x_optimization:
-    min: -0.002
-    max: 0.002
-    steps: 41
+    min: -0.010
+    max: 0.010
+    steps: 81
     # Alternative: use percentile-based grid
     # use_percentile: true
     # percentile_range: [1, 99]
