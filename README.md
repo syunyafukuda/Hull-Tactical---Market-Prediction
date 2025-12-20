@@ -387,9 +387,54 @@ DefaultInferenceServer(predict)
 
 ---
 
+## 振り返り
+
+### 開発環境・ワークフロー
+#### 良かった点
+- GitHub Codespaces（4c/16GB）を中核にし、Issue駆動で Copilot / ChatGPT Codex を繋いだ AI 補助開発は効果的だった。ローカル 8GB 環境の制約を回避しつつ、依存や Python バージョンを常に本番と揃えられた。
+- Codespaces で学習したモデル成果物（pkl）をエクスポートし、Kaggle 側で推論だけ行うフローは、CI 的な再現性と提出サイクルの可視化に寄与した。
+- 依存管理を `uv sync` で統一し、Codespaces とローカル双方で lockfile ベースに環境を再現できた。Kaggle Notebook 側へ wheel を持ち込む際も `uv build` で即座に配布物を作れた。
+#### 伸びしろ
+- 成果物転送の自動化が未整備で手動オペレーションが多かったため、S3/Kaggle Dataset へのアップロードをスクリプト化したい。
+- GPU が無い Codespaces に依存していたため、LGBM 以外の GPU で高速化できるモデル（NN, TabNet 等）を十分に検証できなかった。次回は Kaggle Notebook / Colab / AWS など GPU ノードを学習にも組み込み、同じリポジトリからスクリプトを実行できるよう環境差分管理を検討する。
+- リポジトリが個人所有の場合、Codespaces のマシンタイプは 2c/4c のみが提供されるため、8c 以上を常用したい場合は組織所有＋組織課金に移行するか、別のGPU/大規模CPU環境に学習処理を逃がす必要がある。`hostRequirements` は将来の組織移管時に備えて設定を維持。
+
+### 開発フロー
+#### 良かった点
+- README のフェーズ進捗（`EDA→前処理→特徴量生成/選定→モデル→アンサンブル→HPO`）を厳密に順番管理したことで、各段階での成果物・Metrics を `docs/*` と `results/*` に確実に残せた（例: `docs/feature_selection/README.md` に Tier0-3 を完全トレース）。
+- `tests/` が `src/feature_generation/`, `src/preprocess/` などと同じ構造で用意されており（`README.md:112-119`）、欠損補完や特徴生成のロジックをテスト駆動で追加できた点は、SU 系ラインの再現性を担保するうえで有効だった。
+#### 伸びしろ
+- Pytest では最終的なモデル性能（OOF↔LB）までは検証できず、CV 設計やアンサンブル検証はノートブック/スクリプト検証に依存した。今後は「ロジックはテストで守る／性能は実験ログで可視化」という切り分けを明文化し、テスト範囲を deterministic な部分に集中させる。
+
+### フォルダ構成
+#### 良かった点
+- README で最初に `src/`, `configs/`, `docs/`, `results/` など主要ディレクトリの役割をまとめているため（`README.md:42-129`）、初学者でも大枠を把握しやすかった。また `tests/` が `src/` の階層構造を踏襲しており、各モジュールの責務とテスト位置を揃えられた。
+- `data/` と `artifacts/` を `.gitignore` に入れ、学習済み pkl や提出 Notebook は Kaggle Datasets 側で管理する運用にしたことで、Git 履歴が巨大化せず Codespaces のストレージ制限も回避できた。
+#### 伸びしろ
+- 設定ファイルや仕様書がフォルダごとにバラバラに置かれ、命名規則や依存関係が整理されていない。例えばアンサンブル手順ごとに YAML が乱立しているが（`configs/ensemble/step1_lgbm_xgb_avg.yaml:1-18` など）、どの順で実行し、どの結果ファイルを参照するかを可視化する仕組みがない。
+- `configs/feature_generation/*`・`configs/feature_selection/*`・`configs/models/*.yaml` といった設定系と、`docs/feature_generation/` や `docs/models/` の仕様書が別々に存在するがリンクが弱く、「この設定ファイルはどの仕様書の手順に対応するか」を辿るのに手間取った。次回は `configs/` 直下に README を置き、各サブフォルダの参照先ドキュメントとスクリプトを一覧化するなど、依存関係の可視化をルール化したい。
+- Kaggle 上に成果物をアップした結果、Git リポジトリからはモデルとコードの対応が見えにくくなるため、`docs/submission/` や `results/` に「Dataset名 ↔ コミットID ↔ pkl パス」を紐付ける台帳を作るなど、成果物リンクをドキュメントで追跡する仕組みが必要だった。
+- 大量のユーティリティ関数やモジュールを Notebook に毎回貼り付けるのは非効率だったので、次回は `src/` を wheel 化して Kaggle Dataset 経由で `pip install /kaggle/input/... --no-index` できる形にし、Notebook から `import hull_tactical` のみで再利用できるようパッケージングを整備したい。
+
+### CI
+#### 良かった点
+- `scripts/check_quality.sh` で `git ls-files` ガード → Ruff → Pyright → Pytest の順に実行する最小 CI を整備し（`scripts/check_quality.sh:1-18`）、データ/成果物の誤コミットを早期に検知しつつ、静的解析とユニットテストを一発で回せる点は現場の再現性確保に役立った。
+#### 伸びしろ
+- CI が確認しているのはコード品質（lint/type/test）のみで、コンペ固有の指標（OOF vs LB 差分、推論スクリプトの整合性、Notebook の破損など）は網羅していない。実際に学習ジョブを回してみたら FS_compact から列順がズレていた、といった事故が複数回発生し無駄な再学習が生じた。今後は `nbqa` で Notebook lint、`great_expectations` や `pandera` でデータ検証、`pre-commit` で差分単位の Ruff/Pyright 実行、`nox` でマトリクス化した品質ジョブに加え、「既存ベストの `inference_bundle.pkl` を使って少量データに対する推論だけを走らせるスモークテスト」を CI に組み込み、列順・前処理・モデル参照先の逸脱を早期検知できるようにする。
+
+### できなかったこと（次回に向けた backlog）
+- TabNet や NODE などの深層学習系モデルを実装・比較できなかった（GPU 不足と時間制約）。
+- 時系列を区間で区切ったモデルを複数持ち、アンサンブルする時間分割戦略を試せなかった。
+- 全モデルで体系的なハイパラチューニング（Optuna 等）が未着手のまま手動設定に頼った。
+- 競合のディスカッション/公開Notebookを十分に読み込み、実装へ落とし込む時間を確保できなかった。
+- 祝日カレンダーや外部レジーム指標の取り込みを実装前に終えられず、SUラインに反映しきれなかった。
+- LGBM Two-Head（各損失を分ける手法）の学習まで到達できなかった。
+- オンライン学習（逐次アップデートや Warm start）を実戦投入できなかった。
+
+---
+
 ## 参考リンク
 
 - [Kaggle Competition Page](https://www.kaggle.com/competitions/hull-tactical-market-prediction)
 - [uv Documentation](https://github.com/astral-sh/uv)
 - [Conventional Commits](https://www.conventionalcommits.org/ja/v1.0.0/)
-
