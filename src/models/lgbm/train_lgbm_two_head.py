@@ -377,8 +377,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     
     # Extract true target values
-    y_forward = train_df[forward_col].copy()
-    y_rf = train_df[rf_col].copy()
+    y_forward = cast(pd.Series, train_df[forward_col].copy())
+    y_rf = cast(pd.Series, train_df[rf_col].copy())
     
     # Model hyperparameters
     model_params = model_cfg.get("params", {})
@@ -483,7 +483,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Optimize x parameter
     # ========================================
     print(f"\n{'='*60}")
-    print(f"Optimizing x parameter")
+    print("Optimizing x parameter")
     print(f"{'='*60}\n")
     
     # Use only valid OOF indices

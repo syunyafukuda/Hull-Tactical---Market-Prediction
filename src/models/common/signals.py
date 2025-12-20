@@ -168,8 +168,8 @@ def calibrate_position_mapper(
     offset = target_mean - pred_median * multiplier
     
     return PositionMapperConfig(
-        multiplier=multiplier,
-        offset=offset,
+        multiplier=float(multiplier),
+        offset=float(offset),
         clip_min=0.0,
         clip_max=2.0,
     )

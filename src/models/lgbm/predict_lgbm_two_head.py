@@ -84,10 +84,8 @@ from src.feature_generation.su5.train_su5 import (  # noqa: E402,F401
     load_preprocess_policies,
 )
 from src.models.common.signals_two_head import (  # noqa: E402
-    TwoHeadPositionConfig,
     map_positions_from_forward_rf,
 )
-from src.models.common.feature_loader import get_excluded_features  # noqa: E402
 
 
 def infer_test_file(data_dir: Path, explicit: str | None) -> Path:
@@ -372,7 +370,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     print(f"[ok] wrote {out_csv_path} [{len(submission)} rows]")
 
     # Print summary statistics
-    print(f"\n[info] Submission Statistics:")
+    print("\n[info] Submission Statistics:")
     print(f"  Mean position: {submission[args.pred_col].mean():.4f}")
     print(f"  Std position:  {submission[args.pred_col].std():.4f}")
     print(f"  Min position:  {submission[args.pred_col].min():.4f}")

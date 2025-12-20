@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from src.models.common.signals_two_head import (
     TwoHeadPositionConfig,

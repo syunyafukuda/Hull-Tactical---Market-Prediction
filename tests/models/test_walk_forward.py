@@ -8,7 +8,6 @@ import pytest
 
 from src.models.common.walk_forward import (
     WalkForwardConfig,
-    WalkForwardFold,
     estimate_fold_count,
     make_walk_forward_splits,
     make_walk_forward_splits_df,

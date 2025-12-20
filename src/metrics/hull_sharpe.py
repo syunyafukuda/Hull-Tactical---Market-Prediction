@@ -56,13 +56,13 @@ class HullSharpeResult:
         }
 
 
-def validate_prediction(prediction: np.ndarray, raise_on_error: bool = False) -> bool:
+def validate_prediction(prediction: np.ndarray | float, raise_on_error: bool = False) -> bool:
     """Validate that predictions are in valid range [0, 2].
     
     Parameters
     ----------
-    prediction : np.ndarray
-        Array of predictions (investment ratios).
+    prediction : np.ndarray | float
+        Array of predictions (investment ratios), or a scalar.
     raise_on_error : bool, optional
         If True, raise ValueError on invalid prediction.
         If False (default), return False for invalid predictions.

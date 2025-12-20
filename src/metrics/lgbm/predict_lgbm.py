@@ -15,7 +15,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable
 
 import joblib
 import numpy as np
@@ -219,8 +219,10 @@ def main(argv: Iterable[str] | None = None) -> int:
     if isinstance(bundle, dict):
         augmenter = bundle.get("augmenter")
         core_pipeline = bundle.get("core_pipeline")
+        if core_pipeline is None:
+            raise ValueError("Bundle dict must contain 'core_pipeline'")
         excluded_features = bundle.get("excluded_features", [])
-        print(f"[info] Bundle format: dict with augmenter + core_pipeline")
+        print("[info] Bundle format: dict with augmenter + core_pipeline")
         print(f"[info] Excluded features: {len(excluded_features)}")
     else:
         # Legacy Pipeline format
@@ -309,7 +311,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     print(f"[ok] wrote {out_csv_path} [{len(submission)} rows]")
 
     # Print summary statistics
-    print(f"\n[info] Submission Statistics:")
+    print("\n[info] Submission Statistics:")
     print(f"  Mean prediction: {submission[args.pred_col].mean():.4f}")
     print(f"  Std prediction:  {submission[args.pred_col].std():.4f}")
     print(f"  Min prediction:  {submission[args.pred_col].min():.4f}")
