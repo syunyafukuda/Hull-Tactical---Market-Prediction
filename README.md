@@ -46,39 +46,85 @@ GitHub Codespaces を開発環境とし、パッケージ管理は **[uv](https:
 │  ├─ feature_generation/         # 特徴量生成モジュール
 │  │  ├─ su1/                     # SU1 (欠損構造一次特徴) ✅ 採用
 │  │  ├─ su5/                     # SU5 (共欠損構造特徴) ✅ 採用
-│  │  └─ su2-su11/                # その他SU (非採用)
+│  │  ├─ su2-su4/                 # その他SU (非採用)
+│  │  ├─ su7-su9/                 # その他SU (非採用)
+│  │  ├─ su10/                    # 外部データ特徴 (非採用)
+│  │  └─ su11/                    # Shrinkage特徴 (非採用)
 │  ├─ feature_selection/          # 特徴量選定モジュール
+│  │  ├─ common/                  # 共通評価ユーティリティ
+│  │  ├─ inference/               # 推論用特徴量ロード
+│  │  ├─ phase1/                  # 統計フィルタ
+│  │  ├─ phase2/                  # 重要度ベース選定
+│  │  └─ phase3/                  # 相関クラスタリング
+│  ├─ metrics/                    # メトリクス実装
+│  │  ├─ lgbm/                    # LGBM用メトリクス
+│  │  └─ lgbm_two_head/           # Two-Head用メトリクス
 │  ├─ models/                     # モデル実装 (8種類)
-│  │  ├─ common/                  # CV・特徴量ロード共通モジュール
-│  │  ├─ lgbm/                    # LightGBM ✅ ベースライン
-│  │  ├─ xgboost/                 # XGBoost ✅ アンサンブル候補
-│  │  ├─ catboost/                # CatBoost ✅ (非採用)
-│  │  ├─ extratrees/              # ExtraTrees ✅ (非採用)
-│  │  ├─ randomforest/            # RandomForest ✅ (非採用)
-│  │  ├─ ridge/                   # Ridge ✅ (非採用)
-│  │  ├─ lasso/                   # Lasso ✅ (非採用)
-│  │  └─ elasticnet/              # ElasticNet ✅ (非採用)
-│  ├─ ensemble/                   # アンサンブル実装 ← NEW
+│  │  ├─ common/                  # CV・Walk-Forward・シグナル変換
+│  │  ├─ lgbm/                    # LightGBM ✅ ベースライン + Two-Head
+│  │  ├─ xgboost/                 # XGBoost
+│  │  ├─ catboost/                # CatBoost
+│  │  ├─ extratrees/              # ExtraTrees
+│  │  ├─ randomforest/            # RandomForest
+│  │  ├─ ridge/                   # Ridge
+│  │  ├─ lasso/                   # Lasso
+│  │  └─ elasticnet/              # ElasticNet
+│  ├─ ensemble/                   # アンサンブル実装
 │  └─ preprocess/                 # 特徴量グループ別欠損補完
+│     ├─ E_group/                 # E系列特徴
+│     ├─ I_group/                 # I系列特徴
+│     ├─ M_group/                 # M系列特徴
+│     ├─ P_group/                 # P系列特徴
+│     ├─ S_group/                 # S系列特徴
+│     └─ V_group/                 # V系列特徴
 ├─ scripts/                       # CLI・ユーティリティ
+│  ├─ check_quality.sh            # Ruff + Pyright + Pytest
+│  ├─ fetch_data.sh               # Kaggleデータ取得
+│  ├─ tune_position_mapping.py    # ポジション変換チューニング
+│  ├─ MSR-proxy/                  # MSRプロキシスクリプト
+│  └─ simple_baseline/            # シンプルベースライン
 ├─ configs/
 │  ├─ preprocess.yaml             # 前処理設定
 │  ├─ feature_generation.yaml     # 特徴量生成設定
 │  ├─ feature_selection/          # 特徴量選定設定 (tier0-3)
 │  ├─ models/                     # モデル設定 (YAML)
-│  └─ ensemble/                   # アンサンブル設定 ← NEW
+│  ├─ ensemble/                   # アンサンブル設定
+│  └─ evaluation/                 # 評価設定
 ├─ artifacts/                     # 学習済み成果物 (Git管理外)
-│  ├─ tier0-3/                    # 特徴量選定の中間成果物
 │  ├─ models/                     # モデル別成果物
-│  └─ ensemble/                   # アンサンブル成果物 ← NEW
+│  │  ├─ lgbm-artifacts/          # LGBM標準モデル
+│  │  ├─ lgbm-sharpe-wf-opt/      # Walk-Forward最適化
+│  │  └─ lgbm-two-head/           # Two-Head学習モデル
+│  └─ ensemble/                   # アンサンブル成果物
 ├─ docs/
+│  ├─ EDA/                        # 探索的データ分析
 │  ├─ feature_generation/         # SU1-SU11 仕様書
 │  ├─ feature_selection/          # 特徴量選定レポート
-│  ├─ ensemble/                   # アンサンブル仕様書 ← NEW
-│  └─ models/                     # モデル選定仕様書
-├─ notebooks/                     # Kaggle提出用ノートブック
+│  ├─ models/                     # モデル選定仕様書
+│  ├─ ensemble/                   # アンサンブル仕様書
+│  ├─ evaluation/                 # 評価仕様書
+│  ├─ preprocess/                 # 前処理仕様書
+│  └─ submission/                 # 提出履歴
+├─ notebooks/
+│  ├─ EDA/                        # 探索的分析ノートブック
+│  ├─ feature_selection/          # 特徴量選定ノートブック
+│  └─ submit/                     # Kaggle提出用ノートブック
 ├─ tests/                         # Pytest テスト
+│  ├─ common/                     # 共通テストハーネス
+│  ├─ feature_generation/         # SU1-SU11 テスト
+│  ├─ feature_selection/          # 特徴量選定テスト
+│  ├─ metrics/                    # メトリクステスト
+│  ├─ models/                     # モデルテスト
+│  ├─ ensemble/                   # アンサンブルテスト
+│  └─ preprocess/                 # 前処理テスト
+├─ results/                       # 実験結果・スイープログ
+│  ├─ ablation/                   # アブレーション結果
+│  └─ position_sweep/             # ポジション変換スイープ
 ├─ data/                          # Kaggleデータ (Git管理外)
+│  ├─ raw/                        # 生データ
+│  ├─ processed/                  # 処理済みデータ
+│  ├─ interim/                    # 中間データ
+│  └─ external/                   # 外部データ
 ├─ pyproject.toml                 # uv 依存設定
 └─ README.md                      # 本ドキュメント
 ```
